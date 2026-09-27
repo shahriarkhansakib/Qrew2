@@ -1,5 +1,5 @@
 import type { TplIdToTokenMap, TplTokenToIdMap } from "@starter/db";
-import { db, templateConstants } from "@starter/db";
+import { db, templateConstants, tokens } from "@starter/db";
 import { eq } from "drizzle-orm";
 
 export async function buildConstantIndex(templateId: string): Promise<{
@@ -7,8 +7,9 @@ export async function buildConstantIndex(templateId: string): Promise<{
   tplIdToToken: TplIdToTokenMap;
 }> {
   const constants = await db
-    .select({ id: templateConstants.id, token: templateConstants.token })
+    .select({ id: templateConstants.id, token: tokens.tokenKey })
     .from(templateConstants)
+    .innerJoin(tokens, eq(tokens.id, templateConstants.id))
     .where(eq(templateConstants.templateId, templateId));
 
   const tplTokenToId: TplTokenToIdMap = {};

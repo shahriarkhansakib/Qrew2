@@ -5,12 +5,14 @@ import {
   templateRowCharges,
   templateRows,
   templateSectionCharges,
+  tokens,
 } from "@starter/db";
 import { and, eq, like, sql } from "drizzle-orm";
 import { type Context } from "hono";
 import { v4 as uuidv4 } from "uuid";
 import { z } from "zod";
 import { auth } from "../../infra/lib/auth";
+import { TokenService } from "../tokens/token.service";
 
 const createConfigSchema = z.object({
   configKey: z
@@ -49,21 +51,18 @@ export async function createConfig(c: Context) {
   const configKey = `GBL_${bareKey}`;
 
   try {
-    const [newConfig] = await db
-      .insert(organizationConfigs)
-      .values({
-        id: uuidv4(),
-        organizationId,
-        configKey,
-        configValue: parsed.data.configValue,
-        displayLabel: parsed.data.displayLabel || bareKey,
-        valueType: parsed.data.valueType,
-        isFormulaInjectable: parsed.data.isFormulaInjectable,
-        updatedByUserId: userId,
-      })
-      .returning();
+    const newConfig = await TokenService.createGlobalConstant({
+      id: uuidv4(),
+      configKey: bareKey,
+      configValue: parsed.data.configValue,
+      displayLabel: parsed.data.displayLabel || bareKey,
+      valueType: parsed.data.valueType,
+      isFormulaInjectable: parsed.data.isFormulaInjectable,
+      organizationId,
+      updatedByUserId: userId,
+    });
 
-    return c.json({ ...newConfig, displayKey: bareKey }, 201);
+    return c.json({ ...newConfig, configKey, displayKey: bareKey }, 201);
   } catch (err: any) {
     if (err.code === "23505") {
       // Postgres unique violation
@@ -83,8 +82,21 @@ export async function listConfigs(c: Context) {
   }
 
   const configs = await db
-    .select()
+    .select({
+      id: organizationConfigs.id,
+      organizationId: organizationConfigs.organizationId,
+      configKey: organizationConfigs.configKey,
+      configValue: organizationConfigs.configValue,
+      updatedByUserId: organizationConfigs.updatedByUserId,
+      createdAt: organizationConfigs.createdAt,
+      updatedAt: organizationConfigs.updatedAt,
+      displayLabel: tokens.label,
+      valueType: tokens.valueType,
+      isFormulaInjectable: tokens.isInjectable,
+      sortOrder: tokens.sortOrder,
+    })
     .from(organizationConfigs)
+    .innerJoin(tokens, eq(tokens.id, organizationConfigs.id))
     .where(eq(organizationConfigs.organizationId, organizationId));
 
   const transformed = configs.map((conf) => ({
@@ -114,20 +126,45 @@ export async function updateConfig(c: Context) {
     return c.json({ error: "Invalid data", details: parsed.error.format() }, 400);
   }
 
+  const tokenPatch: any = {};
+  if (parsed.data.displayLabel !== undefined) tokenPatch.label = parsed.data.displayLabel;
+  if (parsed.data.isFormulaInjectable !== undefined)
+    tokenPatch.isInjectable = parsed.data.isFormulaInjectable;
+
+  const configPatch: any = { updatedByUserId: userId };
+  if (parsed.data.configValue !== undefined) configPatch.configValue = parsed.data.configValue;
+
+  await db.transaction(async (tx) => {
+    if (Object.keys(tokenPatch).length > 0) {
+      await TokenService.updateToken(id, tokenPatch, tx);
+    }
+    await tx
+      .update(organizationConfigs)
+      .set(configPatch)
+      .where(
+        and(eq(organizationConfigs.id, id), eq(organizationConfigs.organizationId, organizationId)),
+      );
+  });
+
   const [updatedConfig] = await db
-    .update(organizationConfigs)
-    .set({
-      ...(parsed.data.configValue !== undefined && { configValue: parsed.data.configValue }),
-      ...(parsed.data.displayLabel !== undefined && { displayLabel: parsed.data.displayLabel }),
-      ...(parsed.data.isFormulaInjectable !== undefined && {
-        isFormulaInjectable: parsed.data.isFormulaInjectable,
-      }),
-      updatedByUserId: userId,
+    .select({
+      id: organizationConfigs.id,
+      organizationId: organizationConfigs.organizationId,
+      configKey: organizationConfigs.configKey,
+      configValue: organizationConfigs.configValue,
+      updatedByUserId: organizationConfigs.updatedByUserId,
+      createdAt: organizationConfigs.createdAt,
+      updatedAt: organizationConfigs.updatedAt,
+      displayLabel: tokens.label,
+      valueType: tokens.valueType,
+      isFormulaInjectable: tokens.isInjectable,
+      sortOrder: tokens.sortOrder,
     })
+    .from(organizationConfigs)
+    .innerJoin(tokens, eq(tokens.id, organizationConfigs.id))
     .where(
       and(eq(organizationConfigs.id, id), eq(organizationConfigs.organizationId, organizationId)),
-    )
-    .returning();
+    );
 
   if (!updatedConfig) {
     return c.json({ error: "Config not found" }, 404);
@@ -164,6 +201,7 @@ export async function deleteConfig(c: Context) {
 
   const bareKey = config.configKey.replace(/^(GBL_|ORG_)/, "");
   const gblTokenToFind = `%GBL_${bareKey}%`;
+  const uuidTokenToFind = `%{{$tok:${id}}}%`;
 
   // 2. Block if used in any template formula
   const [rowsUsingConfig, rowChargesUsingConfig, secChargesUsingConfig] = await Promise.all([
@@ -174,7 +212,7 @@ export async function deleteConfig(c: Context) {
       .where(
         and(
           eq(invoiceTemplates.organizationId, organizationId),
-          sql`${templateRows.formula} LIKE ${gblTokenToFind}`,
+          sql`(${templateRows.formula} LIKE ${gblTokenToFind} OR ${templateRows.formula} LIKE ${uuidTokenToFind})`,
         ),
       )
       .limit(1),
@@ -186,7 +224,7 @@ export async function deleteConfig(c: Context) {
       .where(
         and(
           eq(invoiceTemplates.organizationId, organizationId),
-          sql`${templateRowCharges.formula} LIKE ${gblTokenToFind}`,
+          sql`(${templateRowCharges.formula} LIKE ${gblTokenToFind} OR ${templateRowCharges.formula} LIKE ${uuidTokenToFind})`,
         ),
       )
       .limit(1),
@@ -197,7 +235,7 @@ export async function deleteConfig(c: Context) {
       .where(
         and(
           eq(invoiceTemplates.organizationId, organizationId),
-          sql`${templateSectionCharges.formula} LIKE ${gblTokenToFind}`,
+          sql`(${templateSectionCharges.formula} LIKE ${gblTokenToFind} OR ${templateSectionCharges.formula} LIKE ${uuidTokenToFind})`,
         ),
       )
       .limit(1),
@@ -214,12 +252,8 @@ export async function deleteConfig(c: Context) {
     );
   }
 
-  // 3. Delete the config
-  await db
-    .delete(organizationConfigs)
-    .where(
-      and(eq(organizationConfigs.id, id), eq(organizationConfigs.organizationId, organizationId)),
-    );
+  // 3. Delete the config via TokenService (cascades to organizationConfigs)
+  await TokenService.deleteToken(id);
 
   return c.json({ success: true });
 }

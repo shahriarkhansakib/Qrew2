@@ -1,14 +1,17 @@
 import type { RowIdToTokenMap, SecIdToTokenMap, TplIdToTokenMap } from "@starter/db";
 import {
   db,
+  invoiceTemplates,
+  organizationConfigs,
   templateConstants,
   templateHeaderFields,
   templateRowCharges,
   templateRows,
   templateSectionCharges,
   templateSections,
+  tokens,
 } from "@starter/db";
-import { eq, inArray } from "drizzle-orm";
+import { and, eq, inArray } from "drizzle-orm";
 import { Context } from "hono";
 import { z } from "zod";
 import { AstEvaluatorService } from "./ast-evaluator.service";
@@ -22,11 +25,12 @@ import type {
 } from "./types";
 
 const previewSchema = z.object({
-  projectId: z.string(),
+  projectId: z.string().optional().default(""),
   templateId: z.string().optional(),
   draftSections: z.array(z.any()).optional(),
   draftConstants: z.record(z.string(), z.any()).optional(),
   overrides: z.record(z.string(), z.string()).optional(),
+  externalOverrides: z.record(z.string(), z.string()).optional(),
   headerFieldValues: z.record(z.string(), z.string()).optional().default({}),
 });
 
@@ -73,14 +77,15 @@ export class EngineController {
       const { projectId, templateId, headerFieldValues } = parsed.data;
 
       // ─────────────────────────────────────────────────────────────────────
-      // 1. Resolve full token scope (FILE_*, ORG_*, CAT_*)
+      // 1. Resolve full token scope (FILE_*, GBL_*, EXP_*)
       // ─────────────────────────────────────────────────────────────────────
       const scope = await resolveScope({
-        projectId,
+        projectId: projectId ?? "",
         organizationId,
         templateId: templateId ?? "",
         db,
         headerFieldValues: headerFieldValues ?? {},
+        externalOverrides: parsed.data.externalOverrides,
       });
 
       // ─────────────────────────────────────────────────────────────────────
@@ -129,16 +134,19 @@ export class EngineController {
         if (templateId) {
           const [dbSections, dbRows, dbConstants] = await Promise.all([
             db
-              .select({ id: templateSections.id, sectionToken: templateSections.sectionToken })
+              .select({ id: templateSections.id, sectionToken: tokens.tokenKey })
               .from(templateSections)
+              .innerJoin(tokens, eq(tokens.id, templateSections.id))
               .where(eq(templateSections.templateId, templateId)),
             db
-              .select({ id: templateRows.id, rowToken: templateRows.rowToken })
+              .select({ id: templateRows.id, rowToken: tokens.tokenKey })
               .from(templateRows)
+              .innerJoin(tokens, eq(tokens.id, templateRows.id))
               .where(eq(templateRows.templateId, templateId)),
             db
-              .select({ id: templateConstants.id, token: templateConstants.token })
+              .select({ id: templateConstants.id, token: tokens.tokenKey })
               .from(templateConstants)
+              .innerJoin(tokens, eq(tokens.id, templateConstants.id))
               .where(eq(templateConstants.templateId, templateId)),
           ]);
           for (const r of dbRows) {
@@ -166,21 +174,63 @@ export class EngineController {
         // Fetch sections, rows, and section charges in parallel
         const [dbSections, dbRows, dbSectionCharges, dbConstants] = await Promise.all([
           db
-            .select()
+            .select({
+              id: templateSections.id,
+              templateId: templateSections.templateId,
+              sectionToken: tokens.tokenKey,
+              label: tokens.label,
+              description: tokens.description,
+              sortOrder: tokens.sortOrder,
+            })
             .from(templateSections)
+            .innerJoin(tokens, eq(tokens.id, templateSections.id))
             .where(eq(templateSections.templateId, templateId))
-            .orderBy(templateSections.sortOrder),
+            .orderBy(tokens.sortOrder),
           db
-            .select()
+            .select({
+              id: templateRows.id,
+              templateId: templateRows.templateId,
+              sectionId: templateRows.sectionId,
+              valueType: templateRows.valueType,
+              formula: templateRows.formula,
+              initialValue: templateRows.initialValue,
+              rowToken: tokens.tokenKey,
+              label: tokens.label,
+              description: tokens.description,
+              sortOrder: tokens.sortOrder,
+            })
             .from(templateRows)
+            .innerJoin(tokens, eq(tokens.id, templateRows.id))
             .where(eq(templateRows.templateId, templateId))
-            .orderBy(templateRows.sortOrder),
+            .orderBy(tokens.sortOrder),
           db
-            .select()
+            .select({
+              id: templateSectionCharges.id,
+              templateId: templateSectionCharges.templateId,
+              sectionId: templateSectionCharges.sectionId,
+              formula: templateSectionCharges.formula,
+              qualifier: templateSectionCharges.qualifier,
+              tags: templateSectionCharges.tags,
+              chargeToken: tokens.tokenKey,
+              label: tokens.label,
+              subDescription: tokens.description,
+              sortOrder: tokens.sortOrder,
+            })
             .from(templateSectionCharges)
+            .innerJoin(tokens, eq(tokens.id, templateSectionCharges.id))
             .where(eq(templateSectionCharges.templateId, templateId))
-            .orderBy(templateSectionCharges.sortOrder),
-          db.select().from(templateConstants).where(eq(templateConstants.templateId, templateId)),
+            .orderBy(tokens.sortOrder),
+          db
+            .select({
+              id: templateConstants.id,
+              templateId: templateConstants.templateId,
+              defaultValue: templateConstants.defaultValue,
+              token: tokens.tokenKey,
+              name: tokens.label,
+            })
+            .from(templateConstants)
+            .innerJoin(tokens, eq(tokens.id, templateConstants.id))
+            .where(eq(templateConstants.templateId, templateId)),
         ]);
 
         // templateRowCharges has no templateId column — fetch by rowId list
@@ -188,10 +238,21 @@ export class EngineController {
         const dbRowCharges =
           rowIds.length > 0
             ? await db
-                .select()
+                .select({
+                  id: templateRowCharges.id,
+                  rowId: templateRowCharges.rowId,
+                  formula: templateRowCharges.formula,
+                  qualifier: templateRowCharges.qualifier,
+                  tags: templateRowCharges.tags,
+                  chargeToken: tokens.tokenKey,
+                  label: tokens.label,
+                  subDescription: tokens.description,
+                  sortOrder: tokens.sortOrder,
+                })
                 .from(templateRowCharges)
+                .innerJoin(tokens, eq(tokens.id, templateRowCharges.id))
                 .where(inArray(templateRowCharges.rowId, rowIds))
-                .orderBy(templateRowCharges.sortOrder)
+                .orderBy(tokens.sortOrder)
             : [];
 
         // Build idToToken map: rowId -> rowToken (for decoding {{$row:uuid}} refs)
@@ -345,10 +406,24 @@ export class EngineController {
       let headerFieldDefs: any[] = [];
       if (templateId) {
         headerFieldDefs = await db
-          .select()
+          .select({
+            id: templateHeaderFields.id,
+            templateId: templateHeaderFields.templateId,
+            fieldType: templateHeaderFields.fieldType,
+            columnPosition: templateHeaderFields.columnPosition,
+            customFieldDefinitionId: templateHeaderFields.customFieldDefinitionId,
+            systemFieldKey: templateHeaderFields.systemFieldKey,
+            orgConfigKey: templateHeaderFields.orgConfigKey,
+            defaultManualValue: templateHeaderFields.defaultManualValue,
+            placeholder: templateHeaderFields.placeholder,
+            tokenKey: tokens.tokenKey,
+            label: tokens.label,
+            sortOrder: tokens.sortOrder,
+          })
           .from(templateHeaderFields)
+          .innerJoin(tokens, eq(tokens.id, templateHeaderFields.id))
           .where(eq(templateHeaderFields.templateId, templateId))
-          .orderBy(templateHeaderFields.sortOrder);
+          .orderBy(tokens.sortOrder);
       }
 
       // ─────────────────────────────────────────────────────────────────────

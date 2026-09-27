@@ -90,6 +90,20 @@ vi.mock("@starter/db", () => {
       sortOrder: "sc-sortOrder",
     },
     templateConstants: { id: "c-id", templateId: "c-templateId", token: "c-token" },
+    tokens: {
+      id: "tokens-id",
+      tokenKey: "tokens-tokenKey",
+      label: "tokens-label",
+      description: "tokens-description",
+      sortOrder: "tokens-sortOrder",
+      valueType: "tokens-valueType",
+      domain: "tokens-domain",
+      entityType: "tokens-entityType",
+      isSystem: "tokens-isSystem",
+      isInjectable: "tokens-isInjectable",
+      isVisible: "tokens-isVisible",
+      organizationId: "tokens-organizationId",
+    },
   };
 });
 

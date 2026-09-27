@@ -5,11 +5,13 @@ import {
   invoiceTemplates,
   templateRowCharges,
   templateRows,
+  tokens,
 } from "@starter/db";
 import { and, eq } from "drizzle-orm";
 import { Context } from "hono";
 import { z } from "zod";
 import { validateTemplateDag } from "../../../invoices/engine/engine-utils";
+import { TokenService } from "../../../tokens/token.service";
 import { getTemplateFormulaContext } from "../../services/template-formula-context.service";
 import {
   validateFormulaChars,
@@ -43,8 +45,9 @@ export async function createCharge(c: Context) {
   if (!organizationId) return c.json({ error: "Unauthorized" }, 401);
 
   const rowCheck = await db
-    .select({ row: templateRows })
+    .select({ row: templateRows, rowToken: tokens.tokenKey })
     .from(templateRows)
+    .innerJoin(tokens, eq(tokens.id, templateRows.id))
     .innerJoin(invoiceTemplates, eq(templateRows.templateId, invoiceTemplates.id))
     .where(and(eq(templateRows.id, rowId), eq(invoiceTemplates.organizationId, organizationId)))
     .limit(1);
@@ -55,12 +58,13 @@ export async function createCharge(c: Context) {
   if (!parsed.success) return c.json({ error: parsed.error }, 400);
 
   const existingRow = rowCheck[0].row;
+  const rowToken = rowCheck[0].rowToken ?? (existingRow as any)?.rowToken;
   const templateId = existingRow.templateId;
 
   const chargeToken =
-    parsed.data.chargeToken ?? `${existingRow.rowToken}_${toSnakeCase(parsed.data.label)}`;
+    parsed.data.chargeToken ?? `${rowToken}_${toSnakeCase(parsed.data.label)}`;
 
-  const rateVal = validateRateChargeFormula(parsed.data.formula, existingRow.rowToken);
+  const rateVal = validateRateChargeFormula(parsed.data.formula, rowToken);
   if (!rateVal.valid) {
     return c.json({ error: rateVal.error }, 422);
   }
@@ -69,12 +73,12 @@ export async function createCharge(c: Context) {
     return c.json({ error: charVal.error }, 422);
   }
 
-  const dup = await db.query.templateRowCharges.findFirst({
-    where: and(
-      eq(templateRowCharges.rowId, rowId),
-      eq(templateRowCharges.chargeToken, chargeToken),
-    ),
-  });
+    const dup = await db.query.tokens?.findFirst({
+      where: and(
+        eq(tokens.templateId, templateId),
+        eq(tokens.tokenKey, chargeToken),
+      ),
+    });
   if (dup) {
     return c.json({ error: `Row charge token "${chargeToken}" already exists on this row.` }, 409);
   }
@@ -84,20 +88,22 @@ export async function createCharge(c: Context) {
   try {
     const result = await db.transaction(async (tx) => {
       const encoded = context.encode(parsed.data.formula) ?? parsed.data.formula;
-      const [newCharge] = await tx
-        .insert(templateRowCharges)
-        .values({
+      const newCharge = await TokenService.createRowChargeToken(
+        {
           id: crypto.randomUUID(),
           rowId,
+          chargeToken,
           label: parsed.data.label,
           subDescription: parsed.data.subDescription ?? null,
           qualifier: parsed.data.qualifier ?? null,
           tags: parsed.data.tags ?? [],
-          chargeToken,
           formula: encoded,
+          templateId,
+          organizationId,
           sortOrder: parsed.data.orderIndex,
-        })
-        .returning();
+        },
+        tx,
+      );
 
       if (parsed.data.formula) {
         const validation = await validateTemplateDag(templateId, tx);

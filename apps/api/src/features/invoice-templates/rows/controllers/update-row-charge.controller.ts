@@ -5,11 +5,13 @@ import {
   invoiceTemplates,
   templateRowCharges,
   templateRows,
+  tokens,
 } from "@starter/db";
 import { and, eq } from "drizzle-orm";
 import { Context } from "hono";
 import { z } from "zod";
 import { validateTemplateDag } from "../../../invoices/engine/engine-utils";
+import { TokenService } from "../../../tokens/token.service";
 import { getTemplateFormulaContext } from "../../services/template-formula-context.service";
 import {
   validateFormulaChars,
@@ -42,8 +44,14 @@ export async function updateCharge(c: Context) {
   if (!organizationId) return c.json({ error: "Unauthorized" }, 401);
 
   const chargeCheck = await db
-    .select({ charge: templateRowCharges, row: templateRows })
+    .select({
+      charge: templateRowCharges,
+      token: tokens,
+      templateId: templateRows.templateId,
+      rowId: templateRows.id,
+    })
     .from(templateRowCharges)
+    .innerJoin(tokens, eq(tokens.id, templateRowCharges.id))
     .innerJoin(templateRows, eq(templateRowCharges.rowId, templateRows.id))
     .innerJoin(invoiceTemplates, eq(templateRows.templateId, invoiceTemplates.id))
     .where(
@@ -57,7 +65,13 @@ export async function updateCharge(c: Context) {
   if (!parsed.success) return c.json({ error: parsed.error }, 400);
 
   const existing = chargeCheck[0].charge;
-  const templateId = chargeCheck[0].row.templateId;
+  const existingToken = chargeCheck[0].token;
+  const templateId = chargeCheck[0].templateId;
+
+  const rowTokenRow = await db.query.tokens?.findFirst({
+    where: eq(tokens.id, chargeCheck[0].rowId),
+  });
+  const rowToken = rowTokenRow?.tokenKey ?? (chargeCheck[0] as any)?.row?.rowToken ?? "";
 
   const context = await getTemplateFormulaContext(templateId, organizationId);
   let encodedFormula: string | undefined;
@@ -67,24 +81,24 @@ export async function updateCharge(c: Context) {
   }
 
   if (parsed.data.formula !== undefined) {
-    const rateVal = validateRateChargeFormula(parsed.data.formula, chargeCheck[0].row.rowToken);
+    const rateVal = validateRateChargeFormula(parsed.data.formula, rowToken);
     if (!rateVal.valid) {
       return c.json({ error: rateVal.error }, 422);
     }
     const charVal = validateFormulaChars(
       parsed.data.formula,
-      parsed.data.chargeToken ?? existing.chargeToken,
+      parsed.data.chargeToken ?? existingToken?.tokenKey,
     );
     if (!charVal.valid) {
       return c.json({ error: charVal.error }, 422);
     }
   }
 
-  if (parsed.data.chargeToken && parsed.data.chargeToken !== existing.chargeToken) {
-    const dup = await db.query.templateRowCharges.findFirst({
+  if (parsed.data.chargeToken && parsed.data.chargeToken !== existingToken?.tokenKey) {
+    const dup = await db.query.tokens?.findFirst({
       where: and(
-        eq(templateRowCharges.rowId, existing.rowId),
-        eq(templateRowCharges.chargeToken, parsed.data.chargeToken),
+        eq(tokens.templateId, templateId),
+        eq(tokens.tokenKey, parsed.data.chargeToken),
       ),
     });
     if (dup) {
@@ -95,23 +109,33 @@ export async function updateCharge(c: Context) {
     }
   }
 
+  const tokenPatch: any = {};
+  if (parsed.data.chargeToken !== undefined) tokenPatch.tokenKey = parsed.data.chargeToken;
+  if (parsed.data.label !== undefined) tokenPatch.label = parsed.data.label;
+  if (parsed.data.subDescription !== undefined) tokenPatch.description = parsed.data.subDescription;
+  if (parsed.data.orderIndex !== undefined) tokenPatch.sortOrder = parsed.data.orderIndex;
+
+  const chargePatch: any = {};
+  if (parsed.data.qualifier !== undefined) chargePatch.qualifier = parsed.data.qualifier;
+  if (parsed.data.tags !== undefined) chargePatch.tags = parsed.data.tags;
+  if (encodedFormula !== undefined) chargePatch.formula = encodedFormula;
+
+  if (Object.keys(tokenPatch).length === 0 && Object.keys(chargePatch).length === 0) {
+    return c.json({ error: "No values to set" }, 400);
+  }
+
   try {
     const result = await db.transaction(async (tx) => {
-      const [updated] = await tx
-        .update(templateRowCharges)
-        .set({
-          ...(parsed.data.chargeToken !== undefined && { chargeToken: parsed.data.chargeToken }),
-          ...(parsed.data.label !== undefined && { label: parsed.data.label }),
-          ...(parsed.data.subDescription !== undefined && {
-            subDescription: parsed.data.subDescription,
-          }),
-          ...(parsed.data.qualifier !== undefined && { qualifier: parsed.data.qualifier }),
-          ...(parsed.data.tags !== undefined && { tags: parsed.data.tags }),
-          ...(encodedFormula !== undefined && { formula: encodedFormula }),
-          ...(parsed.data.orderIndex !== undefined && { sortOrder: parsed.data.orderIndex }),
-        })
-        .where(eq(templateRowCharges.id, chargeId))
-        .returning();
+      if (Object.keys(tokenPatch).length > 0) {
+        await TokenService.updateToken(chargeId, tokenPatch, tx);
+      }
+
+      if (Object.keys(chargePatch).length > 0) {
+        await tx
+          .update(templateRowCharges)
+          .set(chargePatch)
+          .where(eq(templateRowCharges.id, chargeId));
+      }
 
       if (encodedFormula !== undefined || parsed.data.chargeToken !== undefined) {
         const validation = await validateTemplateDag(templateId, tx);
@@ -120,9 +144,37 @@ export async function updateCharge(c: Context) {
         }
       }
 
+      const [finalCharge] = await tx
+        .select({
+          id: templateRowCharges.id,
+          rowId: templateRowCharges.rowId,
+          qualifier: templateRowCharges.qualifier,
+          tags: templateRowCharges.tags,
+          formula: templateRowCharges.formula,
+          chargeToken: tokens.tokenKey,
+          label: tokens.label,
+          subDescription: tokens.description,
+          sortOrder: tokens.sortOrder,
+        })
+        .from(templateRowCharges)
+        .innerJoin(tokens, eq(tokens.id, templateRowCharges.id))
+        .where(eq(templateRowCharges.id, chargeId));
+
+      const mergedCharge = finalCharge ?? {
+        ...existing,
+        ...existingToken,
+        formula: encodedFormula ?? existing.formula,
+        chargeToken: parsed.data.chargeToken ?? existingToken?.tokenKey ?? (existing as any)?.chargeToken,
+        label: parsed.data.label ?? existingToken?.label ?? (existing as any)?.label,
+        subDescription:
+          parsed.data.subDescription !== undefined
+            ? parsed.data.subDescription
+            : existingToken?.description ?? (existing as any)?.subDescription,
+      };
+
       return {
-        ...updated,
-        formula: context.decode(updated.formula) ?? updated.formula,
+        ...mergedCharge,
+        formula: context.decode(mergedCharge.formula) ?? mergedCharge.formula,
       };
     });
 

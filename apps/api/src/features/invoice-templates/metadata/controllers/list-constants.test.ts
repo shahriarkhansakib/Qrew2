@@ -33,6 +33,9 @@ vi.mock("@starter/db", () => {
       returning: vi.fn().mockResolvedValue([]),
     })),
     transaction: vi.fn(),
+    query: {
+      invoiceTemplates: { findFirst: vi.fn() },
+    },
   };
   db.transaction = vi.fn(async (fn: any) => fn(db));
 
@@ -40,13 +43,26 @@ vi.mock("@starter/db", () => {
     db,
     eq,
     and,
+    asc: vi.fn(),
+    tokens: {
+      id: "id",
+      tokenKey: "tokenKey",
+      label: "label",
+      description: "description",
+      sortOrder: "sortOrder",
+      valueType: "valueType",
+      domain: "domain",
+      entityType: "entityType",
+      isSystem: "isSystem",
+      isInjectable: "isInjectable",
+      isVisible: "isVisible",
+      organizationId: "organizationId",
+    },
     encodeFormula: vi.fn((f: any) => f),
     templateConstants: {
       id: "id",
       templateId: "templateId",
-      token: "token",
       defaultValue: "defaultValue",
-      name: "name",
     },
     templateRows: { id: "id", templateId: "templateId", rowToken: "rowToken", formula: "formula" },
     templateSections: { id: "id", templateId: "templateId", sectionToken: "sectionToken" },
@@ -61,7 +77,9 @@ import { listConstants } from "./list-constants.controller";
 function mockSelectReturns(value: any[]) {
   (db.select as any).mockReturnValue({
     from: vi.fn().mockReturnThis(),
-    where: vi.fn().mockResolvedValue(value),
+    innerJoin: vi.fn().mockReturnThis(),
+    where: vi.fn().mockReturnThis(),
+    orderBy: vi.fn().mockResolvedValue(value),
     then: (resolve: any) => resolve(value),
   });
 }
@@ -70,6 +88,29 @@ describe("listConstants", () => {
   beforeEach(() => {
     vi.resetAllMocks();
     (db.transaction as any).mockImplementation(async (fn: any) => fn(db));
+    (db.query.invoiceTemplates.findFirst as any).mockResolvedValue({
+      id: TEMPLATE_ID,
+      organizationId: "org-001",
+    });
+  });
+
+  it("returns 401 when unauthenticated", async () => {
+    const ctx = makeCtx({
+      orgId: null,
+      params: { templateId: TEMPLATE_ID },
+    });
+    const res = await listConstants(ctx);
+    expect(res.status).toBe(401);
+  });
+
+  it("returns 404 when template belongs to a foreign organization", async () => {
+    (db.query.invoiceTemplates.findFirst as any).mockResolvedValue(null);
+    const ctx = makeCtx({
+      orgId: "foreign-org-999",
+      params: { templateId: TEMPLATE_ID },
+    });
+    const res = await listConstants(ctx);
+    expect(res.status).toBe(404);
   });
 
   it("returns list of constants for templateId", async () => {

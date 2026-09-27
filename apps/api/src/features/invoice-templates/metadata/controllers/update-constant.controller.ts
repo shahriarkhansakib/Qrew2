@@ -1,14 +1,12 @@
 import {
   db,
   templateConstants,
-  templateRows,
-  templateSectionCharges,
-  templateSections,
+  tokens,
 } from "@starter/db";
-import { eq } from "drizzle-orm";
+import { and, eq } from "drizzle-orm";
 import { Context } from "hono";
 import { z } from "zod";
-import { getTemplateFormulaContext } from "../../services/template-formula-context.service";
+import { TokenService } from "../../../tokens/token.service";
 
 const updateConstantSchema = z.object({
   key: z
@@ -23,58 +21,58 @@ const updateConstantSchema = z.object({
 
 export async function updateConstant(c: Context) {
   const id = c.req.param("constantId") as string;
+  const organizationId = c.get("organizationId") as string;
+  if (!organizationId) return c.json({ error: "Unauthorized" }, 401);
+
+  const existing = await db
+    .select({ id: templateConstants.id })
+    .from(templateConstants)
+    .innerJoin(tokens, eq(tokens.id, templateConstants.id))
+    .where(and(eq(templateConstants.id, id), eq(tokens.organizationId, organizationId)))
+    .limit(1);
+  if (existing.length === 0) return c.json({ error: "Constant not found" }, 404);
 
   const body = await c.req.json();
   const parsed = updateConstantSchema.safeParse(body);
   if (!parsed.success) return c.json({ error: parsed.error }, 400);
 
-  const updateData: any = {};
-  if (parsed.data.key !== undefined) updateData.token = parsed.data.key;
-  if (parsed.data.valueType !== undefined) updateData.valueType = parsed.data.valueType;
-  if (parsed.data.value !== undefined) updateData.defaultValue = parsed.data.value;
-  if (parsed.data.description !== undefined) updateData.name = parsed.data.description;
+  const tokenPatch: any = {};
+  if (parsed.data.key !== undefined) tokenPatch.tokenKey = parsed.data.key;
+  if (parsed.data.valueType !== undefined) tokenPatch.valueType = parsed.data.valueType;
+  if (parsed.data.description !== undefined) tokenPatch.label = parsed.data.description;
 
-  let updated;
+  const constPatch: any = {};
+  if (parsed.data.value !== undefined) constPatch.defaultValue = parsed.data.value;
+
+  if (Object.keys(tokenPatch).length === 0 && Object.keys(constPatch).length === 0) {
+    return c.json({ error: "No values to set" }, 400);
+  }
+
   await db.transaction(async (tx) => {
-    [updated] = await tx
-      .update(templateConstants)
-      .set(updateData)
-      .where(eq(templateConstants.id, id))
-      .returning();
-
-    if (updated && updateData.token) {
-      const templateId = updated.templateId;
-      const context = await getTemplateFormulaContext(templateId, undefined, tx);
-
-      const rowsList = await tx
-        .select({ id: templateRows.id, formula: templateRows.formula })
-        .from(templateRows)
-        .where(eq(templateRows.templateId, templateId));
-      for (const r of rowsList) {
-        if (r.formula) {
-          await tx
-            .update(templateRows)
-            .set({ formula: context.encode(r.formula) })
-            .where(eq(templateRows.id, r.id));
-        }
-      }
-
-      const secChargesList = await tx
-        .select({ id: templateSectionCharges.id, formula: templateSectionCharges.formula })
-        .from(templateSectionCharges)
-        .innerJoin(templateSections, eq(templateSectionCharges.sectionId, templateSections.id))
-        .where(eq(templateSections.templateId, templateId));
-      for (const c of secChargesList) {
-        if (c.formula) {
-          const encoded = context.encode(c.formula) ?? c.formula;
-          await tx
-            .update(templateSectionCharges)
-            .set({ formula: encoded })
-            .where(eq(templateSectionCharges.id, c.id));
-        }
-      }
+    if (Object.keys(tokenPatch).length > 0) {
+      await TokenService.updateToken(id, tokenPatch, tx);
+    }
+    if (Object.keys(constPatch).length > 0) {
+      await tx
+        .update(templateConstants)
+        .set(constPatch)
+        .where(eq(templateConstants.id, id));
     }
   });
+
+  const [updated] = await db
+    .select({
+      id: templateConstants.id,
+      templateId: templateConstants.templateId,
+      defaultValue: templateConstants.defaultValue,
+      token: tokens.tokenKey,
+      name: tokens.label,
+      valueType: tokens.valueType,
+      sortOrder: tokens.sortOrder,
+    })
+    .from(templateConstants)
+    .innerJoin(tokens, eq(tokens.id, templateConstants.id))
+    .where(eq(templateConstants.id, id));
 
   if (!updated) return c.json({ error: "Not found" }, 404);
 

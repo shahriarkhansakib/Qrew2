@@ -28,12 +28,15 @@ export function useFormulaAutocomplete(
     return Object.keys(tokenMap)
       .filter((t) => {
         if (hiddenTokens.has(t)) return false;
-        if (
+        if (t === "EXP_TOTAL") {
+          // Explicitly keep EXP_TOTAL
+        } else if (
           t.endsWith("_TOTAL") ||
           t.startsWith("ORG_") ||
           t.startsWith("GBL_") ||
           t.startsWith("FILE_") ||
-          t.startsWith("TPL_")
+          t.startsWith("TPL_") ||
+          t.startsWith("EXP_")
         ) {
           return false;
         }

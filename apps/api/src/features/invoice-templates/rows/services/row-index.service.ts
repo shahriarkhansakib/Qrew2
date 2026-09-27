@@ -1,5 +1,5 @@
 import type { RowIdToTokenMap, RowTokenToIdMap } from "@starter/db";
-import { db, templateRows } from "@starter/db";
+import { db, templateRows, tokens } from "@starter/db";
 import { eq } from "drizzle-orm";
 
 /** Build token↔id lookup maps for all rows in a template. */
@@ -8,8 +8,9 @@ export async function buildRowIndex(templateId: string): Promise<{
   idToToken: RowIdToTokenMap;
 }> {
   const rows = await db
-    .select({ id: templateRows.id, rowToken: templateRows.rowToken })
+    .select({ id: templateRows.id, rowToken: tokens.tokenKey })
     .from(templateRows)
+    .innerJoin(tokens, eq(tokens.id, templateRows.id))
     .where(eq(templateRows.templateId, templateId));
 
   const tokenToId: RowTokenToIdMap = {};

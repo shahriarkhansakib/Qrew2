@@ -1,4 +1,4 @@
-import { db, invoiceTemplates, templateRows, templateSections } from "@starter/db";
+import { db, invoiceTemplates, templateRows, templateSections, tokens } from "@starter/db";
 import { and, eq } from "drizzle-orm";
 import { Context } from "hono";
 import { z } from "zod";
@@ -30,9 +30,9 @@ export async function reorderRows(c: Context) {
     await Promise.all(
       orderedIds.map((id, index) =>
         tx
-          .update(templateRows)
+          .update(tokens)
           .set({ sortOrder: index })
-          .where(and(eq(templateRows.id, id), eq(templateRows.sectionId, sectionId))),
+          .where(eq(tokens.id, id)),
       ),
     );
   });

@@ -1,5 +1,6 @@
 import type { ResolvedScopeV2 } from "@starter/db";
 import {
+  customFieldDefinitions,
   expenseCategories,
   expenses,
   organizationConfigs,
@@ -7,6 +8,7 @@ import {
   projects,
   templateConstants,
   templateHeaderFields,
+  tokens,
 } from "@starter/db";
 import { and, eq, sql } from "drizzle-orm";
 import * as math from "mathjs";
@@ -21,6 +23,8 @@ export interface ResolveScopeInput {
   db: any;
   /** Manual header field overrides from the invoice draft/generator */
   headerFieldValues?: Record<string, string>;
+  /** External token overrides from preview / test input panel */
+  externalOverrides?: Record<string, string>;
 }
 
 /**
@@ -28,43 +32,56 @@ export interface ResolveScopeInput {
  *
  * Returns Record<tokenKey, BigNumber-as-string> — never undefined for known tokens.
  *
- * 1. EXP_* / CAT_* — SUM of expenses per category
- * 2. GBL_* / ORG_* — organization_configs WHERE isFormulaInjectable = true
+ * 1. EXP_* — SUM of expenses per category + EXP_TOTAL
+ * 2. GBL_* — organization_configs WHERE tokens.isInjectable = true
  * 3. TPL_* — template_constants for the given template
  * 4. FILE_* — from projects.customFields + direct columns per template_header_fields config
  *
  * All values stored as serialized BigNumber strings (e.g. "4200.000000")
  */
 export async function resolveScope(input: ResolveScopeInput): Promise<Record<string, string>> {
-  const { projectId, organizationId, templateId, db, headerFieldValues = {} } = input;
+  const {
+    projectId,
+    organizationId,
+    templateId,
+    db,
+    headerFieldValues = {},
+    externalOverrides,
+  } = input;
   const scope: Record<string, string> = {};
 
   // -----------------------------------------------------------------------
-  // 1. EXP_* / CAT_* — expense category sums for this project
+  // 1. EXP_* — expense category sums for this project + EXP_TOTAL
   // -----------------------------------------------------------------------
 
-  // First, get ALL categories for the org (so we can zero-initialize them)
+  // Zero-initialize all non-system categories
   const allCategories = await db
     .select({
-      tokenKey: expenseCategories.tokenKey,
+      id: expenseCategories.id,
+      tokenKey: tokens.tokenKey,
+      isSystem: tokens.isSystem,
     })
     .from(expenseCategories)
-    .where(eq(expenseCategories.organizationId, organizationId));
+    .innerJoin(tokens, eq(tokens.id, expenseCategories.id))
+    .where(eq(tokens.organizationId, organizationId));
 
+  let expTotal = bigMath.bignumber(0);
   for (const cat of allCategories) {
-    if (cat.tokenKey) {
+    if (!cat.isSystem && cat.tokenKey) {
       scope[`EXP_${cat.tokenKey}`] = "0.000000";
-      scope[`CAT_${cat.tokenKey}`] = "0.000000";
+      scope[cat.tokenKey] = "0.000000";
     }
   }
 
-  // Then, compute actual sums and override the zeros
+  // Compute actual sums and override the zeros
   const categorySums = await db
     .select({
-      tokenKey: expenseCategories.tokenKey,
+      tokenKey: tokens.tokenKey,
+      isSystem: tokens.isSystem,
       total: sql<string>`COALESCE(SUM(${expenses.amount}::numeric), 0)::text`,
     })
     .from(expenseCategories)
+    .innerJoin(tokens, eq(tokens.id, expenseCategories.id))
     .leftJoin(
       expenses,
       and(
@@ -73,35 +90,44 @@ export async function resolveScope(input: ResolveScopeInput): Promise<Record<str
         eq(expenses.organizationId, organizationId),
       ),
     )
-    .where(eq(expenseCategories.organizationId, organizationId))
-    .groupBy(expenseCategories.tokenKey, expenseCategories.id);
+    .where(and(eq(tokens.organizationId, organizationId), eq(tokens.isSystem, false)))
+    .groupBy(tokens.tokenKey, tokens.isSystem, expenseCategories.id);
 
   for (const row of categorySums) {
     if (row.tokenKey) {
       const bn = bigMath.bignumber(row.total ?? "0");
       const formatted = (bn as math.BigNumber).toFixed(6);
       scope[`EXP_${row.tokenKey}`] = formatted;
-      scope[`CAT_${row.tokenKey}`] = formatted;
+      scope[row.tokenKey] = formatted;
+      expTotal = bigMath.add(expTotal, bn);
     }
   }
+
+  // Register EXP_TOTAL
+  const expTotalFormatted = (expTotal as math.BigNumber).toFixed(6);
+  scope["EXP_TOTAL"] = expTotalFormatted;
 
   // -----------------------------------------------------------------------
   // 2. GBL_* — injectable organization constants
   // -----------------------------------------------------------------------
   const orgConfigs = await db
-    .select()
+    .select({
+      tokenKey: tokens.tokenKey,
+      configValue: organizationConfigs.configValue,
+    })
     .from(organizationConfigs)
+    .innerJoin(tokens, eq(tokens.id, organizationConfigs.id))
     .where(
       and(
-        eq(organizationConfigs.organizationId, organizationId),
-        eq(organizationConfigs.isFormulaInjectable, true),
+        eq(tokens.organizationId, organizationId),
+        eq(tokens.isInjectable, true),
       ),
     );
 
   for (const conf of orgConfigs) {
     const bn = bigMath.bignumber(conf.configValue ?? "0");
     const formatted = (bn as math.BigNumber).toFixed(6);
-    const bareKey = conf.configKey.replace(/^(GBL_|ORG_)/, "");
+    const bareKey = conf.tokenKey.replace(/^(GBL_|ORG_)/, "");
     scope[`GBL_${bareKey}`] = formatted;
     scope[bareKey] = formatted;
   }
@@ -110,15 +136,19 @@ export async function resolveScope(input: ResolveScopeInput): Promise<Record<str
   // 3. TPL_* — template constants
   // -----------------------------------------------------------------------
   const tplConsts = await db
-    .select()
+    .select({
+      tokenKey: tokens.tokenKey,
+      defaultValue: templateConstants.defaultValue,
+    })
     .from(templateConstants)
+    .innerJoin(tokens, eq(tokens.id, templateConstants.id))
     .where(eq(templateConstants.templateId, templateId));
 
   for (const c of tplConsts) {
     const val = parseFloat(c.defaultValue ?? "0");
     const bn = bigMath.bignumber(isNaN(val) ? 0 : val);
     const formatted = (bn as math.BigNumber).toFixed(6);
-    const bareToken = c.token.replace(/^TPL_/, "");
+    const bareToken = c.tokenKey.replace(/^TPL_/, "");
     scope[`TPL_${bareToken}`] = formatted;
     scope[bareToken] = formatted;
   }
@@ -143,19 +173,29 @@ export async function resolveScope(input: ResolveScopeInput): Promise<Record<str
 
   // Fetch injectable header fields for this template
   const headerFields = await db
-    .select()
+    .select({
+      id: templateHeaderFields.id,
+      tokenKey: tokens.tokenKey,
+      customFieldDefinitionId: templateHeaderFields.customFieldDefinitionId,
+      systemFieldKey: templateHeaderFields.systemFieldKey,
+      defaultManualValue: templateHeaderFields.defaultManualValue,
+      fieldKey: customFieldDefinitions.fieldKey,
+    })
     .from(templateHeaderFields)
+    .innerJoin(tokens, eq(tokens.id, templateHeaderFields.id))
+    .leftJoin(
+      customFieldDefinitions,
+      eq(templateHeaderFields.customFieldDefinitionId, customFieldDefinitions.id),
+    )
     .where(
       and(
         eq(templateHeaderFields.templateId, templateId),
-        eq(templateHeaderFields.isFormulaInjectable, true),
+        eq(tokens.isInjectable, true),
       ),
     );
 
   for (const field of headerFields) {
-    if (!field.fileFieldKey) continue;
-
-    const bareKey = field.fileFieldKey.toUpperCase().replace(/^FILE_/, "");
+    const bareKey = field.tokenKey.toUpperCase().replace(/^FILE_/, "");
     const tokenKey = `FILE_${bareKey}`;
 
     // Check if staff provided a manual override for this field
@@ -170,13 +210,14 @@ export async function resolveScope(input: ResolveScopeInput): Promise<Record<str
     // Try to read from project data
     if (project) {
       let rawValue: string | number | null = null;
+      const lookupKey = field.fieldKey || field.systemFieldKey;
 
-      if (field.fileFieldKey === "status") {
+      if (lookupKey === "status") {
         rawValue = statusName ?? project.status;
-      } else if (field.fileFieldKey in (project as any)) {
-        rawValue = (project as any)[field.fileFieldKey];
-      } else if (project.customFields && field.fileFieldKey in project.customFields) {
-        rawValue = project.customFields[field.fileFieldKey];
+      } else if (lookupKey && lookupKey in (project as any)) {
+        rawValue = (project as any)[lookupKey];
+      } else if (lookupKey && project.customFields && lookupKey in project.customFields) {
+        rawValue = project.customFields[lookupKey];
       }
 
       if (rawValue !== null && rawValue !== undefined) {
@@ -211,6 +252,23 @@ export async function resolveScope(input: ResolveScopeInput): Promise<Record<str
           const bareKey = key.toUpperCase().replace(/^FILE_/, "");
           scope[`FILE_${bareKey}`] = formatted;
           scope[bareKey] = formatted;
+        }
+      }
+    }
+  }
+
+  // -----------------------------------------------------------------------
+  // 5. External Overrides (e.g. from preview test input panel)
+  // -----------------------------------------------------------------------
+  if (externalOverrides) {
+    for (const [k, v] of Object.entries(externalOverrides)) {
+      const parsed = parseFloat(v);
+      if (!isNaN(parsed)) {
+        const formatted = bigMath.bignumber(parsed).toFixed(6);
+        scope[k] = formatted;
+        const bare = k.replace(/^(EXP_|FILE_|GBL_|TPL_)/, "");
+        if (bare !== k) {
+          scope[bare] = formatted;
         }
       }
     }

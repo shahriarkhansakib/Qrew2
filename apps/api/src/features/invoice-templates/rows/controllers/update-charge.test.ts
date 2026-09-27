@@ -58,6 +58,7 @@ vi.mock("@starter/db", () => {
     })),
     transaction: vi.fn(),
     query: {
+      tokens: { findFirst: vi.fn(), findMany: vi.fn() },
       templateRowCharges: { findFirst: vi.fn(), findMany: vi.fn() },
       templateRows: { findFirst: vi.fn(), findMany: vi.fn() },
     },
@@ -69,6 +70,20 @@ vi.mock("@starter/db", () => {
     eq,
     and,
     asc,
+    tokens: {
+      id: "tokens-id",
+      tokenKey: "tokens-tokenKey",
+      label: "tokens-label",
+      description: "tokens-description",
+      sortOrder: "tokens-sortOrder",
+      valueType: "tokens-valueType",
+      domain: "tokens-domain",
+      entityType: "tokens-entityType",
+      isSystem: "tokens-isSystem",
+      isInjectable: "tokens-isInjectable",
+      isVisible: "tokens-isVisible",
+      organizationId: "tokens-organizationId",
+    },
     encodeFormula: vi.fn((f: any) => f),
     decodeFormula: vi.fn((f: any) => f),
     templateRows: {

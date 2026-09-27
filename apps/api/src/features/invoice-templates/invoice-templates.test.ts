@@ -73,6 +73,20 @@ vi.mock("@starter/db", () => {
       organizationId: "organizationId",
       entityType: "entityType",
     },
+    tokens: {
+      id: "id",
+      tokenKey: "tokenKey",
+      label: "label",
+      description: "description",
+      sortOrder: "sortOrder",
+      valueType: "valueType",
+      domain: "domain",
+      entityType: "entityType",
+      isSystem: "isSystem",
+      isInjectable: "isInjectable",
+      isVisible: "isVisible",
+      organizationId: "organizationId",
+    },
   };
 });
 
@@ -164,6 +178,13 @@ describe("InvoiceTemplatesController", () => {
       expect(res.status).toBe(404);
     });
 
+    it("returns 404 when foreign org attempts to access template", async () => {
+      mockSelectReturns([]);
+      const ctx = makeCtx({ orgId: "foreign-org-999", params: { id: TEMPLATE_ID } });
+      const res = await InvoiceTemplatesController.getTemplate(ctx);
+      expect(res.status).toBe(404);
+    });
+
     it("returns the template on happy path", async () => {
       const tpl = makeTemplate();
       mockSelectReturns([tpl]);
@@ -238,6 +259,21 @@ describe("InvoiceTemplatesController", () => {
       expect(res.status).toBe(404);
     });
 
+    it("returns 404 when foreign org attempts to update template", async () => {
+      (db.update as any).mockReturnValue({
+        set: vi.fn().mockReturnThis(),
+        where: vi.fn().mockReturnThis(),
+        returning: vi.fn().mockResolvedValue([]),
+      });
+      const ctx = makeCtx({
+        orgId: "foreign-org-999",
+        params: { id: TEMPLATE_ID },
+        body: { name: "New" },
+      });
+      const res = await InvoiceTemplatesController.updateTemplate(ctx);
+      expect(res.status).toBe(404);
+    });
+
     it("returns 400 when name is an empty string", async () => {
       const ctx = makeCtx({ params: { id: TEMPLATE_ID }, body: { name: "" } });
       const res = await InvoiceTemplatesController.updateTemplate(ctx);
@@ -270,6 +306,16 @@ describe("InvoiceTemplatesController", () => {
         returning: vi.fn().mockResolvedValue([]),
       });
       const ctx = makeCtx({ params: { id: TEMPLATE_ID } });
+      const res = await InvoiceTemplatesController.deleteTemplate(ctx);
+      expect(res.status).toBe(404);
+    });
+
+    it("returns 404 when foreign org attempts to delete template", async () => {
+      (db.delete as any).mockReturnValue({
+        where: vi.fn().mockReturnThis(),
+        returning: vi.fn().mockResolvedValue([]),
+      });
+      const ctx = makeCtx({ orgId: "foreign-org-999", params: { id: TEMPLATE_ID } });
       const res = await InvoiceTemplatesController.deleteTemplate(ctx);
       expect(res.status).toBe(404);
     });

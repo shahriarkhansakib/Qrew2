@@ -41,12 +41,24 @@ vi.mock("@starter/db", () => {
     eq,
     and,
     encodeFormula: vi.fn((f: any) => f),
+    tokens: {
+      id: "id",
+      tokenKey: "tokenKey",
+      label: "label",
+      description: "description",
+      sortOrder: "sortOrder",
+      valueType: "valueType",
+      domain: "domain",
+      entityType: "entityType",
+      isSystem: "isSystem",
+      isInjectable: "isInjectable",
+      isVisible: "isVisible",
+      organizationId: "organizationId",
+    },
     templateConstants: {
       id: "id",
       templateId: "templateId",
-      token: "token",
       defaultValue: "defaultValue",
-      name: "name",
     },
     templateRows: { id: "id", templateId: "templateId", rowToken: "rowToken", formula: "formula" },
     templateSections: { id: "id", templateId: "templateId", sectionToken: "sectionToken" },
@@ -69,6 +81,26 @@ describe("deleteConstant", () => {
   beforeEach(() => {
     vi.resetAllMocks();
     (db.transaction as any).mockImplementation(async (fn: any) => fn(db));
+    (db.select as any).mockReturnValue(hoistedChain([{ id: CONSTANT_ID }]));
+  });
+
+  it("returns 401 when unauthenticated", async () => {
+    const ctx = makeCtx({
+      orgId: null,
+      params: { constantId: CONSTANT_ID },
+    });
+    const res = await deleteConstant(ctx);
+    expect(res.status).toBe(401);
+  });
+
+  it("returns 404 when constant belongs to a foreign organization", async () => {
+    (db.select as any).mockReturnValue(hoistedChain([]));
+    const ctx = makeCtx({
+      orgId: "foreign-org-999",
+      params: { constantId: CONSTANT_ID },
+    });
+    const res = await deleteConstant(ctx);
+    expect(res.status).toBe(404);
   });
 
   it("deletes constant and returns {success:true}", async () => {
@@ -80,6 +112,7 @@ describe("deleteConstant", () => {
   });
 
   it("returns 404 when constant not found", async () => {
+    (db.select as any).mockReturnValue(hoistedChain([]));
     mockDeleteReturns(null);
     const ctx = makeCtx({ params: { constantId: CONSTANT_ID } });
     const res = await deleteConstant(ctx);

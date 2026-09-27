@@ -1,6 +1,7 @@
 import { db, invoiceTemplates, templateSections } from "@starter/db";
 import { and, eq } from "drizzle-orm";
 import { Context } from "hono";
+import { TokenService } from "../../../tokens/token.service";
 
 export async function deleteSection(c: Context) {
   const sectionId = c.req.param("sectionId") as string;
@@ -18,8 +19,8 @@ export async function deleteSection(c: Context) {
 
   if (sectionRow.length === 0) return c.json({ error: "Section not found" }, 404);
 
-  // Cascade: rows → components → charges, section charges all delete via FK CASCADE
-  await db.delete(templateSections).where(eq(templateSections.id, sectionId));
+  // Deleting token cascades to templateSections and all child rows/charges
+  await TokenService.deleteToken(sectionId);
 
   return c.json({ success: true });
 }

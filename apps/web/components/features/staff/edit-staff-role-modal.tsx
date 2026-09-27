@@ -44,7 +44,7 @@ export function EditStaffRoleModal({
   const [isLoading, setIsLoading] = useState(false);
   const [roleId, setRoleId] = useState(currentRoleId || "");
 
-  const apiUrl = process.env.NEXT_PUBLIC_API_URL || "http://localhost:3000";
+  const apiUrl = process.env.NEXT_PUBLIC_API_URL || "http://localhost:5002";
 
   // Fetch available roles for the dropdown
   const { data, isLoading: isLoadingRoles } = useQuery({

@@ -1,7 +1,8 @@
-import { db, invoiceTemplates, templateSections } from "@starter/db";
+import { db, invoiceTemplates, templateSections, tokens } from "@starter/db";
 import { and, eq } from "drizzle-orm";
 import { Context } from "hono";
 import { z } from "zod";
+import { TokenService } from "../../../tokens/token.service";
 import { nextSectionToken } from "../services/section-index.service";
 
 const createSectionSchema = z.object({
@@ -37,10 +38,10 @@ export async function createSection(c: Context) {
     sectionToken = await nextSectionToken(templateId);
   }
 
-  const collision = await db.query.templateSections.findFirst({
+  const collision = await db.query.tokens?.findFirst({
     where: and(
-      eq(templateSections.templateId, templateId),
-      eq(templateSections.sectionToken, sectionToken),
+      eq(tokens.templateId, templateId),
+      eq(tokens.tokenKey, sectionToken),
     ),
   });
   if (collision) {
@@ -50,17 +51,15 @@ export async function createSection(c: Context) {
     );
   }
 
-  const [newSection] = await db
-    .insert(templateSections)
-    .values({
-      id: crypto.randomUUID(),
-      templateId,
-      label: parsed.data.label ?? null,
-      description: parsed.data.description ?? null,
-      sectionToken,
-      sortOrder: parsed.data.orderIndex,
-    })
-    .returning();
+  const newSection = await TokenService.createSectionToken({
+    id: crypto.randomUUID(),
+    templateId,
+    sectionToken,
+    label: parsed.data.label ?? null,
+    description: parsed.data.description ?? null,
+    organizationId,
+    sortOrder: parsed.data.orderIndex,
+  });
 
   return c.json(newSection, 201);
 }

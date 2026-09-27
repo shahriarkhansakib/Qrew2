@@ -89,7 +89,7 @@ export function OrganizationPortalView() {
     setIsCreating(true);
 
     try {
-      const apiUrl = process.env.NEXT_PUBLIC_API_URL || "http://localhost:3002";
+      const apiUrl = process.env.NEXT_PUBLIC_API_URL || "http://localhost:5002";
       const res = await fetch(`${apiUrl}/api/workspaces/create`, {
         method: "POST",
         headers: {

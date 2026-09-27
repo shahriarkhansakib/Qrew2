@@ -51,7 +51,10 @@ vi.mock("@starter/db", () => {
       returning: vi.fn().mockResolvedValue([]),
     })),
     delete: vi.fn(() => ({
-      where: vi.fn().mockResolvedValue(undefined),
+      where: vi.fn().mockReturnValue({
+        returning: vi.fn().mockResolvedValue([{ id: ROW_ID }]),
+      }),
+      returning: vi.fn().mockResolvedValue([{ id: ROW_ID }]),
     })),
     query: {
       templateSections: { findFirst: vi.fn(), findMany: vi.fn() },
@@ -67,6 +70,20 @@ vi.mock("@starter/db", () => {
     eq,
     and,
     asc,
+    tokens: {
+      id: "tokens-id",
+      tokenKey: "tokens-tokenKey",
+      label: "tokens-label",
+      description: "tokens-description",
+      sortOrder: "tokens-sortOrder",
+      valueType: "tokens-valueType",
+      domain: "tokens-domain",
+      entityType: "tokens-entityType",
+      isSystem: "tokens-isSystem",
+      isInjectable: "tokens-isInjectable",
+      isVisible: "tokens-isVisible",
+      organizationId: "tokens-organizationId",
+    },
     encodeFormula: vi.fn((f: any) => f),
     decodeFormula: vi.fn((f: any) => f),
     templateSections: { id: "sec-id", templateId: "sec-templateId" },

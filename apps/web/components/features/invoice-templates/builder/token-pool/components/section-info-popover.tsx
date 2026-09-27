@@ -38,6 +38,31 @@ export const FILE_DETAILS_INFO: SectionInfoData = {
   prefixClass: "text-sky-400 bg-sky-500/10",
 };
 
+export const EXPENSE_CATEGORIES_INFO: SectionInfoData = {
+  title: "Expense Category Tokens",
+  description: "Dynamic expense sums recorded for this project across all categories.",
+  prefix: "EXP_<CATEGORY>",
+  prefixClass: "text-rose-400 bg-rose-500/10",
+  tokens: [
+    {
+      name: "EXP_TOTAL",
+      role: "Total Expenses",
+      description: "Sum of all recorded expenses across every category for this project.",
+      badgeClass: "text-rose-500 bg-rose-500/15 font-bold",
+    },
+    {
+      name: "<CATEGORY>",
+      role: "Category Sum",
+      description: "Sum of recorded expenses in this specific category.",
+      badgeClass: "text-rose-400 bg-rose-500/10 font-medium",
+    },
+  ],
+  rules: [
+    "Values evaluate to 0 in the builder template and resolve live per project at invoice time.",
+    "Categories are configured in Customize Fields and cannot be edited in the template builder.",
+  ],
+};
+
 export const SECTIONS_HEADER_INFO: SectionInfoData = {
   title: "Section Tokens",
   description: "Sections group rows together and summarize their totals.",

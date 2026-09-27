@@ -41,12 +41,24 @@ vi.mock("@starter/db", () => {
     eq,
     and,
     encodeFormula: vi.fn((f: any) => f),
+    tokens: {
+      id: "id",
+      tokenKey: "tokenKey",
+      label: "label",
+      description: "description",
+      sortOrder: "sortOrder",
+      valueType: "valueType",
+      domain: "domain",
+      entityType: "entityType",
+      isSystem: "isSystem",
+      isInjectable: "isInjectable",
+      isVisible: "isVisible",
+      organizationId: "organizationId",
+    },
     templateConstants: {
       id: "id",
       templateId: "templateId",
-      token: "token",
       defaultValue: "defaultValue",
-      name: "name",
     },
     templateRows: { id: "id", templateId: "templateId", rowToken: "rowToken", formula: "formula" },
     templateSections: { id: "id", templateId: "templateId", sectionToken: "sectionToken" },
@@ -62,10 +74,33 @@ describe("updateConstant", () => {
   beforeEach(() => {
     vi.resetAllMocks();
     (db.transaction as any).mockImplementation(async (fn: any) => fn(db));
+    (db.select as any).mockReturnValue(hoistedChain([{ id: CONSTANT_ID }]));
+  });
+
+  it("returns 401 when unauthenticated", async () => {
+    const ctx = makeCtx({
+      orgId: null,
+      params: { constantId: CONSTANT_ID },
+      body: { value: "4.2" },
+    });
+    const res = await updateConstant(ctx);
+    expect(res.status).toBe(401);
+  });
+
+  it("returns 404 when constant belongs to a foreign organization", async () => {
+    (db.select as any).mockReturnValue(hoistedChain([]));
+    const ctx = makeCtx({
+      orgId: "foreign-org-999",
+      params: { constantId: CONSTANT_ID },
+      body: { value: "4.2" },
+    });
+    const res = await updateConstant(ctx);
+    expect(res.status).toBe(404);
   });
 
   it("updates value only", async () => {
     const updated = makeConstant({ defaultValue: "4.2" });
+    (db.select as any).mockReturnValue(hoistedChain([updated]));
     (db.transaction as any).mockImplementation(async (fn: any) => {
       const tx = {
         update: vi.fn(() => ({
@@ -86,6 +121,7 @@ describe("updateConstant", () => {
   });
 
   it("returns 404 when constant not found", async () => {
+    (db.select as any).mockReturnValue(hoistedChain([]));
     (db.transaction as any).mockImplementation(async (fn: any) => {
       const tx = {
         update: vi.fn(() => ({
@@ -113,6 +149,7 @@ describe("updateConstant", () => {
 
   it("updating key triggers re-encode sweep on rows and section charges", async () => {
     const updated = makeConstant({ token: "NEW_RATE" });
+    (db.select as any).mockReturnValue(hoistedChain([updated]));
     const sweepCalled = { rows: false, secCharges: false };
 
     (db.transaction as any).mockImplementation(async (fn: any) => {

@@ -8,8 +8,9 @@ import {
   templateHeaderFields,
   templateRows,
   templateSections,
+  tokens,
 } from "@starter/db";
-import { and, desc, eq } from "drizzle-orm";
+import { and, desc, eq, isNull, or } from "drizzle-orm";
 import { Context } from "hono";
 import { z } from "zod";
 import { freezeInvoice } from "./engine/invoice-freeze";
@@ -33,75 +34,78 @@ export class InvoicesController {
 
       const templateId = c.req.query("templateId");
 
-      const [categoriesData, orgConfigsData] = await Promise.all([
-        db.select().from(expenseCategories).where(eq(expenseCategories.organizationId, orgId)),
-        db
-          .select()
-          .from(organizationConfigs)
-          .where(
-            and(
-              eq(organizationConfigs.organizationId, orgId),
-              eq(organizationConfigs.isFormulaInjectable, true),
-            ),
+      const allTokens = await db
+        .select()
+        .from(tokens)
+        .where(
+          and(
+            eq(tokens.organizationId, orgId),
+            templateId
+              ? or(eq(tokens.templateId, templateId), isNull(tokens.templateId))
+              : isNull(tokens.templateId),
+            eq(tokens.isVisible, true),
           ),
-      ]);
+        )
+        .orderBy(tokens.domain, tokens.sortOrder);
 
-      const categories = categoriesData.map((cat) => ({
-        tokenKey: cat.tokenKey,
-        label: cat.name,
-        token: `CAT_${cat.tokenKey}`,
-      }));
-
-      const orgConfigs = orgConfigsData.map((conf) => ({
-        configKey: conf.configKey,
-        displayLabel: conf.displayLabel,
-        token: `GBL_${conf.configKey}`,
-      }));
-
-      let fileFields: any[] = [];
-      let sections: any[] = [];
-      let rows: any[] = [];
-
-      if (templateId) {
-        const [fieldsData, sectionsData, rowsData] = await Promise.all([
-          db
-            .select()
-            .from(templateHeaderFields)
-            .where(
-              and(
-                eq(templateHeaderFields.templateId, templateId),
-                eq(templateHeaderFields.fieldType, "file_field"),
-                eq(templateHeaderFields.isFormulaInjectable, true),
-              ),
-            ),
-          db.select().from(templateSections).where(eq(templateSections.templateId, templateId)),
-          db.select().from(templateRows).where(eq(templateRows.templateId, templateId)),
-        ]);
-
-        fileFields = fieldsData.map((f) => ({
-          fieldKey: f.fileFieldKey,
-          displayLabel: f.label,
-          token: `FILE_${f.fileFieldKey}`,
+      const categories = allTokens
+        .filter((t) => t.domain === "expense_category")
+        .map((t) => ({
+          tokenKey: t.tokenKey,
+          label: t.label,
+          token: t.tokenKey === "EXP_TOTAL" ? "EXP_TOTAL" : `EXP_${t.tokenKey}`,
         }));
 
-        sections = sectionsData.map((s) => ({
-          sectionToken: s.sectionToken,
-          name: s.label ?? s.sectionToken,
-          token: `SECTION_${s.sectionToken}`,
+      const orgConfigs = allTokens
+        .filter((t) => t.domain === "global_constant")
+        .map((t) => ({
+          configKey: t.tokenKey,
+          displayLabel: t.label,
+          token: `GBL_${t.tokenKey}`,
         }));
 
-        rows = rowsData.map((r) => ({
-          rowToken: r.rowToken,
-          label: r.label,
-          token: `ROW_${r.rowToken}`,
+      const fileFields = allTokens
+        .filter((t) => t.domain === "file_field" && t.isInjectable)
+        .map((t) => ({
+          fieldKey: t.tokenKey,
+          displayLabel: t.label,
+          token: `FILE_${t.tokenKey}`,
         }));
-      }
+
+      const sections = allTokens
+        .filter((t) => t.domain === "section")
+        .map((t) => ({
+          sectionToken: t.tokenKey,
+          name: t.label,
+          token: `SEC_${t.tokenKey}`,
+        }));
+
+      const rows = allTokens
+        .filter((t) => t.domain === "row")
+        .map((t) => ({
+          rowToken: t.tokenKey,
+          label: t.label,
+          token: t.tokenKey,
+        }));
 
       return c.json({
+        tokens: allTokens.map((t) => ({
+          id: t.id,
+          tokenKey: t.tokenKey,
+          label: t.label,
+          description: t.description,
+          domain: t.domain,
+          valueType: t.valueType,
+          isInjectable: t.isInjectable,
+          isSystem: t.isSystem,
+        })),
         categories,
         orgConfigs,
         fileFields,
-        ...(templateId ? { sections, rows } : {}),
+        sections,
+        rows,
+        categoryTokens: categories.map((c) => c.token),
+        organizationTokens: orgConfigs.map((o) => o.token),
       });
     } catch (err: any) {
       console.error(err);

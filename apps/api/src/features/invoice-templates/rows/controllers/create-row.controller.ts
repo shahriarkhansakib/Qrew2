@@ -6,10 +6,12 @@ import {
   templateRowCharges,
   templateRows,
   templateSections,
+  tokens,
 } from "@starter/db";
 import { and, eq } from "drizzle-orm";
 import { Context } from "hono";
 import { z } from "zod";
+import { TokenService } from "../../../tokens/token.service";
 import { buildConstantIndex } from "../../metadata/services/constant-index.service";
 import { buildSectionIndex } from "../../sections/services/section-index.service";
 import { buildRowIndex, toSnakeCase } from "../services/row-index.service";
@@ -67,10 +69,10 @@ export async function createRow(c: Context) {
   const { rowToken, label, description, orderIndex, charges } = parsed.data;
 
   // Token uniqueness check
-  const existingRow = await db.query.templateRows.findFirst({
-    where: and(eq(templateRows.templateId, templateId), eq(templateRows.rowToken, rowToken)),
+  const existingToken = await db.query.tokens?.findFirst({
+    where: and(eq(tokens.templateId, templateId), eq(tokens.tokenKey, rowToken)),
   });
-  if (existingRow) {
+  if (existingToken) {
     return c.json({ error: `rowToken "${rowToken}" is already used in this template.` }, 409);
   }
 
@@ -80,11 +82,12 @@ export async function createRow(c: Context) {
   const { tplTokenToId, tplIdToToken } = await buildConstantIndex(templateId);
 
   // Assign sortOrder = max existing sortOrder + 1 so new rows always go to the bottom.
-  const existingSortOrders = await db
-    .select({ sortOrder: templateRows.sortOrder })
+  const existingRows = await db
+    .select({ sortOrder: tokens.sortOrder })
     .from(templateRows)
+    .innerJoin(tokens, eq(tokens.id, templateRows.id))
     .where(eq(templateRows.sectionId, sectionId));
-  const maxSortOrder = existingSortOrders.reduce((max, r) => Math.max(max, r.sortOrder ?? 0), -1);
+  const maxSortOrder = existingRows.reduce((max, r) => Math.max(max, r.sortOrder ?? 0), -1);
   const newSortOrder = maxSortOrder + 1;
 
   const result = await db.transaction(async (tx) => {
@@ -94,44 +97,51 @@ export async function createRow(c: Context) {
     tokenToId[rowToken] = rowId;
     idToToken[rowId] = rowToken;
 
-    const [row] = await tx
-      .insert(templateRows)
-      .values({
+    const row = await TokenService.createRowToken(
+      {
         id: rowId,
         templateId,
         sectionId,
-        label,
         rowToken,
+        label,
         description: description ?? null,
         valueType: "normal",
         formula: null,
         initialValue: null,
+        organizationId,
         sortOrder: newSortOrder,
-      })
-      .returning();
+      },
+      tx,
+    );
 
     // Insert row charges
     const insertedCharges = await Promise.all(
-      (charges ?? []).map((charge, i) =>
-        tx
-          .insert(templateRowCharges)
-          .values({
-            id: crypto.randomUUID(),
+      (charges ?? []).map(async (charge, i) => {
+        const chargeToken = charge.chargeToken ?? `${rowToken}_${toSnakeCase(charge.label)}`;
+        const chargeId = crypto.randomUUID();
+        tokenToId[chargeToken] = chargeId;
+        idToToken[chargeId] = chargeToken;
+
+        const encodedFormula =
+          encodeFormula(charge.formula, tokenToId, secTokenToId, tplTokenToId) ?? charge.formula;
+
+        return TokenService.createRowChargeToken(
+          {
+            id: chargeId,
             rowId: row.id,
+            chargeToken,
             label: charge.label,
             subDescription: charge.subDescription ?? null,
             qualifier: charge.qualifier ?? null,
             tags: charge.tags ?? [],
-            // Use explicit chargeToken if provided; fall back to label-derived token.
-            chargeToken: charge.chargeToken ?? `${rowToken}_${toSnakeCase(charge.label)}`,
-            formula:
-              encodeFormula(charge.formula, tokenToId, secTokenToId, tplTokenToId) ??
-              charge.formula,
+            formula: encodedFormula,
+            templateId,
+            organizationId,
             sortOrder: charge.sortOrder ?? i,
-          })
-          .returning()
-          .then((r) => r[0]),
-      ),
+          },
+          tx,
+        );
+      }),
     );
 
     return {

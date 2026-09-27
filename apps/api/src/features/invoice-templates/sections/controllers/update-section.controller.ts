@@ -1,14 +1,13 @@
 import {
   db,
   invoiceTemplates,
-  templateRows,
-  templateSectionCharges,
   templateSections,
+  tokens,
 } from "@starter/db";
 import { and, eq } from "drizzle-orm";
 import { Context } from "hono";
 import { z } from "zod";
-import { getTemplateFormulaContext } from "../../services/template-formula-context.service";
+import { TokenService } from "../../../tokens/token.service";
 
 const updateSectionSchema = z.object({
   label: z.string().optional().nullable(),
@@ -28,8 +27,13 @@ export async function updateSection(c: Context) {
   if (!organizationId) return c.json({ error: "Unauthorized" }, 401);
 
   const sectionRow = await db
-    .select({ section: templateSections, org: invoiceTemplates.organizationId })
+    .select({
+      section: templateSections,
+      token: tokens,
+      org: invoiceTemplates.organizationId,
+    })
     .from(templateSections)
+    .innerJoin(tokens, eq(tokens.id, templateSections.id))
     .innerJoin(invoiceTemplates, eq(templateSections.templateId, invoiceTemplates.id))
     .where(
       and(eq(templateSections.id, sectionId), eq(invoiceTemplates.organizationId, organizationId)),
@@ -38,22 +42,24 @@ export async function updateSection(c: Context) {
 
   if (sectionRow.length === 0) return c.json({ error: "Section not found" }, 404);
 
+  const currentToken = sectionRow[0].token;
+
   const body = await c.req.json();
   const parsed = updateSectionSchema.safeParse(body);
   if (!parsed.success) return c.json({ error: parsed.error }, 400);
 
-  const updateData: Partial<typeof templateSections.$inferInsert> = {};
+  const tokenPatch: any = {};
   if (
     parsed.data.sectionToken !== undefined &&
-    parsed.data.sectionToken !== sectionRow[0].section.sectionToken
+    parsed.data.sectionToken !== currentToken.tokenKey
   ) {
     if (!parsed.data.sectionToken) {
       return c.json({ error: "sectionToken cannot be empty" }, 400);
     }
-    const collision = await db.query.templateSections.findFirst({
+    const collision = await db.query.tokens?.findFirst({
       where: and(
-        eq(templateSections.templateId, sectionRow[0].section.templateId),
-        eq(templateSections.sectionToken, parsed.data.sectionToken),
+        eq(tokens.templateId, sectionRow[0].section.templateId),
+        eq(tokens.tokenKey, parsed.data.sectionToken),
       ),
     });
     if (collision) {
@@ -64,55 +70,42 @@ export async function updateSection(c: Context) {
         409,
       );
     }
-    updateData.sectionToken = parsed.data.sectionToken;
+    tokenPatch.tokenKey = parsed.data.sectionToken;
   }
 
-  if (parsed.data.label !== undefined) updateData.label = parsed.data.label ?? null;
+  if (parsed.data.label !== undefined) tokenPatch.label = parsed.data.label ?? "";
   if (parsed.data.description !== undefined)
-    updateData.description = parsed.data.description ?? null;
-  if (parsed.data.orderIndex !== undefined) updateData.sortOrder = parsed.data.orderIndex;
+    tokenPatch.description = parsed.data.description ?? null;
+  if (parsed.data.orderIndex !== undefined) tokenPatch.sortOrder = parsed.data.orderIndex;
 
-  let updated;
-  await db.transaction(async (tx) => {
-    [updated] = await tx
-      .update(templateSections)
-      .set(updateData)
-      .where(eq(templateSections.id, sectionId))
-      .returning();
+  if (Object.keys(tokenPatch).length === 0) {
+    return c.json({ error: "No values to set" }, 400);
+  }
 
-    if (updateData.sectionToken) {
-      const templateId = sectionRow[0].section.templateId;
-      const context = await getTemplateFormulaContext(templateId, organizationId, tx);
+  const mergedSection = await db.transaction(async (tx: any) => {
+    const updatedToken = await TokenService.updateToken(sectionId, tokenPatch, tx);
 
-      const rowsList = await tx
-        .select({ id: templateRows.id, formula: templateRows.formula })
-        .from(templateRows)
-        .where(eq(templateRows.templateId, templateId));
-      for (const r of rowsList) {
-        if (r.formula) {
-          await tx
-            .update(templateRows)
-            .set({ formula: context.encode(r.formula) })
-            .where(eq(templateRows.id, r.id));
-        }
-      }
-
-      const secChargesList = await tx
-        .select({ id: templateSectionCharges.id, formula: templateSectionCharges.formula })
-        .from(templateSectionCharges)
-        .innerJoin(templateSections, eq(templateSectionCharges.sectionId, templateSections.id))
-        .where(eq(templateSections.templateId, templateId));
-      for (const c of secChargesList) {
-        if (c.formula) {
-          const encoded = context.encode(c.formula) ?? c.formula;
-          await tx
-            .update(templateSectionCharges)
-            .set({ formula: encoded })
-            .where(eq(templateSectionCharges.id, c.id));
-        }
-      }
-    }
+    return {
+      id: sectionRow[0].section.id,
+      templateId: sectionRow[0].section.templateId,
+      sectionToken: updatedToken?.tokenKey ?? tokenPatch.tokenKey ?? currentToken.tokenKey,
+      label:
+        updatedToken?.label ??
+        (tokenPatch.label !== undefined ? tokenPatch.label : currentToken.label),
+      description:
+        updatedToken?.description !== undefined
+          ? updatedToken.description
+          : tokenPatch.description !== undefined
+            ? tokenPatch.description
+            : currentToken.description,
+      sortOrder:
+        updatedToken?.sortOrder !== undefined
+          ? updatedToken.sortOrder
+          : tokenPatch.sortOrder !== undefined
+            ? tokenPatch.sortOrder
+            : currentToken.sortOrder,
+    };
   });
 
-  return c.json(updated);
+  return c.json(mergedSection);
 }

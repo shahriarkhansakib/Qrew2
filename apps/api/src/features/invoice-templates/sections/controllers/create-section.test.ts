@@ -52,6 +52,7 @@ vi.mock("@starter/db", () => {
     query: {
       invoiceTemplates: { findFirst: vi.fn() },
       templateSections: { findFirst: vi.fn(), findMany: vi.fn() },
+      tokens: { findFirst: vi.fn(), findMany: vi.fn() },
     },
   };
   db.transaction = vi.fn(async (cb) => cb(db));
@@ -81,6 +82,21 @@ vi.mock("@starter/db", () => {
     encodeFormula: vi.fn((f) => f),
     templateConstants: { id: "id", templateId: "templateId", token: "token" },
     decodeFormula: vi.fn((f) => f),
+    tokens: {
+      id: "id",
+      tokenKey: "tokenKey",
+      label: "label",
+      description: "description",
+      sortOrder: "sortOrder",
+      valueType: "valueType",
+      domain: "domain",
+      entityType: "entityType",
+      isSystem: "isSystem",
+      isInjectable: "isInjectable",
+      isVisible: "isVisible",
+      organizationId: "organizationId",
+      templateId: "templateId",
+    },
   };
 });
 
@@ -102,10 +118,12 @@ function mockTemplateNotFound() {
 
 function mockSectionFound(section = makeSection()) {
   (db.query.templateSections.findFirst as any).mockResolvedValue(section);
+  (db.query.tokens.findFirst as any).mockResolvedValue(section);
 }
 
 function mockSectionNotFound() {
   (db.query.templateSections.findFirst as any).mockResolvedValue(null);
+  (db.query.tokens.findFirst as any).mockResolvedValue(null);
 }
 
 function mockInsertReturns(returnValue: any) {

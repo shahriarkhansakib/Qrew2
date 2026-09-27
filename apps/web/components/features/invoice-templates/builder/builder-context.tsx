@@ -45,6 +45,7 @@ export type ExternalTokens = {
   global: Set<string>;
   template: Set<string>;
   file: Set<string>;
+  category: Set<string>;
 };
 
 type BuilderContextValue = {
@@ -75,6 +76,7 @@ const DEFAULT_EXTERNAL_TOKENS: ExternalTokens = {
   global: new Set(),
   template: new Set(),
   file: new Set(),
+  category: new Set(),
 };
 
 const BuilderContext = createContext<BuilderContextValue>({
@@ -139,7 +141,7 @@ export function BuilderProvider({
         secTotals.add(`SEC_${sec.sectionToken}`);
         secBases.add(`SEC_${sec.sectionToken}_BASE`);
         secChargeTotals.add(`SEC_${sec.sectionToken}_CHARGES`);
-        for (const charge of sec.charges || []) {
+        for (const charge of sec.sectionCharges || []) {
           secChargeItems.add(charge.chargeToken);
         }
       }
@@ -168,6 +170,8 @@ export function BuilderProvider({
 
   const getTokenColor = useCallback(
     (token: string) => {
+      if (token === "EXP_TOTAL") return "text-rose-500 font-bold bg-rose-500/15";
+      if (externalTokens.category?.has(token) || token.startsWith("EXP_")) return "text-rose-400 bg-rose-500/10";
       if (externalTokens.global.has(token) || token.startsWith("GBL_")) return "text-indigo-400";
       if (externalTokens.template.has(token) || token.startsWith("TPL_")) return "text-blue-400";
       if (externalTokens.file.has(token) || token.startsWith("FILE_")) return "text-sky-400";

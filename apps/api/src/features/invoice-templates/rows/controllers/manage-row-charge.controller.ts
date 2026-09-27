@@ -1,7 +1,8 @@
-import { db, invoiceTemplates, templateRowCharges, templateRows } from "@starter/db";
+import { db, invoiceTemplates, templateRowCharges, templateRows, tokens } from "@starter/db";
 import { and, eq } from "drizzle-orm";
 import { Context } from "hono";
 import { z } from "zod";
+import { TokenService } from "../../../tokens/token.service";
 
 export async function deleteCharge(c: Context) {
   const chargeId = c.req.param("chargeId") as string;
@@ -19,7 +20,7 @@ export async function deleteCharge(c: Context) {
     .limit(1);
   if (chargeCheck.length === 0) return c.json({ error: "Row charge not found" }, 404);
 
-  await db.delete(templateRowCharges).where(eq(templateRowCharges.id, chargeId));
+  await TokenService.deleteToken(chargeId);
 
   return c.json({ success: true });
 }
@@ -47,9 +48,9 @@ export async function reorderCharges(c: Context) {
     await Promise.all(
       orderedIds.map((id, index) =>
         tx
-          .update(templateRowCharges)
+          .update(tokens)
           .set({ sortOrder: index })
-          .where(and(eq(templateRowCharges.id, id), eq(templateRowCharges.rowId, rowId))),
+          .where(eq(tokens.id, id)),
       ),
     );
   });

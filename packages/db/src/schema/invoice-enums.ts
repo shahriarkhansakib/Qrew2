@@ -47,3 +47,15 @@ export const configValueTypeEnum = pgEnum("config_value_type_enum", [
   "currency_rate",
   "text",
 ]);
+
+// ── Token Domain ──────────────────────────────────────────────────────────────
+export const tokenDomainEnum = pgEnum("token_domain", [
+  "row",
+  "row_charge",
+  "section",
+  "section_charge",
+  "template_constant",
+  "file_field",
+  "global_constant",
+  "expense_category",
+]);

@@ -502,15 +502,28 @@ function WorkspaceInner({
     },
   });
 
+  // ── Fetch expense categories ──
+  const { data: expenseCategoriesData } = useQuery({
+    queryKey: ["expense-categories"],
+    queryFn: async () => {
+      const res = await fetch(`${apiUrl}/api/expense-categories`, {
+        credentials: "include",
+      });
+      if (!res.ok) return [];
+      return res.json();
+    },
+  });
+
   const sortedSections = [...(sections || [])].sort((a: any, b: any) => a.sortOrder - b.sortOrder);
 
   // ── Compute token map and push it to context ──────────────────────────────
-  // Pass constants and file fields so formula rows that reference them resolve correctly
+  // Pass constants, file fields, and expense categories so formula rows that reference them resolve correctly
   const tokenMap = buildTokenMap(
     sortedSections,
     orgConfigs ?? [],
     constantsData ?? [],
     templateHeaderFields ?? [],
+    expenseCategoriesData ?? [],
   );
 
   // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -528,6 +541,18 @@ function WorkspaceInner({
     const globalSet = new Set<string>();
     const templateSet = new Set<string>();
     const fileSet = new Set<string>();
+    const categorySet = new Set<string>();
+
+    categorySet.add("EXP_TOTAL");
+    if (expenseCategoriesData) {
+      for (const cat of expenseCategoriesData) {
+        const key = cat.tokenKey;
+        if (key && key !== "EXP_TOTAL") {
+          const bare = key.replace(/^EXP_/, "");
+          categorySet.add(bare);
+        }
+      }
+    }
 
     if (orgConfigs) {
       for (const config of orgConfigs) {
@@ -568,8 +593,8 @@ function WorkspaceInner({
       }
     }
 
-    setExternalTokens({ global: globalSet, template: templateSet, file: fileSet });
-  }, [orgConfigs, constantsData, templateHeaderFields, setExternalTokens]);
+    setExternalTokens({ global: globalSet, template: templateSet, file: fileSet, category: categorySet });
+  }, [orgConfigs, constantsData, templateHeaderFields, expenseCategoriesData, setExternalTokens]);
 
   // ── Global SL offsets ─────────────────────────────────────────────────────
   const sectionSlOffsets: number[] = [];

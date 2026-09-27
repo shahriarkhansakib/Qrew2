@@ -46,6 +46,21 @@ vi.mock("@starter/db", () => {
     },
     templateSections: { id: "id", templateId: "templateId", sectionToken: "sectionToken" },
     invoiceTemplates: { id: "id", organizationId: "organizationId" },
+    tokens: {
+      id: "id",
+      tokenKey: "tokenKey",
+      label: "label",
+      description: "description",
+      sortOrder: "sortOrder",
+      valueType: "valueType",
+      domain: "domain",
+      entityType: "entityType",
+      isSystem: "isSystem",
+      isInjectable: "isInjectable",
+      isVisible: "isVisible",
+      organizationId: "organizationId",
+      templateId: "templateId",
+    },
   };
 });
 

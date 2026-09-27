@@ -5,11 +5,13 @@ import {
   invoiceTemplates,
   templateSectionCharges,
   templateSections,
+  tokens,
 } from "@starter/db";
 import { and, eq } from "drizzle-orm";
 import { Context } from "hono";
 import * as math from "mathjs";
 import { z } from "zod";
+import { TokenService } from "../../../tokens/token.service";
 import { getTemplateFormulaContext } from "../../services/template-formula-context.service";
 import { validateFormulaChars } from "../../validation/formula-validator";
 
@@ -38,8 +40,13 @@ export async function updateSectionCharge(c: Context) {
   if (!organizationId) return c.json({ error: "Unauthorized" }, 401);
 
   const chargeCheck = await db
-    .select({ charge: templateSectionCharges, section: templateSections })
+    .select({
+      charge: templateSectionCharges,
+      token: tokens,
+      section: templateSections,
+    })
     .from(templateSectionCharges)
+    .innerJoin(tokens, eq(tokens.id, templateSectionCharges.id))
     .innerJoin(templateSections, eq(templateSectionCharges.sectionId, templateSections.id))
     .innerJoin(invoiceTemplates, eq(templateSections.templateId, invoiceTemplates.id))
     .where(
@@ -57,6 +64,7 @@ export async function updateSectionCharge(c: Context) {
   if (!parsed.success) return c.json({ error: parsed.error }, 400);
 
   const existing = chargeCheck[0].charge;
+  const existingToken = chargeCheck[0].token;
   const templateId = chargeCheck[0].section.templateId;
 
   const context = await getTemplateFormulaContext(templateId, organizationId);
@@ -73,31 +81,93 @@ export async function updateSectionCharge(c: Context) {
   if (parsed.data.formula !== undefined) {
     const charVal = validateFormulaChars(
       parsed.data.formula,
-      parsed.data.chargeToken ?? existing.chargeToken,
+      parsed.data.chargeToken ?? existingToken.tokenKey,
     );
     if (!charVal.valid) {
       return c.json({ error: charVal.error }, 422);
     }
   }
 
-  const [updated] = await db
-    .update(templateSectionCharges)
-    .set({
-      ...(parsed.data.chargeToken !== undefined && { chargeToken: parsed.data.chargeToken }),
-      ...(parsed.data.label !== undefined && { label: parsed.data.label }),
-      ...(parsed.data.subDescription !== undefined && {
-        subDescription: parsed.data.subDescription,
-      }),
-      ...(parsed.data.qualifier !== undefined && { qualifier: parsed.data.qualifier }),
-      ...(parsed.data.tags !== undefined && { tags: parsed.data.tags }),
-      ...(encodedFormula !== undefined && { formula: encodedFormula }),
-      ...(parsed.data.orderIndex !== undefined && { sortOrder: parsed.data.orderIndex }),
+  if (parsed.data.chargeToken && parsed.data.chargeToken !== existingToken.tokenKey) {
+    const dup = await db.query.tokens?.findFirst({
+      where: and(
+        eq(tokens.templateId, templateId),
+        eq(tokens.tokenKey, parsed.data.chargeToken),
+      ),
+    });
+    if (dup) {
+      return c.json(
+        {
+          error: `Section charge token "${parsed.data.chargeToken}" already exists in this template.`,
+        },
+        409,
+      );
+    }
+  }
+
+  const tokenPatch: any = {};
+  if (parsed.data.chargeToken !== undefined) tokenPatch.tokenKey = parsed.data.chargeToken;
+  if (parsed.data.label !== undefined) tokenPatch.label = parsed.data.label;
+  if (parsed.data.subDescription !== undefined)
+    tokenPatch.description = parsed.data.subDescription;
+  if (parsed.data.orderIndex !== undefined) tokenPatch.sortOrder = parsed.data.orderIndex;
+
+  const chargePatch: any = {};
+  if (parsed.data.qualifier !== undefined) chargePatch.qualifier = parsed.data.qualifier;
+  if (parsed.data.tags !== undefined) chargePatch.tags = parsed.data.tags;
+  if (encodedFormula !== undefined) chargePatch.formula = encodedFormula;
+
+  if (Object.keys(tokenPatch).length === 0 && Object.keys(chargePatch).length === 0) {
+    return c.json({ error: "No values to set" }, 400);
+  }
+
+  await db.transaction(async (tx) => {
+    if (Object.keys(tokenPatch).length > 0) {
+      await TokenService.updateToken(chargeId, tokenPatch, tx);
+    }
+    if (Object.keys(chargePatch).length > 0) {
+      await tx
+        .update(templateSectionCharges)
+        .set(chargePatch)
+        .where(eq(templateSectionCharges.id, chargeId));
+    }
+  });
+
+  const [finalCharge] = await db
+    .select({
+      id: templateSectionCharges.id,
+      sectionId: templateSectionCharges.sectionId,
+      templateId: templateSectionCharges.templateId,
+      qualifier: templateSectionCharges.qualifier,
+      tags: templateSectionCharges.tags,
+      formula: templateSectionCharges.formula,
+      chargeToken: tokens.tokenKey,
+      label: tokens.label,
+      subDescription: tokens.description,
+      sortOrder: tokens.sortOrder,
     })
-    .where(eq(templateSectionCharges.id, chargeId))
-    .returning();
+    .from(templateSectionCharges)
+    .innerJoin(tokens, eq(tokens.id, templateSectionCharges.id))
+    .where(eq(templateSectionCharges.id, chargeId));
+
+  const mergedCharge = finalCharge ?? {
+    ...existing,
+    ...chargePatch,
+    chargeToken: tokenPatch.tokenKey ?? existingToken.tokenKey,
+    label: tokenPatch.label ?? existingToken.label,
+    subDescription:
+      tokenPatch.description !== undefined ? tokenPatch.description : existingToken.description,
+    sortOrder:
+      tokenPatch.sortOrder !== undefined ? tokenPatch.sortOrder : existingToken.sortOrder,
+  };
+
+  const decoded =
+    decodeFormula(mergedCharge.formula, context.idToToken) ??
+    context.decode(mergedCharge.formula) ??
+    mergedCharge.formula;
 
   return c.json({
-    ...updated,
-    formula: context.decode(updated.formula) ?? updated.formula,
+    ...mergedCharge,
+    formula: decoded,
   });
 }

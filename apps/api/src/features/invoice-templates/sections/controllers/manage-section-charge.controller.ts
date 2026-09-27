@@ -1,7 +1,8 @@
-import { db, invoiceTemplates, templateSectionCharges, templateSections } from "@starter/db";
+import { db, invoiceTemplates, templateSectionCharges, templateSections, tokens } from "@starter/db";
 import { and, eq } from "drizzle-orm";
 import { Context } from "hono";
 import { z } from "zod";
+import { TokenService } from "../../../tokens/token.service";
 
 export async function deleteSectionCharge(c: Context) {
   const chargeId = c.req.param("chargeId") as string;
@@ -23,7 +24,7 @@ export async function deleteSectionCharge(c: Context) {
 
   if (chargeCheck.length === 0) return c.json({ error: "Section charge not found" }, 404);
 
-  await db.delete(templateSectionCharges).where(eq(templateSectionCharges.id, chargeId));
+  await TokenService.deleteToken(chargeId);
 
   return c.json({ success: true });
 }
@@ -53,11 +54,9 @@ export async function reorderSectionCharges(c: Context) {
     await Promise.all(
       orderedIds.map((id, index) =>
         tx
-          .update(templateSectionCharges)
+          .update(tokens)
           .set({ sortOrder: index })
-          .where(
-            and(eq(templateSectionCharges.id, id), eq(templateSectionCharges.sectionId, sectionId)),
-          ),
+          .where(eq(tokens.id, id)),
       ),
     );
   });

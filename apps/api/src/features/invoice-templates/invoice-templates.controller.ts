@@ -8,6 +8,8 @@ import {
 import { and, eq } from "drizzle-orm";
 import { Context } from "hono";
 import { z } from "zod";
+import { TokenService } from "../tokens/token.service";
+import { toSnakeCase } from "./rows/services/row-index.service";
 
 const createTemplateSchema = z.object({
   name: z.string().min(1),
@@ -126,27 +128,35 @@ export class InvoiceTemplatesController {
     const customFieldsToSeed = projectFields.map((field, idx) => ({
       fieldType: "file_field" as const,
       fileFieldKey: field.fieldKey,
+      customFieldDefinitionId: field.id,
       label: field.fieldName,
       sortOrder: systemFields.length + 1 + idx,
       isFormulaInjectable: field.fieldType === "number",
     }));
 
-    const allHeaderFields = [...systemFields, ...customFieldsToSeed].map((f) => ({
-      id: crypto.randomUUID(),
-      templateId,
-      ...f,
-    }));
-
-    if (allHeaderFields.length > 0) {
-      await db.insert(templateHeaderFields).values(allHeaderFields);
+    for (const f of [...systemFields, ...customFieldsToSeed]) {
+      const tokenKey = toSnakeCase(f.fileFieldKey || f.label);
+      await TokenService.createFileFieldToken({
+        id: crypto.randomUUID(),
+        templateId,
+        fieldType: f.fieldType,
+        label: f.label,
+        tokenKey,
+        systemFieldKey: (f as any).customFieldDefinitionId ? null : f.fileFieldKey,
+        customFieldDefinitionId: (f as any).customFieldDefinitionId ?? null,
+        isInjectable: f.isFormulaInjectable,
+        organizationId,
+        sortOrder: f.sortOrder,
+      });
     }
 
     // Seed default section 1
-    await db.insert(templateSections).values({
+    await TokenService.createSectionToken({
       id: crypto.randomUUID(),
       templateId,
       sectionToken: "SECTION_1",
       label: "1",
+      organizationId,
       sortOrder: 0,
     });
 

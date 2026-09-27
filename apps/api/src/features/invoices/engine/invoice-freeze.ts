@@ -7,6 +7,7 @@ import {
   templateConstants,
   templateRows,
   templateSections,
+  tokens,
 } from "@starter/db";
 import { and, eq } from "drizzle-orm";
 import { AstEvaluatorService } from "./ast-evaluator.service";
@@ -90,24 +91,27 @@ export async function freezeInvoice(params: FreezeParams) {
     // 3. Fallback / supplementary source: master template definitions
     if (params.sourceTemplateId) {
       const rows = await tx
-        .select({ id: templateRows.id, rowToken: templateRows.rowToken })
+        .select({ id: templateRows.id, rowToken: tokens.tokenKey })
         .from(templateRows)
+        .innerJoin(tokens, eq(tokens.id, templateRows.id))
         .where(eq(templateRows.templateId, params.sourceTemplateId));
       for (const r of rows) {
         if (!idToToken[r.id]) idToToken[r.id] = r.rowToken;
       }
 
       const secs = await tx
-        .select({ id: templateSections.id, sectionToken: templateSections.sectionToken })
+        .select({ id: templateSections.id, sectionToken: tokens.tokenKey })
         .from(templateSections)
+        .innerJoin(tokens, eq(tokens.id, templateSections.id))
         .where(eq(templateSections.templateId, params.sourceTemplateId));
       for (const s of secs) {
         if (!secIdToToken[s.id]) secIdToToken[s.id] = `SEC_${s.sectionToken}`;
       }
 
       const consts = await tx
-        .select({ id: templateConstants.id, token: templateConstants.token })
+        .select({ id: templateConstants.id, token: tokens.tokenKey })
         .from(templateConstants)
+        .innerJoin(tokens, eq(tokens.id, templateConstants.id))
         .where(eq(templateConstants.templateId, params.sourceTemplateId));
       for (const c of consts) {
         if (!tplIdToToken[c.id]) tplIdToToken[c.id] = c.token;
@@ -145,18 +149,16 @@ export async function freezeInvoice(params: FreezeParams) {
     }
 
     let totalBase = 0;
-    let totalCharges = 0;
     for (const section of evalResult.evaluatedSections) {
       totalBase += parseFloat(section.sectionBase ?? "0");
-      totalCharges += parseFloat(section.sectionChargesTotal ?? "0");
-      for (const r of section.rows ?? []) {
-        totalCharges += parseFloat(r.chargesValue ?? "0");
-      }
     }
 
-    const grandTotal = (totalBase + totalCharges).toFixed(6);
+    const grandTotalNum = parseFloat(evalResult.grandTotal ?? "0");
+    const totalChargesNum = grandTotalNum - totalBase;
+
+    const grandTotal = grandTotalNum.toFixed(6);
     const totalBaseStr = totalBase.toFixed(6);
-    const totalChargesStr = totalCharges.toFixed(6);
+    const totalChargesStr = totalChargesNum.toFixed(6);
 
     // ─────────────────────────────────────────────────────────────────────
     // STEP 4: Insert invoice placeholder (status='draft')

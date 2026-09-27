@@ -230,6 +230,80 @@ describe("Invoice Engine Engine & Security Hardening Unit Tests", () => {
       expect(evaluatedSections[0].rows[0].totalValue).toBe("115.000000");
       expect(grandTotal).toBe("115.000000");
     });
+
+    it("handles division by zero as a controlled DIVISION_BY_ZERO domain error", () => {
+      const sections: EvaluatorSection[] = [
+        {
+          id: "sec-1",
+          sectionToken: "SEC1",
+          sortOrder: 0,
+          rows: [
+            {
+              id: "row-1",
+              rowToken: "PORT_DUES",
+              label: "Port Dues",
+              sectionId: "sec-1",
+              valueType: "formula",
+              formula: "100 / 0",
+              sortOrder: 0,
+              charges: [],
+            },
+          ],
+          sectionCharges: [],
+        },
+      ];
+
+      const dag = DagValidatorService.validate(sections);
+      const { errors } = AstEvaluatorService.evaluate(
+        sections,
+        {},
+        {},
+        {},
+        {},
+        dag.topologicalOrder,
+      );
+
+      expect(errors.length).toBeGreaterThan(0);
+      expect(errors[0].code).toBe("DIVISION_BY_ZERO");
+      expect(errors[0].message).toContain("Division by zero");
+    });
+
+    it("preserves exact decimal math without floating-point precision loss", () => {
+      const sections: EvaluatorSection[] = [
+        {
+          id: "sec-1",
+          sectionToken: "SEC1",
+          sortOrder: 0,
+          rows: [
+            {
+              id: "row-1",
+              rowToken: "PRECISE_SUM",
+              label: "Precise Sum",
+              sectionId: "sec-1",
+              valueType: "formula",
+              formula: "0.1 + 0.2",
+              sortOrder: 0,
+              charges: [],
+            },
+          ],
+          sectionCharges: [],
+        },
+      ];
+
+      const dag = DagValidatorService.validate(sections);
+      const { evaluatedSections } = AstEvaluatorService.evaluate(
+        sections,
+        {},
+        {},
+        {},
+        {},
+        dag.topologicalOrder,
+      );
+
+      // In IEEE 754 floating point: 0.1 + 0.2 = 0.30000000000000004
+      // With BigNumber math, precision is exactly 0.300000
+      expect(evaluatedSections[0].rows[0].baseValue).toBe("0.300000");
+    });
   });
 
   describe("generateDocumentNumber Pattern Engine", () => {
