@@ -103,7 +103,8 @@ export function AuditLogsTable() {
   const getActionColor = (action: string) => {
     if (action.includes("BAN") || action.includes("NUKE"))
       return "bg-destructive/10 text-destructive border-destructive/20";
-    if (action.includes("IMPERSONATE")) return "bg-accent/10 text-accent-foreground border-amber-500/20";
+    if (action.includes("IMPERSONATE"))
+      return "bg-accent/10 text-accent-foreground border-amber-500/20";
     if (action.includes("ELEVATE")) return "bg-indigo-500/10 text-indigo-500 border-indigo-500/20";
     return "bg-muted text-muted-foreground border-border";
   };

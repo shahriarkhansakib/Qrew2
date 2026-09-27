@@ -9,8 +9,7 @@ export function ProfileDetailsForm() {
   const { data: session } = useSession();
   const { control, formState } = useFormContext();
 
-  const focusClass =
-    "ring-2 ring-primary border-primary bg-primary/5 focus-visible:ring-primary";
+  const focusClass = "ring-2 ring-primary border-primary bg-primary/5 focus-visible:ring-primary";
 
   return (
     <div className="flex-1 space-y-5">

@@ -1124,7 +1124,8 @@ export default function TransactionsPage() {
                                 <span
                                   className={cn(
                                     "inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium border",
-                                    TX_COLORS[tx.transactionType] ?? "bg-muted text-muted-foreground",
+                                    TX_COLORS[tx.transactionType] ??
+                                      "bg-muted text-muted-foreground",
                                   )}
                                 >
                                   {tx.transactionType.replace("_", " ")}
@@ -1935,7 +1936,8 @@ export default function TransactionsPage() {
                                 <span
                                   className={cn(
                                     "px-1.5 py-0.5 rounded text-[11px] font-medium border",
-                                    TX_COLORS[tx.transactionType] ?? "bg-muted text-muted-foreground",
+                                    TX_COLORS[tx.transactionType] ??
+                                      "bg-muted text-muted-foreground",
                                   )}
                                 >
                                   {tx.transactionType.replace("_", " ")}
@@ -1945,9 +1947,7 @@ export default function TransactionsPage() {
                               <TableCell className="text-right font-mono">
                                 <span
                                   className={
-                                    parseFloat(tx.quantity) < 0
-                                      ? "text-red-400"
-                                      : "text-primary"
+                                    parseFloat(tx.quantity) < 0 ? "text-red-400" : "text-primary"
                                   }
                                 >
                                   {parseFloat(tx.quantity) > 0
