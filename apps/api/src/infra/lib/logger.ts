@@ -15,7 +15,7 @@ function createLogger() {
           ignore: "pid,hostname,module,method,path,status,ms",
           singleLine: true,
           messageFormat: "{module} | {msg}",
-        })
+        }),
       );
     } catch {
       return pino({ level: "debug" });
@@ -25,4 +25,3 @@ function createLogger() {
 }
 
 export const logger = createLogger();
-

@@ -1,5 +1,5 @@
-import Redis from "ioredis";
 import { Redis as UpstashRedis } from "@upstash/redis";
+import Redis from "ioredis";
 import { logger } from "./logger";
 
 if (!process.env.REDIS_URL) {
@@ -71,7 +71,7 @@ if (localRedis) {
  * switch between ioredis and Upstash.
  */
 export const redis = {
-  get: async (key: string) => isDev ? localRedis!.get(key) : prodRedis!.get(key),
+  get: async (key: string) => (isDev ? localRedis!.get(key) : prodRedis!.get(key)),
   set: async (key: string, val: any, ex?: any, ttl?: any) => {
     if (isDev) {
       if (ex && ttl) {
@@ -85,24 +85,38 @@ export const redis = {
       return prodRedis!.set(key, val);
     }
   },
-  del: async (key: string) => isDev ? localRedis!.del(key) : prodRedis!.del(key),
-  incr: async (key: string) => isDev ? localRedis!.incr(key) : prodRedis!.incr(key),
-  expire: async (key: string, ttl: number) => isDev ? localRedis!.expire(key, ttl) : prodRedis!.expire(key, ttl),
-  smembers: async (key: string) => isDev ? localRedis!.smembers(key) : prodRedis!.smembers(key) as Promise<string[]>,
-  ping: async () => isDev ? localRedis!.ping() : prodRedis!.ping(),
+  del: async (key: string) => (isDev ? localRedis!.del(key) : prodRedis!.del(key)),
+  incr: async (key: string) => (isDev ? localRedis!.incr(key) : prodRedis!.incr(key)),
+  expire: async (key: string, ttl: number) =>
+    isDev ? localRedis!.expire(key, ttl) : prodRedis!.expire(key, ttl),
+  smembers: async (key: string) =>
+    isDev ? localRedis!.smembers(key) : (prodRedis!.smembers(key) as Promise<string[]>),
+  ping: async () => (isDev ? localRedis!.ping() : prodRedis!.ping()),
   pipeline: () => {
     if (isDev) {
       const p = localRedis!.pipeline();
       return {
-        sadd: (key: string, member: any, ...members: any[]) => { p.sadd(key, member, ...members); return p; },
-        expire: (key: string, ttl: number) => { p.expire(key, ttl); return p; },
+        sadd: (key: string, member: any, ...members: any[]) => {
+          p.sadd(key, member, ...members);
+          return p;
+        },
+        expire: (key: string, ttl: number) => {
+          p.expire(key, ttl);
+          return p;
+        },
         exec: () => p.exec(),
       };
     } else {
       const p = prodRedis!.pipeline();
       return {
-        sadd: (key: string, member: any, ...members: any[]) => { p.sadd(key, member, ...members); return p; },
-        expire: (key: string, ttl: number) => { p.expire(key, ttl); return p; },
+        sadd: (key: string, member: any, ...members: any[]) => {
+          p.sadd(key, member, ...members);
+          return p;
+        },
+        expire: (key: string, ttl: number) => {
+          p.expire(key, ttl);
+          return p;
+        },
         exec: () => p.exec(),
       };
     }
