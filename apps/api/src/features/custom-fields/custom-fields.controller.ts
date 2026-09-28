@@ -46,8 +46,8 @@ const createDefinitionSchema = z.object({
  * Returns true if the requesting user is an org owner or super-admin.
  * Private fields are only visible to these roles.
  */
-async function isOrgOwnerOrAdmin(userId: string, orgId: string): Promise<boolean> {
-  const sessionData = await auth.api.getSession({ headers: new Headers() });
+async function _isOrgOwnerOrAdmin(userId: string, orgId: string): Promise<boolean> {
+  const _sessionData = await auth.api.getSession({ headers: new Headers() });
   // Check via direct DB lookup — role='owner' on the members table
   const member = await db.query.members.findFirst({
     where: and(eq(members.userId, userId), eq(members.organizationId, orgId)),

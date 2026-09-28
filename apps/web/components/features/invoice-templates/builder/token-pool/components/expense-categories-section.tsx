@@ -4,8 +4,8 @@ import { ChevronDown, ChevronRight, ExternalLink } from "lucide-react";
 import Link from "next/link";
 import { useState } from "react";
 import { cn } from "@/lib/utils";
-import { PoolSectionHeader } from "../index";
 import { useBuilderContext } from "../../builder-context";
+import { PoolSectionHeader } from "../index";
 import { EXPENSE_CATEGORIES_INFO } from "./section-info-popover";
 
 export function ExpenseCategoriesSection({
@@ -53,11 +53,7 @@ export function ExpenseCategoriesSection({
               : "hover:bg-muted/20 cursor-pointer",
           )}
           onClick={handleTotalClick}
-          title={
-            isTotalDisabled
-              ? `Disabled: ${totalDisabledReason}`
-              : `Insert ${expTotalToken}`
-          }
+          title={isTotalDisabled ? `Disabled: ${totalDisabledReason}` : `Insert ${expTotalToken}`}
         >
           <div className="flex items-center gap-1 min-w-0">
             <button
@@ -129,11 +125,7 @@ export function ExpenseCategoriesSection({
                   onClick={() => {
                     if (!isDisabled) handleTokenClick(bareToken);
                   }}
-                  title={
-                    isDisabled
-                      ? `Disabled: ${disabledReason}`
-                      : `Insert ${bareToken}`
-                  }
+                  title={isDisabled ? `Disabled: ${disabledReason}` : `Insert ${bareToken}`}
                 >
                   <span
                     className={cn(

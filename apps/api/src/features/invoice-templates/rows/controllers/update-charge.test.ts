@@ -19,9 +19,8 @@ import {
   makeCtx,
   makeRow,
   makeRowCharge,
-  ORG_ID,
+  makeToken,
   ROW_ID,
-  SECTION_ID,
   TEMPLATE_ID,
 } from "../../invoice-templates.fixtures";
 
@@ -118,7 +117,7 @@ import { db } from "@starter/db";
 const ROW_FIXTURE = makeRow();
 
 /** Queue row-ownership check: [0] row+org check, [1-3] index builders for decode */
-function mockRowOwned(row = ROW_FIXTURE) {
+function _mockRowOwned(row = ROW_FIXTURE) {
   (db.select as any)
     .mockReturnValueOnce(hoistedChain([{ row }]))
     .mockReturnValueOnce(hoistedChain([])) // buildRowIndex
@@ -127,7 +126,7 @@ function mockRowOwned(row = ROW_FIXTURE) {
 }
 
 /** Queue row-ownership for createCharge: [0] row check, [1-3] tokenToId indexes, [4-6] idToToken decode */
-function mockRowOwnedForCreate(row = ROW_FIXTURE) {
+function _mockRowOwnedForCreate(row = ROW_FIXTURE) {
   (db.select as any)
     .mockReturnValueOnce(hoistedChain([{ row }]))
     .mockReturnValueOnce(hoistedChain([])) // buildRowIndex (encode)
@@ -138,13 +137,19 @@ function mockRowOwnedForCreate(row = ROW_FIXTURE) {
     .mockReturnValueOnce(hoistedChain([])); // buildConstantIndex (decode)
 }
 
-function mockRowNotFound() {
+function _mockRowNotFound() {
   (db.select as any).mockReturnValueOnce(hoistedChain([]));
 }
 
 /** Queue charge-ownership for updateCharge without formula: [0] charge check, [1-3] decode only */
 function mockChargeOwned(charge = makeRowCharge(), withEncodeIndexes = false) {
-  const mock = (db.select as any).mockReturnValueOnce(hoistedChain([{ charge, row: ROW_FIXTURE }]));
+  const token = makeToken({
+    tokenKey: charge.chargeToken ?? "PORT_DUES_VAT",
+    label: charge.label ?? "VAT",
+  });
+  const mock = (db.select as any).mockReturnValueOnce(
+    hoistedChain([{ charge, token, templateId: TEMPLATE_ID, rowId: ROW_ID, row: ROW_FIXTURE }]),
+  );
   if (withEncodeIndexes) {
     mock
       .mockReturnValueOnce(hoistedChain([])) // buildRowIndex (encode)
@@ -162,7 +167,7 @@ function mockChargeNotFound() {
   (db.select as any).mockReturnValueOnce(hoistedChain([]));
 }
 
-function mockInsertReturns(charge: any) {
+function _mockInsertReturns(charge: any) {
   (db.insert as any).mockReturnValue({
     values: vi.fn().mockReturnThis(),
     returning: vi.fn().mockResolvedValue([charge]),
@@ -212,8 +217,8 @@ describe("TemplateRowChargesController - updateCharge", () => {
     it("returns 409 when new chargeToken collides with sibling charge", async () => {
       mockChargeOwned(makeRowCharge({ chargeToken: "OLD_TOKEN" }), false);
       // Skip formula encode indexes since no formula change
-      (db.query.templateRowCharges.findFirst as any).mockResolvedValue(
-        makeRowCharge({ id: "other-chg", chargeToken: "PORT_DUES_VAT" }),
+      (db.query.tokens.findFirst as any).mockResolvedValue(
+        makeToken({ id: "other-chg", tokenKey: "PORT_DUES_VAT" }),
       );
       const ctx = makeCtx({
         params: { chargeId: CHARGE_ID },
@@ -239,7 +244,7 @@ describe("TemplateRowChargesController - updateCharge", () => {
     it("updates chargeToken only — label is NOT automatically changed (AGENTS.md rule)", async () => {
       const charge = makeRowCharge({ label: "VAT", chargeToken: "PORT_DUES_VAT" });
       mockChargeOwned(charge, false);
-      (db.query.templateRowCharges.findFirst as any).mockResolvedValue(null); // no collision
+      (db.query.tokens.findFirst as any).mockResolvedValue(null); // no collision
       const updated = makeRowCharge({ chargeToken: "PORT_DUES_TAX" }); // chargeToken changed, label unchanged
       mockUpdateReturns(updated);
       const ctx = makeCtx({

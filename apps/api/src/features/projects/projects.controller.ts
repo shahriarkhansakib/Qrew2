@@ -8,7 +8,7 @@ import {
   projectStatusTransitions,
   projects,
 } from "@starter/db";
-import { and, count, eq, inArray, isNull, ne, type SQL, sql, sum } from "drizzle-orm";
+import { and, count, eq, ne, type SQL, sql, sum } from "drizzle-orm";
 import { type Context } from "hono";
 import { v4 as uuidv4 } from "uuid";
 import { z } from "zod";
@@ -56,7 +56,7 @@ export class ProjectsController {
     const invoiceCounts: Record<string, number> = {};
 
     if (projectIds.length > 0) {
-      const inClause = sql`${projects.id} IN (${sql.join(
+      const _inClause = sql`${projects.id} IN (${sql.join(
         projectIds.map((id) => sql`${id}`),
         sql`, `,
       )})`; // safe placeholder trick

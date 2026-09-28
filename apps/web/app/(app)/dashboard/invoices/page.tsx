@@ -30,7 +30,6 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
-import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import {
   DropdownMenu,
@@ -149,7 +148,7 @@ export default function InvoicesPage() {
       toast.success("Invoice updated successfully");
       queryClient.invalidateQueries({ queryKey: ["invoices"] });
       queryClient.invalidateQueries({ queryKey: ["invoice-drafts"] });
-    } catch (err) {
+    } catch (_err) {
       toast.error("Failed to update invoice");
     }
   };
@@ -184,7 +183,7 @@ export default function InvoicesPage() {
     },
   });
 
-  const openGenerateModal = (projectId: string) => {
+  const _openGenerateModal = (projectId: string) => {
     setSelectedProjectId(projectId);
     setIsGenerateModalOpen(true);
   };

@@ -8,7 +8,7 @@
  */
 
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { makeCtx, makeTemplate, ORG_ID, TEMPLATE_ID } from "./invoice-templates.fixtures";
+import { makeCtx, makeTemplate, TEMPLATE_ID } from "./invoice-templates.fixtures";
 
 // ─── Mock @starter/db ────────────────────────────────────────────────────────
 vi.mock("@starter/db", () => {

@@ -171,7 +171,8 @@ export function BuilderProvider({
   const getTokenColor = useCallback(
     (token: string) => {
       if (token === "EXP_TOTAL") return "text-rose-500 font-bold bg-rose-500/15";
-      if (externalTokens.category?.has(token) || token.startsWith("EXP_")) return "text-rose-400 bg-rose-500/10";
+      if (externalTokens.category?.has(token) || token.startsWith("EXP_"))
+        return "text-rose-400 bg-rose-500/10";
       if (externalTokens.global.has(token) || token.startsWith("GBL_")) return "text-indigo-400";
       if (externalTokens.template.has(token) || token.startsWith("TPL_")) return "text-blue-400";
       if (externalTokens.file.has(token) || token.startsWith("FILE_")) return "text-sky-400";
@@ -295,7 +296,7 @@ export function BuilderProvider({
     // If editing a section charge:
     if (selectedCell.isSectionCharge && selectedCell.sectionId) {
       const sec = sections.find((s) => s.id === selectedCell.sectionId);
-      if (sec && sec.sectionToken) {
+      if (sec?.sectionToken) {
         const secTokens = [
           sec.sectionToken,
           `SEC_${sec.sectionToken}`,

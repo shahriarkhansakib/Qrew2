@@ -1,8 +1,10 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import {
   CHARGE_ID,
+  makeChargeToken,
   makeCtx,
   makeSectionCharge,
+  SECTION_TOKEN,
   TEMPLATE_ID,
 } from "../../invoice-templates.fixtures";
 
@@ -77,8 +79,12 @@ import { db } from "@starter/db";
 import { updateSectionCharge } from "./update-section-charge.controller";
 
 function mockChargeOwned(charge = makeSectionCharge(), withFormulaIndexes = false) {
+  const token = makeChargeToken({
+    tokenKey: charge.chargeToken ?? `SEC_${SECTION_TOKEN}_PORT_LEVY`,
+    label: charge.label ?? "Port Levy",
+  });
   const mock = (db.select as any).mockReturnValueOnce(
-    hoistedChain([{ charge, section: { templateId: TEMPLATE_ID } }]),
+    hoistedChain([{ charge, token, section: { templateId: TEMPLATE_ID } }]),
   );
   if (withFormulaIndexes) {
     mock

@@ -1,17 +1,15 @@
 "use client";
 
-import { format, isValid, parseISO } from "date-fns";
+import { format, isValid } from "date-fns";
 import {
   Archive,
   ArchiveRestore,
-  Calendar,
   ChevronDown,
   ChevronRight,
   Edit,
   FileText,
   Folder,
   FolderOpen,
-  MoreHorizontal,
   Trash2,
 } from "lucide-react";
 import { useRouter } from "next/navigation";
@@ -27,7 +25,6 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import { cn } from "@/lib/utils";
 
 interface FolderViewProps {
   projects: any[];
@@ -54,7 +51,7 @@ export function FolderView({
   showArchivedAt,
   isArchivedView,
 }: FolderViewProps) {
-  const router = useRouter();
+  const _router = useRouter();
   const [expandedFolders, setExpandedFolders] = useState<Record<string, boolean>>({});
 
   const toggleFolder = (folderPath: string) => {
@@ -236,7 +233,7 @@ export function FolderView({
                                     if (val && field.fieldType === "date") {
                                       try {
                                         displayVal = format(new Date(val), "MMM d, yyyy");
-                                      } catch (e) {}
+                                      } catch (_e) {}
                                     }
                                     return <TableCell key={field.id}>{displayVal}</TableCell>;
                                   })}

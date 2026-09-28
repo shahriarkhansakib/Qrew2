@@ -118,7 +118,7 @@ export default function PurchasesPage() {
     if (saved) {
       try {
         setHiddenCols(JSON.parse(saved));
-      } catch (e) {}
+      } catch (_e) {}
     }
   }, []);
 
@@ -159,8 +159,7 @@ export default function PurchasesPage() {
       const q = searchQuery.toLowerCase().trim();
       list = list.filter(
         (p: any) =>
-          p.purchaseNumber.toLowerCase().includes(q) ||
-          (p.supplier?.name && p.supplier.name.toLowerCase().includes(q)),
+          p.purchaseNumber.toLowerCase().includes(q) || p.supplier?.name?.toLowerCase().includes(q),
       );
     }
     return filterRows(list, extractors);
@@ -240,32 +239,32 @@ export default function PurchasesPage() {
             </DropdownMenuTrigger>
             <DropdownMenuContent align="end" className="w-[180px]">
               <DropdownMenuCheckboxItem
-                checked={!hiddenCols["purchaseNumber"]}
+                checked={!hiddenCols.purchaseNumber}
                 onCheckedChange={(c) => toggleColumn("purchaseNumber", c)}
               >
                 Purchase #
               </DropdownMenuCheckboxItem>
               <DropdownMenuCheckboxItem
-                checked={!hiddenCols["date"]}
+                checked={!hiddenCols.date}
                 onCheckedChange={(c) => toggleColumn("date", c)}
               >
                 Date
               </DropdownMenuCheckboxItem>
               <DropdownMenuCheckboxItem
-                checked={!hiddenCols["supplier"]}
+                checked={!hiddenCols.supplier}
                 onCheckedChange={(c) => toggleColumn("supplier", c)}
               >
                 Supplier
               </DropdownMenuCheckboxItem>
               <DropdownMenuCheckboxItem
-                checked={!hiddenCols["status"]}
+                checked={!hiddenCols.status}
                 onCheckedChange={(c) => toggleColumn("status", c)}
               >
                 Status
               </DropdownMenuCheckboxItem>
               <Can I="inventory:view_purchases">
                 <DropdownMenuCheckboxItem
-                  checked={!hiddenCols["totalAmount"]}
+                  checked={!hiddenCols.totalAmount}
                   onCheckedChange={(c) => toggleColumn("totalAmount", c)}
                 >
                   Total
@@ -280,62 +279,62 @@ export default function PurchasesPage() {
         <Table>
           <TableHeader>
             <TableRow className="bg-muted/50">
-              {!hiddenCols["purchaseNumber"] && (
+              {!hiddenCols.purchaseNumber && (
                 <FilterableTableHeader
                   columnKey="purchaseNumber"
                   title="Purchase #"
                   isFiltered={isColumnFiltered("purchaseNumber")}
-                  activeValue={filters["purchaseNumber"]}
+                  activeValue={filters.purchaseNumber}
                   onClear={() => clearColumnFilter("purchaseNumber")}
-                  width={columnWidths["purchaseNumber"]}
+                  width={columnWidths.purchaseNumber}
                   onResizeStart={handleResizeStart}
                   onResetWidth={resetColumnWidth}
                 />
               )}
-              {!hiddenCols["date"] && (
+              {!hiddenCols.date && (
                 <FilterableTableHeader
                   columnKey="date"
                   title="Date"
                   isFiltered={isColumnFiltered("date")}
-                  activeValue={filters["date"]}
+                  activeValue={filters.date}
                   onClear={() => clearColumnFilter("date")}
-                  width={columnWidths["date"]}
+                  width={columnWidths.date}
                   onResizeStart={handleResizeStart}
                   onResetWidth={resetColumnWidth}
                 />
               )}
-              {!hiddenCols["supplier"] && (
+              {!hiddenCols.supplier && (
                 <FilterableTableHeader
                   columnKey="supplier"
                   title="Supplier"
                   isFiltered={isColumnFiltered("supplier")}
-                  activeValue={filters["supplier"]}
+                  activeValue={filters.supplier}
                   onClear={() => clearColumnFilter("supplier")}
-                  width={columnWidths["supplier"]}
+                  width={columnWidths.supplier}
                   onResizeStart={handleResizeStart}
                   onResetWidth={resetColumnWidth}
                 />
               )}
-              {!hiddenCols["status"] && (
+              {!hiddenCols.status && (
                 <FilterableTableHeader
                   columnKey="status"
                   title="Status"
                   isFiltered={isColumnFiltered("status")}
-                  activeValue={filters["status"]}
+                  activeValue={filters.status}
                   onClear={() => clearColumnFilter("status")}
-                  width={columnWidths["status"]}
+                  width={columnWidths.status}
                   onResizeStart={handleResizeStart}
                   onResetWidth={resetColumnWidth}
                 />
               )}
-              {!hiddenCols["totalAmount"] && (
+              {!hiddenCols.totalAmount && (
                 <FilterableTableHeader
                   columnKey="totalAmount"
                   title="Total (৳)"
                   isFiltered={isColumnFiltered("totalAmount")}
-                  activeValue={filters["totalAmount"]}
+                  activeValue={filters.totalAmount}
                   onClear={() => clearColumnFilter("totalAmount")}
-                  width={columnWidths["totalAmount"]}
+                  width={columnWidths.totalAmount}
                   onResizeStart={handleResizeStart}
                   onResetWidth={resetColumnWidth}
                   className="text-right"
@@ -362,7 +361,7 @@ export default function PurchasesPage() {
             ) : (
               filteredPurchases.map((purchase: any) => (
                 <TableRow key={purchase.id} className="hover:bg-muted/30 transition-colors">
-                  {!hiddenCols["purchaseNumber"] && (
+                  {!hiddenCols.purchaseNumber && (
                     <FilterableTableCell
                       columnKey="purchaseNumber"
                       value={purchase.purchaseNumber}
@@ -376,51 +375,51 @@ export default function PurchasesPage() {
                             }
                           : () => setInvoiceTarget(purchase)
                       }
-                      width={columnWidths["purchaseNumber"]}
+                      width={columnWidths.purchaseNumber}
                     >
                       <span className="font-mono font-medium">{purchase.purchaseNumber}</span>
                     </FilterableTableCell>
                   )}
-                  {!hiddenCols["date"] && (
+                  {!hiddenCols.date && (
                     <FilterableTableCell
                       columnKey="date"
                       value={format(new Date(purchase.purchaseDate), "dd MMM yyyy")}
                       isFiltered={isColumnFiltered("date")}
                       onToggleFilter={toggleFilter}
-                      width={columnWidths["date"]}
+                      width={columnWidths.date}
                     >
                       {format(new Date(purchase.purchaseDate), "dd MMM yyyy")}
                     </FilterableTableCell>
                   )}
-                  {!hiddenCols["supplier"] && (
+                  {!hiddenCols.supplier && (
                     <FilterableTableCell
                       columnKey="supplier"
                       value={purchase.supplier?.name ?? "—"}
                       isFiltered={isColumnFiltered("supplier")}
                       onToggleFilter={toggleFilter}
-                      width={columnWidths["supplier"]}
+                      width={columnWidths.supplier}
                     >
                       {purchase.supplier?.name ?? "—"}
                     </FilterableTableCell>
                   )}
-                  {!hiddenCols["status"] && (
+                  {!hiddenCols.status && (
                     <FilterableTableCell
                       columnKey="status"
                       value={purchase.status}
                       isFiltered={isColumnFiltered("status")}
                       onToggleFilter={toggleFilter}
-                      width={columnWidths["status"]}
+                      width={columnWidths.status}
                     >
                       <StatusBadge status={purchase.status} />
                     </FilterableTableCell>
                   )}
-                  {!hiddenCols["totalAmount"] && (
+                  {!hiddenCols.totalAmount && (
                     <FilterableTableCell
                       columnKey="totalAmount"
                       value={formatNumber(purchase.totalAmount || "0", 2)}
                       isFiltered={isColumnFiltered("totalAmount")}
                       onToggleFilter={toggleFilter}
-                      width={columnWidths["totalAmount"]}
+                      width={columnWidths.totalAmount}
                       className="text-right font-medium"
                     >
                       <Can I="inventory:view_purchases">

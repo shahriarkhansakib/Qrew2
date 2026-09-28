@@ -46,7 +46,7 @@ export default function LandingPage() {
       setTitleNumber((prev) => (prev === titles.length - 1 ? 0 : prev + 1));
     }, 2500);
     return () => clearTimeout(timeoutId);
-  }, [titleNumber, titles]);
+  }, [titles]);
 
   const toggleTheme = () => {
     const root = document.documentElement;

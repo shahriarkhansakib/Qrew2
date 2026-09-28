@@ -53,7 +53,7 @@ export default function CustomersPage() {
     if (saved) {
       try {
         setHiddenCols(JSON.parse(saved));
-      } catch (e) {}
+      } catch (_e) {}
     }
   }, []);
 
@@ -92,8 +92,8 @@ export default function CustomersPage() {
       list = list.filter(
         (c: any) =>
           c.name.toLowerCase().includes(q) ||
-          (c.phone && c.phone.toLowerCase().includes(q)) ||
-          (c.email && c.email.toLowerCase().includes(q)),
+          c.phone?.toLowerCase().includes(q) ||
+          c.email?.toLowerCase().includes(q),
       );
     }
     return filterRows(list, extractors);
@@ -149,25 +149,25 @@ export default function CustomersPage() {
           </DropdownMenuTrigger>
           <DropdownMenuContent align="end" className="w-[180px]">
             <DropdownMenuCheckboxItem
-              checked={!hiddenCols["name"]}
+              checked={!hiddenCols.name}
               onCheckedChange={(c) => toggleColumn("name", c)}
             >
               Name
             </DropdownMenuCheckboxItem>
             <DropdownMenuCheckboxItem
-              checked={!hiddenCols["phone"]}
+              checked={!hiddenCols.phone}
               onCheckedChange={(c) => toggleColumn("phone", c)}
             >
               Phone
             </DropdownMenuCheckboxItem>
             <DropdownMenuCheckboxItem
-              checked={!hiddenCols["email"]}
+              checked={!hiddenCols.email}
               onCheckedChange={(c) => toggleColumn("email", c)}
             >
               Email
             </DropdownMenuCheckboxItem>
             <DropdownMenuCheckboxItem
-              checked={!hiddenCols["address"]}
+              checked={!hiddenCols.address}
               onCheckedChange={(c) => toggleColumn("address", c)}
             >
               Address
@@ -180,50 +180,50 @@ export default function CustomersPage() {
         <Table>
           <TableHeader>
             <TableRow className="bg-muted/50">
-              {!hiddenCols["name"] && (
+              {!hiddenCols.name && (
                 <FilterableTableHeader
                   columnKey="name"
                   title="Name"
                   isFiltered={isColumnFiltered("name")}
-                  activeValue={filters["name"]}
+                  activeValue={filters.name}
                   onClear={() => clearColumnFilter("name")}
-                  width={columnWidths["name"]}
+                  width={columnWidths.name}
                   onResizeStart={handleResizeStart}
                   onResetWidth={resetColumnWidth}
                 />
               )}
-              {!hiddenCols["phone"] && (
+              {!hiddenCols.phone && (
                 <FilterableTableHeader
                   columnKey="phone"
                   title="Phone"
                   isFiltered={isColumnFiltered("phone")}
-                  activeValue={filters["phone"]}
+                  activeValue={filters.phone}
                   onClear={() => clearColumnFilter("phone")}
-                  width={columnWidths["phone"]}
+                  width={columnWidths.phone}
                   onResizeStart={handleResizeStart}
                   onResetWidth={resetColumnWidth}
                 />
               )}
-              {!hiddenCols["email"] && (
+              {!hiddenCols.email && (
                 <FilterableTableHeader
                   columnKey="email"
                   title="Email"
                   isFiltered={isColumnFiltered("email")}
-                  activeValue={filters["email"]}
+                  activeValue={filters.email}
                   onClear={() => clearColumnFilter("email")}
-                  width={columnWidths["email"]}
+                  width={columnWidths.email}
                   onResizeStart={handleResizeStart}
                   onResetWidth={resetColumnWidth}
                 />
               )}
-              {!hiddenCols["address"] && (
+              {!hiddenCols.address && (
                 <FilterableTableHeader
                   columnKey="address"
                   title="Address"
                   isFiltered={isColumnFiltered("address")}
-                  activeValue={filters["address"]}
+                  activeValue={filters.address}
                   onClear={() => clearColumnFilter("address")}
-                  width={columnWidths["address"]}
+                  width={columnWidths.address}
                   onResizeStart={handleResizeStart}
                   onResetWidth={resetColumnWidth}
                 />
@@ -249,47 +249,47 @@ export default function CustomersPage() {
             ) : (
               filteredCustomers.map((c: any) => (
                 <TableRow key={c.id} className="hover:bg-muted/30 transition-colors">
-                  {!hiddenCols["name"] && (
+                  {!hiddenCols.name && (
                     <FilterableTableCell
                       columnKey="name"
                       value={c.name}
                       isFiltered={isColumnFiltered("name")}
                       onToggleFilter={toggleFilter}
                       onTextClick={() => setDetailCustomer(c)}
-                      width={columnWidths["name"]}
+                      width={columnWidths.name}
                     >
                       <span className="font-medium">{c.name}</span>
                     </FilterableTableCell>
                   )}
-                  {!hiddenCols["phone"] && (
+                  {!hiddenCols.phone && (
                     <FilterableTableCell
                       columnKey="phone"
                       value={c.phone ?? "—"}
                       isFiltered={isColumnFiltered("phone")}
                       onToggleFilter={toggleFilter}
-                      width={columnWidths["phone"]}
+                      width={columnWidths.phone}
                     >
                       <span className="text-muted-foreground">{c.phone ?? "—"}</span>
                     </FilterableTableCell>
                   )}
-                  {!hiddenCols["email"] && (
+                  {!hiddenCols.email && (
                     <FilterableTableCell
                       columnKey="email"
                       value={c.email ?? "—"}
                       isFiltered={isColumnFiltered("email")}
                       onToggleFilter={toggleFilter}
-                      width={columnWidths["email"]}
+                      width={columnWidths.email}
                     >
                       <span className="text-muted-foreground">{c.email ?? "—"}</span>
                     </FilterableTableCell>
                   )}
-                  {!hiddenCols["address"] && (
+                  {!hiddenCols.address && (
                     <FilterableTableCell
                       columnKey="address"
                       value={c.address ?? "—"}
                       isFiltered={isColumnFiltered("address")}
                       onToggleFilter={toggleFilter}
-                      width={columnWidths["address"]}
+                      width={columnWidths.address}
                     >
                       <span className="text-muted-foreground">{c.address ?? "—"}</span>
                     </FilterableTableCell>

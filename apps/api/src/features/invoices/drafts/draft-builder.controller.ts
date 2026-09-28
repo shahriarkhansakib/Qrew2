@@ -469,7 +469,7 @@ export class DraftBuilderController {
     const s = sections.find((s: any) => s.id === sectionId);
     if (!s) return c.json({ error: "Section not found" }, 404);
     const r = s.rows.find((r: any) => r.id === rowId);
-    if (!r || !r.charges) return c.json({ error: "Row not found" }, 404);
+    if (!r?.charges) return c.json({ error: "Row not found" }, 404);
 
     const cIdx = r.charges.findIndex((ch: any) => ch.id === chargeId);
     if (cIdx === -1) return c.json({ error: "Charge not found" }, 404);
@@ -510,7 +510,7 @@ export class DraftBuilderController {
     const s = sections.find((s: any) => s.id === sectionId);
     if (!s) return c.json({ error: "Section not found" }, 404);
     const r = s.rows.find((r: any) => r.id === rowId);
-    if (r && r.charges) {
+    if (r?.charges) {
       r.charges = r.charges.filter((ch: any) => ch.id !== chargeId);
       await updateDraft(draft.id, {
         draftSections: sections,
@@ -533,7 +533,7 @@ export class DraftBuilderController {
     const s = sections.find((s: any) => s.id === sectionId);
     if (!s) return c.json({ error: "Section not found" }, 404);
     const r = s.rows.find((r: any) => r.id === rowId);
-    if (!r || !r.charges) return c.json({ error: "Row not found" }, 404);
+    if (!r?.charges) return c.json({ error: "Row not found" }, 404);
 
     const chargeMap = new Map<string, any>(r.charges.map((ch: any) => [ch.id, ch]));
     const reordered: any[] = [];
@@ -651,7 +651,7 @@ export class DraftBuilderController {
 
     const sections = draft.draftSections || [];
     const s = sections.find((s: any) => s.id === sectionId);
-    if (s && s.sectionCharges) {
+    if (s?.sectionCharges) {
       s.sectionCharges = s.sectionCharges.filter((ch: any) => ch.id !== chargeId);
       await updateDraft(draft.id, {
         draftSections: sections,
@@ -671,7 +671,7 @@ export class DraftBuilderController {
 
     const sections = draft.draftSections || [];
     const s = sections.find((s: any) => s.id === sectionId);
-    if (s && s.sectionCharges) {
+    if (s?.sectionCharges) {
       const chargeMap = new Map<string, any>(s.sectionCharges.map((ch: any) => [ch.id, ch]));
       const reordered: any[] = [];
       for (let i = 0; i < orderedIds.length; i++) {

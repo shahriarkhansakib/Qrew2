@@ -440,7 +440,7 @@ export class AstEvaluatorService {
       grandTotal = math.add(grandTotal, safeBN(scope[`SEC_${sectionToken}`])) as BigNumber;
     }
 
-    scope["INVOICE_TOTAL"] = toFixed(grandTotal);
+    scope.INVOICE_TOTAL = toFixed(grandTotal);
 
     return {
       evaluatedSections,

@@ -1,6 +1,5 @@
 import { format } from "date-fns";
-import { FileText, Printer, RotateCcw, X } from "lucide-react";
-import { useMemo } from "react";
+import { FileText, Printer, RotateCcw } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import {
@@ -24,7 +23,7 @@ export function ProductInvoiceModal({ isOpen, onClose, type, document, onReturn 
   if (!document) return null;
 
   const isPurchase = type === "PURCHASE";
-  const isSale = type === "SALE";
+  const _isSale = type === "SALE";
   const isSaleReturn = type === "SALE_RETURN";
   const isPurchaseReturn = type === "PURCHASE_RETURN";
   const isReturn = isSaleReturn || isPurchaseReturn;

@@ -1,4 +1,4 @@
-import { db, invoiceTemplates, templateSections, tokens } from "@starter/db";
+import { db, invoiceTemplates, tokens } from "@starter/db";
 import { and, eq } from "drizzle-orm";
 import { Context } from "hono";
 import { z } from "zod";
@@ -39,10 +39,7 @@ export async function createSection(c: Context) {
   }
 
   const collision = await db.query.tokens?.findFirst({
-    where: and(
-      eq(tokens.templateId, templateId),
-      eq(tokens.tokenKey, sectionToken),
-    ),
+    where: and(eq(tokens.templateId, templateId), eq(tokens.tokenKey, sectionToken)),
   });
   if (collision) {
     return c.json(

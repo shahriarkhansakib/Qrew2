@@ -98,7 +98,7 @@ const makeStatus = (overrides = {}) => ({
   ...overrides,
 });
 
-const makeRequest = (method: string, path: string, body?: object, orgId = ORG_ID) => {
+const makeRequest = (method: string, path: string, body?: object, _orgId = ORG_ID) => {
   const init: RequestInit = { method };
   if (body) {
     init.body = JSON.stringify(body);

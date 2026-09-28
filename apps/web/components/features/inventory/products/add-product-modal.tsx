@@ -141,7 +141,7 @@ export function AddProductModal({ isOpen, onClose, editProduct }: Props) {
         isActive: true,
       });
     }
-  }, [isOpen, editProduct, reset]);
+  }, [isOpen, editProduct, reset, categoryId, categories?.find]);
 
   const handleAutoGenerateSku = () => {
     const catObj = categories?.find((c: any) => c.id === categoryId);

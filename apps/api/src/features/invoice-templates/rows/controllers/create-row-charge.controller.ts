@@ -1,12 +1,4 @@
-import {
-  db,
-  decodeFormula,
-  encodeFormula,
-  invoiceTemplates,
-  templateRowCharges,
-  templateRows,
-  tokens,
-} from "@starter/db";
+import { db, invoiceTemplates, templateRows, tokens } from "@starter/db";
 import { and, eq } from "drizzle-orm";
 import { Context } from "hono";
 import { z } from "zod";
@@ -19,8 +11,8 @@ import {
 } from "../../validation/formula-validator";
 import { toSnakeCase } from "../services/row-index.service";
 
-function validateFormula(formula: string | null | undefined): boolean {
-  if (!formula || !formula.trim()) return false;
+function _validateFormula(formula: string | null | undefined): boolean {
+  if (!formula?.trim()) return false;
   if (/[+\-*/]\s*$/.test(formula.trim())) return false;
   if (/^\s*[+*/]/.test(formula.trim())) return false;
   return true;
@@ -61,8 +53,7 @@ export async function createCharge(c: Context) {
   const rowToken = rowCheck[0].rowToken ?? (existingRow as any)?.rowToken;
   const templateId = existingRow.templateId;
 
-  const chargeToken =
-    parsed.data.chargeToken ?? `${rowToken}_${toSnakeCase(parsed.data.label)}`;
+  const chargeToken = parsed.data.chargeToken ?? `${rowToken}_${toSnakeCase(parsed.data.label)}`;
 
   const rateVal = validateRateChargeFormula(parsed.data.formula, rowToken);
   if (!rateVal.valid) {
@@ -73,12 +64,9 @@ export async function createCharge(c: Context) {
     return c.json({ error: charVal.error }, 422);
   }
 
-    const dup = await db.query.tokens?.findFirst({
-      where: and(
-        eq(tokens.templateId, templateId),
-        eq(tokens.tokenKey, chargeToken),
-      ),
-    });
+  const dup = await db.query.tokens?.findFirst({
+    where: and(eq(tokens.templateId, templateId), eq(tokens.tokenKey, chargeToken)),
+  });
   if (dup) {
     return c.json({ error: `Row charge token "${chargeToken}" already exists on this row.` }, 409);
   }

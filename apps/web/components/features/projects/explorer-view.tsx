@@ -1,17 +1,8 @@
 "use client";
 
 import { format, isValid } from "date-fns";
-import {
-  Calendar,
-  ChevronLeft,
-  ChevronRight,
-  Folder,
-  FolderOpen,
-  HardDrive,
-  Home,
-} from "lucide-react";
+import { ChevronLeft, ChevronRight, Folder, HardDrive } from "lucide-react";
 import { useMemo, useState } from "react";
-import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import { ListView } from "./list-view";

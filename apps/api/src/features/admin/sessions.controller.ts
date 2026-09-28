@@ -72,7 +72,7 @@ export class SessionsController {
 
       try {
         c.executionCtx.waitUntil(auditPromise);
-      } catch (e) {
+      } catch (_e) {
         Promise.resolve(auditPromise);
       }
 

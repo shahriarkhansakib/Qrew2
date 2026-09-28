@@ -1,14 +1,5 @@
 import { relations } from "drizzle-orm";
-import {
-  boolean,
-  index,
-  integer,
-  jsonb,
-  pgTable,
-  text,
-  timestamp,
-  unique,
-} from "drizzle-orm/pg-core";
+import { boolean, integer, jsonb, pgTable, text, timestamp, unique } from "drizzle-orm/pg-core";
 import { organizations, users } from "./auth";
 import { documentTypeEnum } from "./invoice-enums";
 import { invoiceTemplates } from "./invoice-templates";

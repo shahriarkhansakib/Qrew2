@@ -10,11 +10,8 @@ import { deleteRow } from "./delete-row.controller";
 
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import {
-  CHARGE_ID,
   makeCtx,
   makeRow,
-  makeRowCharge,
-  makeSelectChain,
   ORG_ID,
   ROW_ID,
   SECTION_ID,
@@ -116,7 +113,7 @@ import { db } from "@starter/db";
 // ─── Mock helpers ─────────────────────────────────────────────────────────────
 
 /** Queue up all 4 selects for section-ownership flow (section check + 3 index builders) */
-function mockSectionOwned(templateId = TEMPLATE_ID) {
+function _mockSectionOwned(templateId = TEMPLATE_ID) {
   (db.select as any)
     .mockReturnValueOnce(
       hoistedChain([
@@ -131,12 +128,12 @@ function mockSectionOwned(templateId = TEMPLATE_ID) {
     .mockReturnValueOnce(hoistedChain([])); // buildConstantIndex
 }
 
-function mockSectionNotFound() {
+function _mockSectionNotFound() {
   (db.select as any).mockReturnValueOnce(hoistedChain([]));
 }
 
 /** Queue up all 4 selects for row-ownership flow (row+org check + 3 index builders) */
-function mockRowOwned(row = makeRow()) {
+function _mockRowOwned(row = makeRow()) {
   (db.select as any)
     .mockReturnValueOnce(hoistedChain([{ row, orgId: ORG_ID }]))
     .mockReturnValueOnce(hoistedChain([])) // buildRowIndex (collision check)
@@ -148,7 +145,7 @@ function mockRowNotFound() {
   (db.select as any).mockReturnValueOnce(hoistedChain([]));
 }
 
-function mockTransaction(result: any) {
+function _mockTransaction(result: any) {
   (db.transaction as any).mockImplementation(async (fn: any) => {
     const tx = {
       insert: vi.fn(() => ({

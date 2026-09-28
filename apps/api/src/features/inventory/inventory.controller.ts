@@ -4,8 +4,8 @@
  * Stock is always computed live from inventory_transactions — never cached on products.
  */
 
-import { db, inventoryTransactions, products } from "@starter/db";
-import { and, desc, eq, sql } from "drizzle-orm";
+import { db, inventoryTransactions } from "@starter/db";
+import { and, eq, sql } from "drizzle-orm";
 import { type Context } from "hono";
 import { v4 as uuidv4 } from "uuid";
 import { z } from "zod";
@@ -49,8 +49,8 @@ export class InventoryController {
     const productId = c.req.query("productId");
     const warehouseId = c.req.query("warehouseId");
     const transactionType = c.req.query("transactionType");
-    const page = Math.max(1, parseInt(c.req.query("page") ?? "1"));
-    const limit = Math.min(100, parseInt(c.req.query("limit") ?? "50"));
+    const page = Math.max(1, parseInt(c.req.query("page") ?? "1", 10));
+    const limit = Math.min(100, parseInt(c.req.query("limit") ?? "50", 10));
     const offset = (page - 1) * limit;
 
     const result = await db.query.inventoryTransactions.findMany({
@@ -301,7 +301,7 @@ export class InventoryController {
 
         if (!partyName && tx.notes) {
           const matchTo = tx.notes.match(/(?:to|from)\s+([A-Za-z0-9\s._-]+)/i);
-          if (matchTo && matchTo[1]) partyName = matchTo[1].trim();
+          if (matchTo?.[1]) partyName = matchTo[1].trim();
         }
 
         if (txType === "PURCHASE" || txType === "PURCHASE_RETURN") {
@@ -573,7 +573,7 @@ export class InventoryController {
             .union([z.string(), z.number()])
             .transform((val) => String(val))
             .refine(
-              (val) => !isNaN(parseFloat(val)) && parseFloat(val) !== 0,
+              (val) => !Number.isNaN(parseFloat(val)) && parseFloat(val) !== 0,
               "Valid quantity required",
             ),
           transactionType: z.preprocess(
@@ -654,7 +654,7 @@ export class InventoryController {
         const isReturn =
           item.transactionType === "SALE_RETURN" || item.transactionType === "PURCHASE_RETURN";
         if (isReturn) {
-          if (!item.referenceId || !item.referenceId.trim()) {
+          if (!item.referenceId?.trim()) {
             return c.json(
               {
                 error: `Validation Error: Every return item MUST be linked to an original sale invoice or purchase bill (referenceId required).`,

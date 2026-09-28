@@ -9,7 +9,6 @@
 
 import { Check, Pencil, Plus, Search, SlidersHorizontal, Trash2, X } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
-import { toast } from "sonner";
 import { Can } from "@/components/features/auth/can";
 import {
   AlertDialog,
@@ -62,7 +61,7 @@ export default function BrandsPage() {
     if (saved) {
       try {
         setHiddenCols(JSON.parse(saved));
-      } catch (e) {}
+      } catch (_e) {}
     }
   }, []);
 
@@ -164,7 +163,7 @@ export default function BrandsPage() {
           </DropdownMenuTrigger>
           <DropdownMenuContent align="end" className="w-[180px]">
             <DropdownMenuCheckboxItem
-              checked={!hiddenCols["name"]}
+              checked={!hiddenCols.name}
               onCheckedChange={(c) => toggleColumn("name", c)}
             >
               Brand Name
@@ -178,14 +177,14 @@ export default function BrandsPage() {
         <Table>
           <TableHeader>
             <TableRow className="bg-muted/50">
-              {!hiddenCols["name"] && (
+              {!hiddenCols.name && (
                 <FilterableTableHeader
                   columnKey="name"
                   title="Brand Name"
                   isFiltered={isColumnFiltered("name")}
-                  activeValue={filters["name"]}
+                  activeValue={filters.name}
                   onClear={() => clearColumnFilter("name")}
-                  width={columnWidths["name"]}
+                  width={columnWidths.name}
                   onResizeStart={handleResizeStart}
                   onResetWidth={resetColumnWidth}
                 />
@@ -211,12 +210,10 @@ export default function BrandsPage() {
             ) : (
               filteredBrands.map((brand: any) => (
                 <TableRow key={brand.id} className="hover:bg-muted/30 transition-colors">
-                  {!hiddenCols["name"] &&
+                  {!hiddenCols.name &&
                     (editingId === brand.id ? (
                       <TableCell
-                        style={
-                          columnWidths["name"] ? { width: `${columnWidths["name"]}px` } : undefined
-                        }
+                        style={columnWidths.name ? { width: `${columnWidths.name}px` } : undefined}
                       >
                         <div
                           className="flex items-center gap-1.5"
@@ -267,7 +264,7 @@ export default function BrandsPage() {
                           setEditingId(brand.id);
                           setEditingName(brand.name);
                         }}
-                        width={columnWidths["name"]}
+                        width={columnWidths.name}
                       >
                         <span className="font-medium">{brand.name}</span>
                       </FilterableTableCell>

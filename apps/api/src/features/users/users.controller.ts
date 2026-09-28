@@ -10,7 +10,7 @@ const usersControllerLog = logger.child({ module: "users-controller" });
 export const UsersController = {
   async deleteMe(c: Context<{ Variables: AuthVariables }>) {
     const user = c.get("user");
-    if (!user || !user.id)
+    if (!user?.id)
       return c.json({ error: "Unauthorized", message: "User context is missing or invalid." }, 401);
 
     try {

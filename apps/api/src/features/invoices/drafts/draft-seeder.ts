@@ -97,8 +97,7 @@ export class DraftSeeder {
       if (project) {
         const lookupKey = th.fieldKey || th.systemFieldKey;
         if (lookupKey === "clientId") val = project.client?.name || "";
-        else if (lookupKey === "name" || lookupKey === "status")
-          val = project[lookupKey] || "";
+        else if (lookupKey === "name" || lookupKey === "status") val = project[lookupKey] || "";
         else if (lookupKey && project.customFields)
           val = (project.customFields as any)[lookupKey] || "";
       }

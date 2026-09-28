@@ -260,7 +260,7 @@ export function buildDbMock(): any {
     },
     invoiceTemplates: { id: "id", organizationId: "organizationId" },
     eq: vi.fn((_a: any, _b: any) => "eq-condition"),
-    and: vi.fn((...args: any[]) => "and-condition"),
-    asc: vi.fn((col: any) => "asc-" + col),
+    and: vi.fn((..._args: any[]) => "and-condition"),
+    asc: vi.fn((col: any) => `asc-${col}`),
   };
 }

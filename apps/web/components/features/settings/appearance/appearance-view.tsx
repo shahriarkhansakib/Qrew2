@@ -1,7 +1,7 @@
 "use client";
 
 import { ThemeSelector } from "@/components/features/settings/appearance/theme-selector";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent } from "@/components/ui/card";
 
 export function AppearanceView() {
   return (

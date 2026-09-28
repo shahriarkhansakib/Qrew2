@@ -24,8 +24,9 @@ export const tokens = pgTable(
     organizationId: text("organization_id")
       .notNull()
       .references(() => organizations.id, { onDelete: "cascade" }),
-    templateId: text("template_id")
-      .references((): AnyPgColumn => invoiceTemplates.id, { onDelete: "cascade" }),
+    templateId: text("template_id").references((): AnyPgColumn => invoiceTemplates.id, {
+      onDelete: "cascade",
+    }),
     sortOrder: integer("sort_order").default(0).notNull(),
     valueType: configValueTypeEnum("value_type").default("number"),
     isInjectable: boolean("is_injectable").default(true).notNull(),

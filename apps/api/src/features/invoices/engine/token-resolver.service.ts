@@ -105,7 +105,7 @@ export async function resolveScope(input: ResolveScopeInput): Promise<Record<str
 
   // Register EXP_TOTAL
   const expTotalFormatted = (expTotal as math.BigNumber).toFixed(6);
-  scope["EXP_TOTAL"] = expTotalFormatted;
+  scope.EXP_TOTAL = expTotalFormatted;
 
   // -----------------------------------------------------------------------
   // 2. GBL_* — injectable organization constants
@@ -117,12 +117,7 @@ export async function resolveScope(input: ResolveScopeInput): Promise<Record<str
     })
     .from(organizationConfigs)
     .innerJoin(tokens, eq(tokens.id, organizationConfigs.id))
-    .where(
-      and(
-        eq(tokens.organizationId, organizationId),
-        eq(tokens.isInjectable, true),
-      ),
-    );
+    .where(and(eq(tokens.organizationId, organizationId), eq(tokens.isInjectable, true)));
 
   for (const conf of orgConfigs) {
     const bn = bigMath.bignumber(conf.configValue ?? "0");
@@ -146,7 +141,7 @@ export async function resolveScope(input: ResolveScopeInput): Promise<Record<str
 
   for (const c of tplConsts) {
     const val = parseFloat(c.defaultValue ?? "0");
-    const bn = bigMath.bignumber(isNaN(val) ? 0 : val);
+    const bn = bigMath.bignumber(Number.isNaN(val) ? 0 : val);
     const formatted = (bn as math.BigNumber).toFixed(6);
     const bareToken = c.tokenKey.replace(/^TPL_/, "");
     scope[`TPL_${bareToken}`] = formatted;
@@ -187,12 +182,7 @@ export async function resolveScope(input: ResolveScopeInput): Promise<Record<str
       customFieldDefinitions,
       eq(templateHeaderFields.customFieldDefinitionId, customFieldDefinitions.id),
     )
-    .where(
-      and(
-        eq(templateHeaderFields.templateId, templateId),
-        eq(tokens.isInjectable, true),
-      ),
-    );
+    .where(and(eq(templateHeaderFields.templateId, templateId), eq(tokens.isInjectable, true)));
 
   for (const field of headerFields) {
     const bareKey = field.tokenKey.toUpperCase().replace(/^FILE_/, "");
@@ -222,7 +212,7 @@ export async function resolveScope(input: ResolveScopeInput): Promise<Record<str
 
       if (rawValue !== null && rawValue !== undefined) {
         const parsed = parseFloat(String(rawValue));
-        if (!isNaN(parsed)) {
+        if (!Number.isNaN(parsed)) {
           const bn = bigMath.bignumber(parsed);
           const formatted = (bn as math.BigNumber).toFixed(6);
           scope[tokenKey] = formatted;
@@ -235,18 +225,18 @@ export async function resolveScope(input: ResolveScopeInput): Promise<Record<str
     // Use field default or 0
     const defaultVal = field.defaultManualValue ?? "0";
     const parsed = parseFloat(defaultVal);
-    const bn = bigMath.bignumber(isNaN(parsed) ? 0 : parsed);
+    const bn = bigMath.bignumber(Number.isNaN(parsed) ? 0 : parsed);
     const formatted = (bn as math.BigNumber).toFixed(6);
     scope[tokenKey] = formatted;
     scope[bareKey] = formatted;
   }
 
   // Inject all project custom fields under bare key and FILE_<KEY> prefix
-  if (project && project.customFields) {
+  if (project?.customFields) {
     for (const [key, value] of Object.entries(project.customFields)) {
       if (value !== null && value !== undefined) {
         const parsed = parseFloat(String(value));
-        if (!isNaN(parsed)) {
+        if (!Number.isNaN(parsed)) {
           const bn = bigMath.bignumber(parsed);
           const formatted = (bn as math.BigNumber).toFixed(6);
           const bareKey = key.toUpperCase().replace(/^FILE_/, "");
@@ -263,7 +253,7 @@ export async function resolveScope(input: ResolveScopeInput): Promise<Record<str
   if (externalOverrides) {
     for (const [k, v] of Object.entries(externalOverrides)) {
       const parsed = parseFloat(v);
-      if (!isNaN(parsed)) {
+      if (!Number.isNaN(parsed)) {
         const formatted = bigMath.bignumber(parsed).toFixed(6);
         scope[k] = formatted;
         const bare = k.replace(/^(EXP_|FILE_|GBL_|TPL_)/, "");

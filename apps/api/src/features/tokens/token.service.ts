@@ -2,6 +2,7 @@ import {
   db,
   expenseCategories,
   organizationConfigs,
+  type TokenDomain,
   templateConstants,
   templateHeaderFields,
   templateRowCharges,
@@ -9,7 +10,6 @@ import {
   templateSectionCharges,
   templateSections,
   tokens,
-  type TokenDomain,
 } from "@starter/db";
 import { and, eq, isNull, or } from "drizzle-orm";
 import { v4 as uuidv4 } from "uuid";
@@ -209,12 +209,12 @@ export class TokenService {
   }
 
   static async renameToken(id: string, newTokenKey: string, newLabel: string, tx: any = db) {
-    return this.updateToken(id, { tokenKey: newTokenKey, label: newLabel }, tx);
+    return TokenService.updateToken(id, { tokenKey: newTokenKey, label: newLabel }, tx);
   }
 
   static async createRowToken(input: CreateRowTokenInput, tx: any = db) {
     const id = input.id ?? uuidv4();
-    await this.createToken(
+    await TokenService.createToken(
       {
         id,
         tokenKey: input.rowToken,
@@ -252,7 +252,7 @@ export class TokenService {
 
   static async createSectionToken(input: CreateSectionTokenInput, tx: any = db) {
     const id = input.id ?? uuidv4();
-    await this.createToken(
+    await TokenService.createToken(
       {
         id,
         tokenKey: input.sectionToken,
@@ -286,7 +286,7 @@ export class TokenService {
 
   static async createRowChargeToken(input: CreateRowChargeTokenInput, tx: any = db) {
     const id = input.id ?? uuidv4();
-    await this.createToken(
+    await TokenService.createToken(
       {
         id,
         tokenKey: input.chargeToken,
@@ -323,7 +323,7 @@ export class TokenService {
 
   static async createSectionChargeToken(input: CreateSectionChargeTokenInput, tx: any = db) {
     const id = input.id ?? uuidv4();
-    await this.createToken(
+    await TokenService.createToken(
       {
         id,
         tokenKey: input.chargeToken,
@@ -361,7 +361,7 @@ export class TokenService {
 
   static async createTemplateConstant(input: CreateTemplateConstantInput, tx: any = db) {
     const id = input.id ?? uuidv4();
-    await this.createToken(
+    await TokenService.createToken(
       {
         id,
         tokenKey: input.token,
@@ -396,7 +396,7 @@ export class TokenService {
 
   static async createFileFieldToken(input: CreateFileFieldTokenInput, tx: any = db) {
     const id = input.id ?? uuidv4();
-    await this.createToken(
+    await TokenService.createToken(
       {
         id,
         tokenKey: input.tokenKey,
@@ -438,7 +438,7 @@ export class TokenService {
 
   static async createGlobalConstant(input: CreateGlobalConstantInput, tx: any = db) {
     const id = input.id ?? uuidv4();
-    await this.createToken(
+    await TokenService.createToken(
       {
         id,
         tokenKey: input.configKey,
@@ -476,7 +476,7 @@ export class TokenService {
 
   static async createExpenseCategory(input: CreateExpenseCategoryInput, tx: any = db) {
     const id = input.id ?? uuidv4();
-    await this.createToken(
+    await TokenService.createToken(
       {
         id,
         tokenKey: input.tokenKey,

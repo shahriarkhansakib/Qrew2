@@ -58,7 +58,7 @@ export function useFormulaAutocomplete(
   // Reset forceHidden whenever input value or cursor position changes
   useEffect(() => {
     setForceHidden(false);
-  }, [inputValue, cursorPos]);
+  }, []);
 
   // Determine if cursor is at a position where a token is allowed:
   // 1. Start of input (empty or whitespace)

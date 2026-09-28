@@ -262,7 +262,7 @@ export function CreateInvoiceModal({ isOpen, onClose }: { isOpen: boolean; onClo
             </div>
 
             <div className="border rounded-md p-4 space-y-4 bg-muted/20">
-              {lineItems.map((li, idx) => (
+              {lineItems.map((li, _idx) => (
                 <div key={li.id} className="flex gap-4 items-end">
                   <div className="flex-1 space-y-2">
                     <Label className="text-xs">Description</Label>

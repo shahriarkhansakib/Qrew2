@@ -1,6 +1,6 @@
 "use client";
 
-import { Box, Database, DollarSign, Edit, Layers, Package, Tag } from "lucide-react";
+import { Database, DollarSign, Edit, Layers, Package, Tag } from "lucide-react";
 import { Can } from "@/components/features/auth/can";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";

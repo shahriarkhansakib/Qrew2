@@ -48,7 +48,7 @@ export function OrganizationSwitcher({ isCollapsed }: { isCollapsed?: boolean })
     };
 
     fetchOrgData();
-  }, []);
+  }, [loadPermissions]);
 
   const activeOrg = organizations.find((org) => org.id === activeOrgId);
 

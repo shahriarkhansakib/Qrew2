@@ -4,7 +4,6 @@ import {
   boolean,
   index,
   integer,
-  jsonb,
   numeric,
   pgTable,
   text,
@@ -12,14 +11,8 @@ import {
   unique,
 } from "drizzle-orm/pg-core";
 import { organizations, users } from "./auth";
-import {
-  componentValueTypeEnum,
-  documentTypeEnum,
-  headerFieldTypeEnum,
-  sectionChargeBaseEnum,
-  templateScopeEnum,
-} from "./invoice-enums";
 import { customFieldDefinitions } from "./custom_fields";
+import { componentValueTypeEnum, headerFieldTypeEnum, templateScopeEnum } from "./invoice-enums";
 import { tokens } from "./tokens";
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -184,8 +177,10 @@ export const templateHeaderFields = pgTable(
       .references(() => invoiceTemplates.id, { onDelete: "cascade" }),
     fieldType: headerFieldTypeEnum("field_type").notNull(),
     columnPosition: text("column_position").default("left").notNull(),
-    customFieldDefinitionId: text("custom_field_definition_id")
-      .references((): AnyPgColumn => customFieldDefinitions.id, { onDelete: "set null" }),
+    customFieldDefinitionId: text("custom_field_definition_id").references(
+      (): AnyPgColumn => customFieldDefinitions.id,
+      { onDelete: "set null" },
+    ),
     systemFieldKey: text("system_field_key"),
     orgConfigKey: text("org_config_key"),
     defaultManualValue: text("default_manual_value"),

@@ -1,8 +1,6 @@
 import type { RowIdToTokenMap, SecIdToTokenMap, TplIdToTokenMap } from "@starter/db";
 import {
   db,
-  invoiceTemplates,
-  organizationConfigs,
   templateConstants,
   templateHeaderFields,
   templateRowCharges,
@@ -11,7 +9,7 @@ import {
   templateSections,
   tokens,
 } from "@starter/db";
-import { and, eq, inArray } from "drizzle-orm";
+import { eq, inArray } from "drizzle-orm";
 import { Context } from "hono";
 import { z } from "zod";
 import { AstEvaluatorService } from "./ast-evaluator.service";
@@ -122,7 +120,7 @@ export class EngineController {
             }
             const raw = val?.value ?? val; // handle both object and primitive
             const numVal = parseFloat(String(raw));
-            if (!isNaN(numVal)) {
+            if (!Number.isNaN(numVal)) {
               const fixed = numVal.toFixed(6);
               scope[key] = fixed;
               scope[`TPL_${key}`] = fixed;
@@ -270,7 +268,7 @@ export class EngineController {
           // Publish to scope just like we do for draftConstants
           if (c.defaultValue && c.token) {
             const numVal = parseFloat(c.defaultValue);
-            if (!isNaN(numVal)) {
+            if (!Number.isNaN(numVal)) {
               const fixed = numVal.toFixed(6);
               scope[c.token] = fixed;
               scope[`TPL_${c.token}`] = fixed;

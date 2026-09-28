@@ -1,8 +1,4 @@
-import {
-  db,
-  templateConstants,
-  tokens,
-} from "@starter/db";
+import { db, templateConstants, tokens } from "@starter/db";
 import { and, eq } from "drizzle-orm";
 import { Context } from "hono";
 import { z } from "zod";
@@ -53,10 +49,7 @@ export async function updateConstant(c: Context) {
       await TokenService.updateToken(id, tokenPatch, tx);
     }
     if (Object.keys(constPatch).length > 0) {
-      await tx
-        .update(templateConstants)
-        .set(constPatch)
-        .where(eq(templateConstants.id, id));
+      await tx.update(templateConstants).set(constPatch).where(eq(templateConstants.id, id));
     }
   });
 

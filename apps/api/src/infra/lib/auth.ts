@@ -75,7 +75,7 @@ export const auth = betterAuth({
   secret: process.env.BETTER_AUTH_SECRET,
   baseURL: process.env.BETTER_AUTH_URL,
   trustedOrigins: [
-    (process.env.NEXT_PUBLIC_APP_URL as string).replace(/['"]/g, "").replace(/\/+$/, "")
+    (process.env.NEXT_PUBLIC_APP_URL as string).replace(/['"]/g, "").replace(/\/+$/, ""),
   ],
   session: {
     expiresIn: 60 * 60 * 24 * 7,
@@ -112,7 +112,9 @@ export const auth = betterAuth({
     requireEmailVerification: false,
     sendResetPassword: async ({ user, url, token }) => {
       // Point DIRECTLY to the Next.js frontend, bypassing the intermediate API
-      const appUrl = (process.env.NEXT_PUBLIC_APP_URL as string).replace(/['"]/g, "").replace(/\/+$/, "");
+      const appUrl = (process.env.NEXT_PUBLIC_APP_URL as string)
+        .replace(/['"]/g, "")
+        .replace(/\/+$/, "");
       const frontendUrl = `${appUrl}/reset-password?token=${token}`;
       await sendSmartEmail(
         user.email,

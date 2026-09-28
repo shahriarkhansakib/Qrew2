@@ -46,7 +46,7 @@ interface InviteData {
 }
 
 function AcceptInviteContent() {
-  const router = useRouter();
+  const _router = useRouter();
   const searchParams = useSearchParams();
   const inviteId = searchParams.get("id");
   const { data: session, isPending: isLoadingSession } = useSession();

@@ -138,10 +138,7 @@ export default function (data) {
     "no DAG cyclic dependency errors": (r) => {
       try {
         const body = JSON.parse(r.body);
-        return (
-          !body.data?.validationErrors ||
-          !body.data.validationErrors.some((e) => e.code === "CYCLIC_DEPENDENCY")
-        );
+        return !body.data?.validationErrors?.some((e) => e.code === "CYCLIC_DEPENDENCY");
       } catch {
         return false;
       }

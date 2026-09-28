@@ -1,5 +1,11 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { makeCtx, makeSection, ORG_ID, SECTION_ID } from "../../invoice-templates.fixtures";
+import {
+  makeCtx,
+  makeSection,
+  makeSectionToken,
+  ORG_ID,
+  SECTION_ID,
+} from "../../invoice-templates.fixtures";
 
 const { makeChain } = vi.hoisted(() => {
   return {
@@ -146,7 +152,8 @@ describe("updateSection", () => {
 
   it("updates label and description successfully", async () => {
     const section = makeSection();
-    mockSelectReturns([{ section, org: ORG_ID }]);
+    const token = makeSectionToken();
+    mockSelectReturns([{ section, token, org: ORG_ID }]);
     const updatedSection = makeSection({ label: "New Port Costs", description: "Updated desc" });
     mockUpdateReturns(updatedSection);
 
@@ -162,7 +169,8 @@ describe("updateSection", () => {
 
   it("accepts null label to clear the name", async () => {
     const section = makeSection();
-    mockSelectReturns([{ section, org: ORG_ID }]);
+    const token = makeSectionToken();
+    mockSelectReturns([{ section, token, org: ORG_ID }]);
     const updatedSection = makeSection({ label: null });
     mockUpdateReturns(updatedSection);
 
@@ -176,7 +184,8 @@ describe("updateSection", () => {
 
   it("updates sortOrder via orderIndex", async () => {
     const section = makeSection();
-    mockSelectReturns([{ section, org: ORG_ID }]);
+    const token = makeSectionToken();
+    mockSelectReturns([{ section, token, org: ORG_ID }]);
     const updatedSection = makeSection({ sortOrder: 3 });
     mockUpdateReturns(updatedSection);
 
@@ -191,7 +200,8 @@ describe("updateSection", () => {
 
   it("returns 400 for invalid body (orderIndex negative)", async () => {
     const section = makeSection();
-    mockSelectReturns([{ section, org: ORG_ID }]);
+    const token = makeSectionToken();
+    mockSelectReturns([{ section, token, org: ORG_ID }]);
 
     const ctx = makeCtx({
       params: { sectionId: SECTION_ID },
@@ -204,10 +214,11 @@ describe("updateSection", () => {
   describe("sectionToken rename sweep", () => {
     it("re-encodes row formulas that reference the old sectionToken", async () => {
       const section = makeSection({ sectionToken: "SECTION_A" });
-      mockSelectReturns([{ section, org: ORG_ID }]);
+      const token = makeSectionToken({ tokenKey: "SECTION_A" });
+      mockSelectReturns([{ section, token, org: ORG_ID }]);
 
       // collision check for new token
-      (db.query.templateSections.findFirst as any).mockResolvedValue(null);
+      (db.query.tokens.findFirst as any).mockResolvedValue(null);
 
       // transaction sweep: update + findMany rows + findMany section charges
       const sweepRows = [{ id: "row-1", formula: "SEC_SECTION_A * 1.0" }];

@@ -170,7 +170,7 @@ function safeEval(expr: string): number | null {
     if (!/^[\d\s+\-*/.()]+$/.test(expr.trim())) return null;
     // eslint-disable-next-line no-new-func
     const result = new Function(`"use strict"; return (${expr})`)() as number;
-    return typeof result === "number" && isFinite(result) ? result : null;
+    return typeof result === "number" && Number.isFinite(result) ? result : null;
   } catch {
     return null;
   }
@@ -516,7 +516,7 @@ export function getCircularDependencyTokens(
   for (const token of initialInvalidList) {
     // Row expansion
     const row = tokenToRowMap.get(token);
-    if (row && row.rowToken) {
+    if (row?.rowToken) {
       const rowVariants = [
         row.rowToken,
         `${row.rowToken}_BASE`,
@@ -538,7 +538,7 @@ export function getCircularDependencyTokens(
 
     // Section expansion
     const sec = tokenToSectionMap.get(token);
-    if (sec && sec.sectionToken) {
+    if (sec?.sectionToken) {
       const secVariants = [
         `SEC_${sec.sectionToken}`,
         `SEC_${sec.sectionToken}_BASE`,
@@ -597,7 +597,7 @@ export function buildTokenMap(
     for (const config of orgConfigs) {
       if (config.isFormulaInjectable && config.configKey) {
         const parsedVal = parseFloat(config.configValue);
-        const val = isNaN(parsedVal) ? 0 : parsedVal;
+        const val = Number.isNaN(parsedVal) ? 0 : parsedVal;
         const numVal = config.valueType === "percentage" ? val / 100 : val;
         const baseKey = config.configKey.replace(/^(ORG_|GBL_)/, "");
         tokens[baseKey] = numVal;
@@ -612,7 +612,7 @@ export function buildTokenMap(
       : Object.values(templateConstants);
     for (const constant of constantsArray) {
       const parsedVal = parseFloat(constant.value ?? constant.defaultValue);
-      const val = isNaN(parsedVal) ? 0 : parsedVal;
+      const val = Number.isNaN(parsedVal) ? 0 : parsedVal;
       const key = constant.key ?? constant.token;
       if (key) {
         tokens[key] = val;
@@ -639,7 +639,7 @@ export function buildTokenMap(
   }
 
   // Inject expense categories (bare canonical key and EXP_TOTAL)
-  tokens["EXP_TOTAL"] = 0;
+  tokens.EXP_TOTAL = 0;
   if (categoriesData) {
     for (const cat of categoriesData) {
       const key = cat.tokenKey;
@@ -696,7 +696,7 @@ export function buildTokenMap(
           }
         } else if (row.valueType !== "formula" && row.initialValue != null) {
           const val = parseFloat(String(row.initialValue));
-          if (!isNaN(val)) {
+          if (!Number.isNaN(val)) {
             rowBase = val;
           }
         }
@@ -777,6 +777,6 @@ export function buildTokenMap(
 
 /** Round a number to 2 decimal places for display. */
 export function fmt(val: number | null | undefined): string {
-  if (val == null || !isFinite(val)) return "—";
+  if (val == null || !Number.isFinite(val)) return "—";
   return val % 1 === 0 ? String(val) : val.toFixed(2);
 }

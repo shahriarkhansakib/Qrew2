@@ -1,8 +1,8 @@
 "use client";
 
-import { ArrowRight, Building2, ChevronRight, Loader2, LogOut, Plus } from "lucide-react";
+import { ArrowRight, ChevronRight, Loader2, LogOut, Plus } from "lucide-react";
 import { useRouter } from "next/navigation";
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { toast } from "sonner";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
@@ -40,6 +40,29 @@ export function OrganizationPortalView() {
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [newOrgName, setNewOrgName] = useState("");
 
+  // Handle Organization Selection
+  const handleSelectOrganization = useCallback(
+    async (orgId: string) => {
+      setIsSwitching(orgId);
+
+      // Tell Better Auth to set this specific Org as the active session context
+      const { error } = await authClient.organization.setActive({
+        organizationId: orgId,
+      });
+
+      if (error) {
+        toast.error("Failed to enter workspace.");
+        setIsSwitching(null);
+        return;
+      }
+
+      // Success! The session cookie is updated. Send them to the dashboard.
+      router.push("/dashboard");
+      router.refresh(); // Force a hard refresh to wipe any cached layout state
+    },
+    [router],
+  );
+
   // Fetch the user's organizations on mount
   useEffect(() => {
     const fetchOrgs = async () => {
@@ -65,7 +88,7 @@ export function OrganizationPortalView() {
           await handleSelectOrganization(fetchedOrgs[0].id);
           return;
         }
-      } catch (err) {
+      } catch (_err) {
         toast.error("Failed to load workspaces.");
       } finally {
         // Only turn off the spinner if we are staying on this page
@@ -75,7 +98,7 @@ export function OrganizationPortalView() {
       }
     };
     fetchOrgs();
-  }, []);
+  }, [handleSelectOrganization]);
 
   const handleNameChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     setNewOrgName(e.target.value);
@@ -116,26 +139,6 @@ export function OrganizationPortalView() {
       toast.error(err.message || "Failed to create workspace.");
       setIsCreating(false);
     }
-  };
-
-  // Handle Organization Selection
-  const handleSelectOrganization = async (orgId: string) => {
-    setIsSwitching(orgId);
-
-    // Tell Better Auth to set this specific Org as the active session context
-    const { error } = await authClient.organization.setActive({
-      organizationId: orgId,
-    });
-
-    if (error) {
-      toast.error("Failed to enter workspace.");
-      setIsSwitching(null);
-      return;
-    }
-
-    // Success! The session cookie is updated. Send them to the dashboard.
-    router.push("/dashboard");
-    router.refresh(); // Force a hard refresh to wipe any cached layout state
   };
 
   const handleLogout = async () => {

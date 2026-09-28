@@ -1,4 +1,4 @@
-import * as crypto from "crypto";
+import * as crypto from "node:crypto";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { CHARGE_ID, makeCtx, SECTION_ID, TEMPLATE_ID } from "../../invoice-templates.fixtures";
 

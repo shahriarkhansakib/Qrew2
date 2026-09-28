@@ -18,10 +18,10 @@ import { useState } from "react";
 
 const NODE_R = 28;
 const NODE_D = NODE_R * 2;
-const LAYER_GAP = 150;
+const _LAYER_GAP = 150;
 const NODE_GAP = 80;
 const PAD = 70;
-const STEP = NODE_D + NODE_GAP; // vertical grid step size
+const _STEP = NODE_D + NODE_GAP; // vertical grid step size
 
 // --- Types -------------------------------------------------------------------
 
@@ -448,7 +448,7 @@ function WorkflowNodeCircle({
   }
 
   // Short label to show inside the circle (up to 4 chars)
-  const shortLabel = s.name.length <= 4 ? s.name : s.name.slice(0, 3) + "…";
+  const shortLabel = s.name.length <= 4 ? s.name : `${s.name.slice(0, 3)}…`;
 
   const isDynamicTerminal = !s.isInitial && s.transitions?.length === 0;
   const isNegTerminal =

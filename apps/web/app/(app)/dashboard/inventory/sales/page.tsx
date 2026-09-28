@@ -117,7 +117,7 @@ export default function SalesPage() {
     if (saved) {
       try {
         setHiddenCols(JSON.parse(saved));
-      } catch (e) {}
+      } catch (_e) {}
     }
   }, []);
 
@@ -158,8 +158,7 @@ export default function SalesPage() {
       const q = searchQuery.toLowerCase().trim();
       list = list.filter(
         (s: any) =>
-          s.saleNumber.toLowerCase().includes(q) ||
-          (s.customer?.name && s.customer.name.toLowerCase().includes(q)),
+          s.saleNumber.toLowerCase().includes(q) || s.customer?.name?.toLowerCase().includes(q),
       );
     }
     return filterRows(list, extractors);
@@ -239,31 +238,31 @@ export default function SalesPage() {
             </DropdownMenuTrigger>
             <DropdownMenuContent align="end" className="w-[180px]">
               <DropdownMenuCheckboxItem
-                checked={!hiddenCols["saleNumber"]}
+                checked={!hiddenCols.saleNumber}
                 onCheckedChange={(c) => toggleColumn("saleNumber", c)}
               >
                 Sale #
               </DropdownMenuCheckboxItem>
               <DropdownMenuCheckboxItem
-                checked={!hiddenCols["date"]}
+                checked={!hiddenCols.date}
                 onCheckedChange={(c) => toggleColumn("date", c)}
               >
                 Date
               </DropdownMenuCheckboxItem>
               <DropdownMenuCheckboxItem
-                checked={!hiddenCols["customer"]}
+                checked={!hiddenCols.customer}
                 onCheckedChange={(c) => toggleColumn("customer", c)}
               >
                 Customer
               </DropdownMenuCheckboxItem>
               <DropdownMenuCheckboxItem
-                checked={!hiddenCols["status"]}
+                checked={!hiddenCols.status}
                 onCheckedChange={(c) => toggleColumn("status", c)}
               >
                 Status
               </DropdownMenuCheckboxItem>
               <DropdownMenuCheckboxItem
-                checked={!hiddenCols["totalAmount"]}
+                checked={!hiddenCols.totalAmount}
                 onCheckedChange={(c) => toggleColumn("totalAmount", c)}
               >
                 Total
@@ -277,62 +276,62 @@ export default function SalesPage() {
         <Table>
           <TableHeader>
             <TableRow className="bg-muted/50">
-              {!hiddenCols["saleNumber"] && (
+              {!hiddenCols.saleNumber && (
                 <FilterableTableHeader
                   columnKey="saleNumber"
                   title="Sale #"
                   isFiltered={isColumnFiltered("saleNumber")}
-                  activeValue={filters["saleNumber"]}
+                  activeValue={filters.saleNumber}
                   onClear={() => clearColumnFilter("saleNumber")}
-                  width={columnWidths["saleNumber"]}
+                  width={columnWidths.saleNumber}
                   onResizeStart={handleResizeStart}
                   onResetWidth={resetColumnWidth}
                 />
               )}
-              {!hiddenCols["date"] && (
+              {!hiddenCols.date && (
                 <FilterableTableHeader
                   columnKey="date"
                   title="Date"
                   isFiltered={isColumnFiltered("date")}
-                  activeValue={filters["date"]}
+                  activeValue={filters.date}
                   onClear={() => clearColumnFilter("date")}
-                  width={columnWidths["date"]}
+                  width={columnWidths.date}
                   onResizeStart={handleResizeStart}
                   onResetWidth={resetColumnWidth}
                 />
               )}
-              {!hiddenCols["customer"] && (
+              {!hiddenCols.customer && (
                 <FilterableTableHeader
                   columnKey="customer"
                   title="Customer"
                   isFiltered={isColumnFiltered("customer")}
-                  activeValue={filters["customer"]}
+                  activeValue={filters.customer}
                   onClear={() => clearColumnFilter("customer")}
-                  width={columnWidths["customer"]}
+                  width={columnWidths.customer}
                   onResizeStart={handleResizeStart}
                   onResetWidth={resetColumnWidth}
                 />
               )}
-              {!hiddenCols["status"] && (
+              {!hiddenCols.status && (
                 <FilterableTableHeader
                   columnKey="status"
                   title="Status"
                   isFiltered={isColumnFiltered("status")}
-                  activeValue={filters["status"]}
+                  activeValue={filters.status}
                   onClear={() => clearColumnFilter("status")}
-                  width={columnWidths["status"]}
+                  width={columnWidths.status}
                   onResizeStart={handleResizeStart}
                   onResetWidth={resetColumnWidth}
                 />
               )}
-              {!hiddenCols["totalAmount"] && (
+              {!hiddenCols.totalAmount && (
                 <FilterableTableHeader
                   columnKey="totalAmount"
                   title="Total (৳)"
                   isFiltered={isColumnFiltered("totalAmount")}
-                  activeValue={filters["totalAmount"]}
+                  activeValue={filters.totalAmount}
                   onClear={() => clearColumnFilter("totalAmount")}
-                  width={columnWidths["totalAmount"]}
+                  width={columnWidths.totalAmount}
                   onResizeStart={handleResizeStart}
                   onResetWidth={resetColumnWidth}
                   className="text-right"
@@ -359,7 +358,7 @@ export default function SalesPage() {
             ) : (
               filteredSales.map((sale: any) => (
                 <TableRow key={sale.id} className="hover:bg-muted/30 transition-colors">
-                  {!hiddenCols["saleNumber"] && (
+                  {!hiddenCols.saleNumber && (
                     <FilterableTableCell
                       columnKey="saleNumber"
                       value={sale.saleNumber}
@@ -373,51 +372,51 @@ export default function SalesPage() {
                             }
                           : () => setInvoiceTarget(sale)
                       }
-                      width={columnWidths["saleNumber"]}
+                      width={columnWidths.saleNumber}
                     >
                       <span className="font-mono font-medium">{sale.saleNumber}</span>
                     </FilterableTableCell>
                   )}
-                  {!hiddenCols["date"] && (
+                  {!hiddenCols.date && (
                     <FilterableTableCell
                       columnKey="date"
                       value={format(new Date(sale.saleDate), "dd MMM yyyy")}
                       isFiltered={isColumnFiltered("date")}
                       onToggleFilter={toggleFilter}
-                      width={columnWidths["date"]}
+                      width={columnWidths.date}
                     >
                       {format(new Date(sale.saleDate), "dd MMM yyyy")}
                     </FilterableTableCell>
                   )}
-                  {!hiddenCols["customer"] && (
+                  {!hiddenCols.customer && (
                     <FilterableTableCell
                       columnKey="customer"
                       value={sale.customer?.name ?? "—"}
                       isFiltered={isColumnFiltered("customer")}
                       onToggleFilter={toggleFilter}
-                      width={columnWidths["customer"]}
+                      width={columnWidths.customer}
                     >
                       {sale.customer?.name ?? "—"}
                     </FilterableTableCell>
                   )}
-                  {!hiddenCols["status"] && (
+                  {!hiddenCols.status && (
                     <FilterableTableCell
                       columnKey="status"
                       value={sale.status}
                       isFiltered={isColumnFiltered("status")}
                       onToggleFilter={toggleFilter}
-                      width={columnWidths["status"]}
+                      width={columnWidths.status}
                     >
                       <StatusBadge status={sale.status} />
                     </FilterableTableCell>
                   )}
-                  {!hiddenCols["totalAmount"] && (
+                  {!hiddenCols.totalAmount && (
                     <FilterableTableCell
                       columnKey="totalAmount"
                       value={formatNumber(sale.totalAmount || "0", 2)}
                       isFiltered={isColumnFiltered("totalAmount")}
                       onToggleFilter={toggleFilter}
-                      width={columnWidths["totalAmount"]}
+                      width={columnWidths.totalAmount}
                       className="text-right font-medium"
                     >
                       <Can I="inventory:view_sales">

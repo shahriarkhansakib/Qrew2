@@ -1,15 +1,4 @@
-import {
-  db,
-  expenseCategories,
-  invoiceDrafts,
-  invoiceLineItems,
-  invoices,
-  organizationConfigs,
-  templateHeaderFields,
-  templateRows,
-  templateSections,
-  tokens,
-} from "@starter/db";
+import { db, invoiceDrafts, invoiceLineItems, invoices, tokens } from "@starter/db";
 import { and, desc, eq, isNull, or } from "drizzle-orm";
 import { Context } from "hono";
 import { z } from "zod";

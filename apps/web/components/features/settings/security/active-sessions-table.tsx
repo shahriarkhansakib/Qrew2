@@ -1,7 +1,7 @@
 "use client";
 
 import { Laptop, Loader2, Smartphone, Trash2 } from "lucide-react";
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { UAParser } from "ua-parser-js";
 import { Button } from "@/components/ui/button";
 import { Table, TableBody, TableCell, TableHeader, TableRow } from "@/components/ui/table";
@@ -21,16 +21,16 @@ export function ActiveSessionsTable() {
   const { filters, toggleFilter, clearColumnFilter, filterRows, isColumnFiltered } =
     useTableCellFilter();
 
-  useEffect(() => {
-    fetchSessions();
-  }, []);
-
-  const fetchSessions = async () => {
+  const fetchSessions = useCallback(async () => {
     setIsLoading(true);
-    const { data, error } = await authClient.listSessions();
+    const { data } = await authClient.listSessions();
     if (data) setSessions(data);
     setIsLoading(false);
-  };
+  }, []);
+
+  useEffect(() => {
+    fetchSessions();
+  }, [fetchSessions]);
 
   const handleRevoke = async (token: string) => {
     setRevokingId(token);
@@ -55,7 +55,7 @@ export function ActiveSessionsTable() {
       ip: (s: any) => s.ipAddress || "Unknown IP",
       created: (s: any) => new Date(s.createdAt).toLocaleDateString(),
     };
-  }, []);
+  }, [parseUserAgent]);
 
   const filteredSessions = useMemo(() => {
     return filterRows(sessions || [], extractors);
@@ -77,14 +77,14 @@ export function ActiveSessionsTable() {
               columnKey="device"
               title="Device"
               isFiltered={isColumnFiltered("device")}
-              activeValue={filters["device"]}
+              activeValue={filters.device}
               onClear={() => clearColumnFilter("device")}
             />
             <FilterableTableHeader
               columnKey="ip"
               title="IP Address"
               isFiltered={isColumnFiltered("ip")}
-              activeValue={filters["ip"]}
+              activeValue={filters.ip}
               onClear={() => clearColumnFilter("ip")}
               className="hidden sm:table-cell"
             />
@@ -92,7 +92,7 @@ export function ActiveSessionsTable() {
               columnKey="created"
               title="Created"
               isFiltered={isColumnFiltered("created")}
-              activeValue={filters["created"]}
+              activeValue={filters.created}
               onClear={() => clearColumnFilter("created")}
               className="hidden sm:table-cell"
             />

@@ -8,10 +8,8 @@ import {
   text,
   timestamp,
   unique,
-  uniqueIndex,
 } from "drizzle-orm/pg-core";
 import { organizations, users } from "./auth";
-import { configValueTypeEnum } from "./invoice-enums";
 import { tokens } from "./tokens";
 
 export const organizationConfigs = pgTable(
@@ -34,9 +32,7 @@ export const organizationConfigs = pgTable(
       .notNull()
       .$onUpdate(() => new Date()),
   },
-  (table) => [
-    unique("org_config_key_unique").on(table.organizationId, table.configKey),
-  ],
+  (table) => [unique("org_config_key_unique").on(table.organizationId, table.configKey)],
 );
 
 export const invoicePdfLayouts = pgTable("invoice_pdf_layouts", {

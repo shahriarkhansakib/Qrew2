@@ -186,12 +186,10 @@ export class TemplateHeaderFieldsController {
       fieldPatch.customFieldDefinitionId = parsed.data.customFieldDefinitionId;
     if (parsed.data.systemFieldKey !== undefined || parsed.data.fileFieldKey !== undefined)
       fieldPatch.systemFieldKey = parsed.data.systemFieldKey ?? parsed.data.fileFieldKey;
-    if (parsed.data.orgConfigKey !== undefined)
-      fieldPatch.orgConfigKey = parsed.data.orgConfigKey;
+    if (parsed.data.orgConfigKey !== undefined) fieldPatch.orgConfigKey = parsed.data.orgConfigKey;
     if (parsed.data.defaultManualValue !== undefined)
       fieldPatch.defaultManualValue = parsed.data.defaultManualValue;
-    if (parsed.data.placeholder !== undefined)
-      fieldPatch.placeholder = parsed.data.placeholder;
+    if (parsed.data.placeholder !== undefined) fieldPatch.placeholder = parsed.data.placeholder;
 
     await db.transaction(async (tx) => {
       if (Object.keys(tokenPatch).length > 0) {
@@ -273,10 +271,7 @@ export class TemplateHeaderFieldsController {
                 eq(templateHeaderFields.templateId, templateId),
               ),
             );
-          await tx
-            .update(tokens)
-            .set({ sortOrder: u.sortOrder })
-            .where(eq(tokens.id, u.fieldId));
+          await tx.update(tokens).set({ sortOrder: u.sortOrder }).where(eq(tokens.id, u.fieldId));
         }),
       );
     });

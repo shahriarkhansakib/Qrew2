@@ -57,7 +57,7 @@ export function LabelCell({
     } catch {
       toast.error("Failed to save label");
     }
-  }, [draft, value, rowId, templateId, sectionId, queryClient, apiBasePath, invalidateKey]);
+  }, [draft, value, rowId, sectionId, queryClient, apiBasePath, invalidateKey]);
 
   return (
     <div

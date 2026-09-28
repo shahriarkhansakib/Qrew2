@@ -1,12 +1,4 @@
-import {
-  db,
-  decodeFormula,
-  encodeFormula,
-  invoiceTemplates,
-  templateRowCharges,
-  templateRows,
-  tokens,
-} from "@starter/db";
+import { db, invoiceTemplates, templateRowCharges, templateRows, tokens } from "@starter/db";
 import { and, eq } from "drizzle-orm";
 import { Context } from "hono";
 import { z } from "zod";
@@ -18,8 +10,8 @@ import {
   validateRateChargeFormula,
 } from "../../validation/formula-validator";
 
-function validateFormula(formula: string | null | undefined): boolean {
-  if (!formula || !formula.trim()) return false;
+function _validateFormula(formula: string | null | undefined): boolean {
+  if (!formula?.trim()) return false;
   if (/[+\-*/]\s*$/.test(formula.trim())) return false;
   if (/^\s*[+*/]/.test(formula.trim())) return false;
   return true;
@@ -96,10 +88,7 @@ export async function updateCharge(c: Context) {
 
   if (parsed.data.chargeToken && parsed.data.chargeToken !== existingToken?.tokenKey) {
     const dup = await db.query.tokens?.findFirst({
-      where: and(
-        eq(tokens.templateId, templateId),
-        eq(tokens.tokenKey, parsed.data.chargeToken),
-      ),
+      where: and(eq(tokens.templateId, templateId), eq(tokens.tokenKey, parsed.data.chargeToken)),
     });
     if (dup) {
       return c.json(
@@ -164,12 +153,13 @@ export async function updateCharge(c: Context) {
         ...existing,
         ...existingToken,
         formula: encodedFormula ?? existing.formula,
-        chargeToken: parsed.data.chargeToken ?? existingToken?.tokenKey ?? (existing as any)?.chargeToken,
+        chargeToken:
+          parsed.data.chargeToken ?? existingToken?.tokenKey ?? (existing as any)?.chargeToken,
         label: parsed.data.label ?? existingToken?.label ?? (existing as any)?.label,
         subDescription:
           parsed.data.subDescription !== undefined
             ? parsed.data.subDescription
-            : existingToken?.description ?? (existing as any)?.subDescription,
+            : (existingToken?.description ?? (existing as any)?.subDescription),
       };
 
       return {

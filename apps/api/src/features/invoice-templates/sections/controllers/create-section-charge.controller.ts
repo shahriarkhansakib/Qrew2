@@ -1,12 +1,4 @@
-import {
-  db,
-  decodeFormula,
-  encodeFormula,
-  invoiceTemplates,
-  templateSectionCharges,
-  templateSections,
-  tokens,
-} from "@starter/db";
+import { db, decodeFormula, invoiceTemplates, templateSections, tokens } from "@starter/db";
 import { and, eq } from "drizzle-orm";
 import { Context } from "hono";
 import * as math from "mathjs";
@@ -79,10 +71,7 @@ export async function createSectionCharge(c: Context) {
   }
 
   const dup = await db.query.tokens?.findFirst({
-    where: and(
-      eq(tokens.templateId, templateId),
-      eq(tokens.tokenKey, chargeToken),
-    ),
+    where: and(eq(tokens.templateId, templateId), eq(tokens.tokenKey, chargeToken)),
   });
   if (dup) {
     return c.json(

@@ -8,7 +8,7 @@ import { usePermissionStore } from "@/store/use-permission-store";
 
 export default function DashboardLayout({ children }: { children: React.ReactNode }) {
   const { data: session } = useSession();
-  const permissions = usePermissionStore((state) => state.permissions);
+  const _permissions = usePermissionStore((state) => state.permissions);
   const can = usePermissionStore((state) => state.can);
 
   const navItems = useMemo((): AnyNavItem[] => {
@@ -18,7 +18,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
       if (itemPermission) return can(itemPermission);
       return true;
     });
-  }, [can, permissions]);
+  }, [can]);
 
   return (
     <AppShell session={session} navItems={navItems} theme="default">

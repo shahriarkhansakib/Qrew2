@@ -15,7 +15,6 @@ import {
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
-import { apiUrl } from "@/lib/constants";
 import { useBuilderContext } from "./builder-context";
 
 // ─── helpers ──────────────────────────────────────────────────────────────────
@@ -79,7 +78,7 @@ export function AddSectionModal({
 }) {
   const queryClient = useQueryClient();
   const { apiBasePath, invalidateKey, mode } = useBuilderContext();
-  const isDraftMode = mode === "draft";
+  const _isDraftMode = mode === "draft";
   const isEdit = !!editSection;
 
   const [name, setName] = useState("");

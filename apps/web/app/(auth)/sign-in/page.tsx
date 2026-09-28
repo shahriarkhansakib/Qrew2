@@ -30,7 +30,7 @@ const signInSchema = z.object({
 type SignInValues = z.infer<typeof signInSchema>;
 
 export default function SignInPage() {
-  const router = useRouter();
+  const _router = useRouter();
   const [showPassword, setShowPassword] = useState(false);
   const [globalError, setGlobalError] = useState<string | null>(null);
   const [loadingType, setLoadingType] = useState<"credentials" | "google" | null>(null);

@@ -187,7 +187,7 @@ export function AddEditSectionChargeModal({
     }
 
     const num = parseFloat(rate);
-    if (isNaN(num) || num < 0) {
+    if (Number.isNaN(num) || num < 0) {
       setRateError("Please enter a valid rate percentage");
       return;
     }
@@ -212,7 +212,7 @@ export function AddEditSectionChargeModal({
       const before = input.value.slice(0, pos);
       const after = input.value.slice(input.selectionEnd ?? pos);
       if (before && !before.endsWith("_")) {
-        setSuffix(processTokenSuffix(before + "_" + after));
+        setSuffix(processTokenSuffix(`${before}_${after}`));
       }
     }
     if (e.key === "Enter") {

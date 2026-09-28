@@ -25,14 +25,7 @@ import {
   type SecIdToTokenMap,
   type TplIdToTokenMap,
 } from "@starter/db";
-import {
-  type DagValidationResult,
-  type EngineError,
-  type EvaluatorRow,
-  type EvaluatorRowCharge,
-  type EvaluatorSection,
-  type EvaluatorSectionCharge,
-} from "./types";
+import { type DagValidationResult, type EngineError, type EvaluatorSection } from "./types";
 
 // ─────────────────────────────────────────────────────────────────────────────
 // TOKEN EXTRACTION

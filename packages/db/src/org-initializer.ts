@@ -2,7 +2,6 @@ import { and, eq } from "drizzle-orm";
 import { v4 as uuidv4 } from "uuid";
 import {
   expenseCategories,
-  organizations,
   orgRolePermissions,
   orgRoles,
   projectStatuses,
@@ -86,14 +85,14 @@ export async function seedOrganizationDefaults(db: any, orgId: string, userId: s
     .from(projectStatuses)
     .where(eq(projectStatuses.organizationId, orgId));
 
-  let createdStatusId: string | null = null;
-  let completedStatusId: string | null = null;
+  let _createdStatusId: string | null = null;
+  let _completedStatusId: string | null = null;
 
   if (existingStatuses.length === 0) {
     const createdId = uuidv4();
     const completedId = uuidv4();
-    createdStatusId = createdId;
-    completedStatusId = completedId;
+    _createdStatusId = createdId;
+    _completedStatusId = completedId;
 
     await db.insert(projectStatuses).values([
       {
@@ -336,7 +335,7 @@ export async function seedOrganizationDefaults(db: any, orgId: string, userId: s
 
     // Update Manager and Staff to be isSystem: false if they were previously created as true
     for (const role of [managerRole, staffRole].filter(Boolean)) {
-      if (role && role.isSystem) {
+      if (role?.isSystem) {
         await db.update(orgRoles).set({ isSystem: false }).where(eq(orgRoles.id, role.id));
       }
     }

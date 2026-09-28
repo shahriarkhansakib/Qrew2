@@ -4,8 +4,8 @@
  * Imported by purchases, sales, and any future inventory feature controllers.
  */
 
-import { db, orgDocumentCounters } from "@starter/db";
-import { and, eq, sql } from "drizzle-orm";
+import { orgDocumentCounters } from "@starter/db";
+import { and, eq } from "drizzle-orm";
 import { v4 as uuidv4 } from "uuid";
 
 /**

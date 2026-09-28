@@ -31,7 +31,7 @@ const signUpSchema = z.object({
 type SignUpValues = z.infer<typeof signUpSchema>;
 
 export default function SignUpPage() {
-  const router = useRouter();
+  const _router = useRouter();
   const [showPassword, setShowPassword] = useState(false);
   const [globalError, setGlobalError] = useState<string | null>(null);
   const [loadingType, setLoadingType] = useState<"credentials" | "google" | null>(null);

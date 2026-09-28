@@ -121,9 +121,7 @@ export async function updateCategory(c: Context) {
     })
     .from(expenseCategories)
     .innerJoin(tokens, eq(tokens.id, expenseCategories.id))
-    .where(
-      and(eq(expenseCategories.id, id), eq(expenseCategories.organizationId, organizationId)),
-    )
+    .where(and(eq(expenseCategories.id, id), eq(expenseCategories.organizationId, organizationId)))
     .limit(1);
 
   if (cat.length === 0) {
@@ -209,9 +207,7 @@ export async function deleteCategory(c: Context) {
     })
     .from(expenseCategories)
     .innerJoin(tokens, eq(tokens.id, expenseCategories.id))
-    .where(
-      and(eq(expenseCategories.id, id), eq(expenseCategories.organizationId, organizationId)),
-    )
+    .where(and(eq(expenseCategories.id, id), eq(expenseCategories.organizationId, organizationId)))
     .limit(1);
 
   if (cat.length === 0) {

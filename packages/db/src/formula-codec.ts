@@ -96,8 +96,8 @@ export function decodeFormula(
   idToToken: IdToTokenMap = {},
   secIdToToken: SecIdToTokenMap = {},
   tplIdToToken: TplIdToTokenMap = {},
-  fileFieldTokens?: string[],
-  globalTokens?: string[],
+  _fileFieldTokens?: string[],
+  _globalTokens?: string[],
 ): string | null {
   if (!stored) return null;
 

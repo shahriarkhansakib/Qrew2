@@ -2,21 +2,21 @@ import { apiUrl } from "@/lib/constants";
 
 export const invoiceApi = {
   // --- Org Configs ---
-  getOrgConfigs: async (orgId: string) => {
+  getOrgConfigs: async (_orgId: string) => {
     const res = await fetch(`${apiUrl}/api/org-configs`, { credentials: "include" });
     if (!res.ok) throw new Error("Failed to fetch org configs");
     return res.json();
   },
 
   // --- PDF Layouts ---
-  getPdfLayout: async (orgId: string) => {
+  getPdfLayout: async (_orgId: string) => {
     const res = await fetch(`${apiUrl}/api/invoice-pdf-layouts`, { credentials: "include" });
     if (!res.ok) throw new Error("Failed to fetch PDF layout");
     return res.json();
   },
 
   // --- Templates ---
-  getTemplates: async (orgId: string, scope?: string) => {
+  getTemplates: async (_orgId: string, scope?: string) => {
     const url = new URL(`${apiUrl}/api/invoice-templates`);
     if (scope) url.searchParams.append("scope", scope);
     const res = await fetch(url.toString(), { credentials: "include" });

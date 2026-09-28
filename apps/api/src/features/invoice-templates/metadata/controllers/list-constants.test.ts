@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { CONSTANT_ID, makeConstant, makeCtx, TEMPLATE_ID } from "../../invoice-templates.fixtures";
+import { makeConstant, makeCtx, TEMPLATE_ID } from "../../invoice-templates.fixtures";
 
 const { hoistedChain } = vi.hoisted(() => ({
   hoistedChain: (result: any[] = []) => {

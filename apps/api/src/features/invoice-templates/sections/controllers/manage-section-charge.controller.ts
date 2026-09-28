@@ -1,4 +1,10 @@
-import { db, invoiceTemplates, templateSectionCharges, templateSections, tokens } from "@starter/db";
+import {
+  db,
+  invoiceTemplates,
+  templateSectionCharges,
+  templateSections,
+  tokens,
+} from "@starter/db";
 import { and, eq } from "drizzle-orm";
 import { Context } from "hono";
 import { z } from "zod";
@@ -53,10 +59,7 @@ export async function reorderSectionCharges(c: Context) {
   await db.transaction(async (tx) => {
     await Promise.all(
       orderedIds.map((id, index) =>
-        tx
-          .update(tokens)
-          .set({ sortOrder: index })
-          .where(eq(tokens.id, id)),
+        tx.update(tokens).set({ sortOrder: index }).where(eq(tokens.id, id)),
       ),
     );
   });

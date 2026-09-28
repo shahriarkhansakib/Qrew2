@@ -56,7 +56,7 @@ export function SuperAdminUsersTable() {
   const searchParams = useSearchParams();
   const queryClient = useQueryClient();
   const { data: session } = useSession();
-  const currentUserRole = (session?.user as any)?.role ?? "user";
+  const _currentUserRole = (session?.user as any)?.role ?? "user";
 
   const { filters, toggleFilter, clearColumnFilter, filterRows, isColumnFiltered } =
     useTableCellFilter();
@@ -218,7 +218,7 @@ export function SuperAdminUsersTable() {
                 columnKey="name"
                 title="Name"
                 isFiltered={isColumnFiltered("name")}
-                activeValue={filters["name"]}
+                activeValue={filters.name}
                 onClear={() => clearColumnFilter("name")}
                 className="w-[220px]"
               />
@@ -226,7 +226,7 @@ export function SuperAdminUsersTable() {
                 columnKey="email"
                 title="Email"
                 isFiltered={isColumnFiltered("email")}
-                activeValue={filters["email"]}
+                activeValue={filters.email}
                 onClear={() => clearColumnFilter("email")}
                 className="w-[250px]"
               />
@@ -234,7 +234,7 @@ export function SuperAdminUsersTable() {
                 columnKey="role"
                 title="System Role"
                 isFiltered={isColumnFiltered("role")}
-                activeValue={filters["role"]}
+                activeValue={filters.role}
                 onClear={() => clearColumnFilter("role")}
                 className="w-[140px]"
               />

@@ -57,7 +57,7 @@ export function useDeleteAccount() {
 
         toast.success("A 6-digit confirmation code has been sent to your email.");
         setStep("otp-verify");
-      } catch (error) {
+      } catch (_error) {
         toast.error("Could not send verification email. Try again.");
       } finally {
         setIsLoading(false);

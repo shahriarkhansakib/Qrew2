@@ -22,7 +22,7 @@ function useDebounce<T>(value: T, delay: number): T {
 function formatCurrency(value: string | number | null | undefined): string {
   if (value === null || value === undefined || value === "") return "";
   const num = typeof value === "string" ? parseFloat(value) : value;
-  if (isNaN(num)) return "";
+  if (Number.isNaN(num)) return "";
   return num.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 }
 
@@ -60,7 +60,7 @@ export function TemplateLivePreview({ templateId }: { templateId: string }) {
     queryFn: async () => {
       const processedInputs: Record<string, string> = {};
       Object.entries(debouncedInputs).forEach(([k, v]) => {
-        if (v !== undefined && v !== "" && !isNaN(parseFloat(v))) {
+        if (v !== undefined && v !== "" && !Number.isNaN(parseFloat(v))) {
           processedInputs[k] = v;
         }
       });

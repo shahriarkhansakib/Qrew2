@@ -59,10 +59,7 @@ export async function updateRow(c: Context): Promise<any> {
 
   const newRowToken = parsed.data.rowToken ?? existingToken?.tokenKey;
 
-  if (
-    parsed.data.rowToken &&
-    parsed.data.rowToken !== existingToken?.tokenKey
-  ) {
+  if (parsed.data.rowToken && parsed.data.rowToken !== existingToken?.tokenKey) {
     const dup = await db.query.tokens?.findFirst({
       where: and(
         eq(tokens.templateId, existingRow.templateId),
@@ -81,10 +78,7 @@ export async function updateRow(c: Context): Promise<any> {
   const tokenToId = { ...context.rowTokenToId };
   const idToToken = { ...context.rowIdToToken };
 
-  if (
-    parsed.data.rowToken &&
-    parsed.data.rowToken !== existingToken?.tokenKey
-  ) {
+  if (parsed.data.rowToken && parsed.data.rowToken !== existingToken?.tokenKey) {
     const oldKey = existingToken?.tokenKey;
     if (oldKey) delete tokenToId[oldKey];
     tokenToId[newRowToken] = rowId;
@@ -190,7 +184,7 @@ export async function updateRow(c: Context): Promise<any> {
         description:
           tokenPatch.description !== undefined
             ? tokenPatch.description
-            : existingToken?.description ?? (existingRow as any)?.description,
+            : (existingToken?.description ?? (existingRow as any)?.description),
       };
 
       return {

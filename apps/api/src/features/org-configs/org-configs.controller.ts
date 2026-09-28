@@ -7,7 +7,7 @@ import {
   templateSectionCharges,
   tokens,
 } from "@starter/db";
-import { and, eq, like, sql } from "drizzle-orm";
+import { and, eq, sql } from "drizzle-orm";
 import { type Context } from "hono";
 import { v4 as uuidv4 } from "uuid";
 import { z } from "zod";

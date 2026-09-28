@@ -1,7 +1,7 @@
 "use client";
 
 import { AlertTriangle, Loader2 } from "lucide-react";
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import TextareaAutosize from "react-textarea-autosize";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
@@ -155,7 +155,7 @@ export function TemplateFormulaBar() {
           }
           if (isBinaryOp && trimmedBefore.length > 0) {
             if (tokenToInsert === "/" && before.endsWith(" / ")) {
-              const newVal = before.slice(0, -3) + " // " + after;
+              const newVal = `${before.slice(0, -3)} // ${after}`;
               setTimeout(() => inputRef.current?.setSelectionRange(cursor + 1, cursor + 1), 0);
               return newVal;
             }
@@ -221,7 +221,7 @@ export function TemplateFormulaBar() {
     if (selectedCell) {
       setTimeout(() => inputRef.current?.focus(), 0);
     }
-  }, [selectedCell?.rowId, selectedCell?.chargeId]);
+  }, [selectedCell?.rowId, selectedCell?.chargeId, selectedCell]);
 
   const handleSave = useCallback(() => {
     if (!selectedCell || saveMutation.isPending) return;
@@ -297,7 +297,7 @@ export function TemplateFormulaBar() {
         withoutPartial.endsWith(" ") || withoutPartial === "" || withoutPartial.endsWith("(")
           ? ""
           : " ";
-      const newVal = withoutPartial + padLeft + token + " " + afterCursor;
+      const newVal = `${withoutPartial + padLeft + token} ${afterCursor}`;
 
       setInputValue(newVal);
       isDirty.current = true;

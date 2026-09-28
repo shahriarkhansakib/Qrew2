@@ -1,9 +1,4 @@
-import {
-  db,
-  invoiceTemplates,
-  templateSections,
-  tokens,
-} from "@starter/db";
+import { db, invoiceTemplates, templateSections, tokens } from "@starter/db";
 import { and, eq } from "drizzle-orm";
 import { Context } from "hono";
 import { z } from "zod";

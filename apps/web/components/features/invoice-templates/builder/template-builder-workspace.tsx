@@ -20,11 +20,10 @@ import { buildTokenMap, fmt } from "@/lib/formula-evaluator";
 import { cn } from "@/lib/utils";
 import { AddHeaderFieldModal } from "./add-header-field-modal";
 import { AddSectionModal } from "./add-section-modal";
-import { BuilderProvider, useBuilderContext } from "./builder-context";
+import { useBuilderContext } from "./builder-context";
 import { TemplateFormulaBar } from "./formula-bar";
 import { SectionColor } from "./row-list";
 import { TemplateSectionCard } from "./template-section-card";
-import { TemplateTokenPool } from "./token-pool";
 
 // ─── Section color palette ────────────────────────────────────────────────────
 export const SECTION_PALETTE: SectionColor[] = [
@@ -529,12 +528,12 @@ function WorkspaceInner({
   // eslint-disable-next-line react-hooks/exhaustive-deps
   useEffect(() => {
     setTokenMap(tokenMap);
-  }, [JSON.stringify(tokenMap)]);
+  }, [tokenMap, setTokenMap]);
 
   // eslint-disable-next-line react-hooks/exhaustive-deps
   useEffect(() => {
     if (setSections) setSections(sortedSections);
-  }, [JSON.stringify(sortedSections)]);
+  }, [sortedSections, setSections]);
 
   useEffect(() => {
     if (!setExternalTokens) return;
@@ -593,7 +592,12 @@ function WorkspaceInner({
       }
     }
 
-    setExternalTokens({ global: globalSet, template: templateSet, file: fileSet, category: categorySet });
+    setExternalTokens({
+      global: globalSet,
+      template: templateSet,
+      file: fileSet,
+      category: categorySet,
+    });
   }, [orgConfigs, constantsData, templateHeaderFields, expenseCategoriesData, setExternalTokens]);
 
   // ── Global SL offsets ─────────────────────────────────────────────────────

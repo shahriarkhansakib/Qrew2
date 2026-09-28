@@ -1,4 +1,12 @@
-import { db, expenseCategories, expenses, projects, tokens, users, walletTransactions } from "@starter/db";
+import {
+  db,
+  expenseCategories,
+  expenses,
+  projects,
+  tokens,
+  users,
+  walletTransactions,
+} from "@starter/db";
 import { and, desc, eq } from "drizzle-orm";
 import { type Context } from "hono";
 import { v4 as uuidv4 } from "uuid";

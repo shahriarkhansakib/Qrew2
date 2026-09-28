@@ -1,7 +1,7 @@
 "use client";
 
 import { useMutation } from "@tanstack/react-query";
-import { AlertCircle, Loader2, Plus, Trash2, Zap } from "lucide-react";
+import { AlertCircle, Loader2 } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
@@ -14,7 +14,6 @@ import {
 } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { apiUrl } from "@/lib/constants";
 import { cn } from "@/lib/utils";
 import { useBuilderContext } from "./builder-context";
 
@@ -164,7 +163,7 @@ export function AddEditRowModal({
       const after = input.value.slice(input.selectionEnd ?? pos);
       // Only insert underscore if the previous char isn't already one and the field isn't empty
       if (before && !before.endsWith("_")) {
-        setRowToken(processTokenInput(before + "_" + after));
+        setRowToken(processTokenInput(`${before}_${after}`));
       }
     }
     // Submit on Enter when in create mode and the form only has the token field

@@ -21,7 +21,6 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { apiUrl } from "@/lib/constants";
 
 function processTokenInput(raw: string): string {
   return raw
@@ -73,7 +72,7 @@ export function AddEditTemplateConstantModal({
         description: "",
       });
     }
-  }, [editConstant, isOpen]);
+  }, [editConstant]);
 
   const mutation = useMutation({
     mutationFn: async (payload: any) => {

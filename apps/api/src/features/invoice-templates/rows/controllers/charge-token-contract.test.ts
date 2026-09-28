@@ -13,16 +13,7 @@
  */
 
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import {
-  CHARGE_ID,
-  makeCtx,
-  makeRow,
-  makeRowCharge,
-  ORG_ID,
-  ROW_ID,
-  SECTION_ID,
-  TEMPLATE_ID,
-} from "../../invoice-templates.fixtures";
+import { makeRow, makeRowCharge } from "../../invoice-templates.fixtures";
 
 const { hoistedChain } = vi.hoisted(() => ({
   hoistedChain: (result: any[] = []) => {
@@ -102,7 +93,7 @@ import { db } from "@starter/db";
 const ROW_FIXTURE = makeRow();
 
 /** Queue row-ownership check: [0] row+org check, [1-3] index builders for decode */
-function mockRowOwned(row = ROW_FIXTURE) {
+function _mockRowOwned(row = ROW_FIXTURE) {
   (db.select as any)
     .mockReturnValueOnce(hoistedChain([{ row }]))
     .mockReturnValueOnce(hoistedChain([])) // buildRowIndex
@@ -111,7 +102,7 @@ function mockRowOwned(row = ROW_FIXTURE) {
 }
 
 /** Queue row-ownership for createCharge: [0] row check, [1-3] tokenToId indexes, [4-6] idToToken decode */
-function mockRowOwnedForCreate(row = ROW_FIXTURE) {
+function _mockRowOwnedForCreate(row = ROW_FIXTURE) {
   (db.select as any)
     .mockReturnValueOnce(hoistedChain([{ row }]))
     .mockReturnValueOnce(hoistedChain([])) // buildRowIndex (encode)
@@ -122,12 +113,12 @@ function mockRowOwnedForCreate(row = ROW_FIXTURE) {
     .mockReturnValueOnce(hoistedChain([])); // buildConstantIndex (decode)
 }
 
-function mockRowNotFound() {
+function _mockRowNotFound() {
   (db.select as any).mockReturnValueOnce(hoistedChain([]));
 }
 
 /** Queue charge-ownership for updateCharge without formula: [0] charge check, [1-3] decode only */
-function mockChargeOwned(charge = makeRowCharge(), withEncodeIndexes = false) {
+function _mockChargeOwned(charge = makeRowCharge(), withEncodeIndexes = false) {
   const mock = (db.select as any).mockReturnValueOnce(hoistedChain([{ charge, row: ROW_FIXTURE }]));
   if (withEncodeIndexes) {
     mock
@@ -142,18 +133,18 @@ function mockChargeOwned(charge = makeRowCharge(), withEncodeIndexes = false) {
     .mockReturnValueOnce(hoistedChain([])); // buildConstantIndex (decode)
 }
 
-function mockChargeNotFound() {
+function _mockChargeNotFound() {
   (db.select as any).mockReturnValueOnce(hoistedChain([]));
 }
 
-function mockInsertReturns(charge: any) {
+function _mockInsertReturns(charge: any) {
   (db.insert as any).mockReturnValue({
     values: vi.fn().mockReturnThis(),
     returning: vi.fn().mockResolvedValue([charge]),
   });
 }
 
-function mockUpdateReturns(charge: any) {
+function _mockUpdateReturns(charge: any) {
   (db.update as any).mockReturnValue({
     set: vi.fn().mockReturnThis(),
     where: vi.fn().mockReturnThis(),

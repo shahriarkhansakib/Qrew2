@@ -9,7 +9,7 @@
  */
 
 import { db, inventoryTransactions, products, saleItems, sales } from "@starter/db";
-import { and, eq, inArray, sql, sum } from "drizzle-orm";
+import { and, eq, inArray, sum } from "drizzle-orm";
 import { type Context } from "hono";
 import { v4 as uuidv4 } from "uuid";
 import { z } from "zod";

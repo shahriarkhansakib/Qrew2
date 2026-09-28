@@ -1,10 +1,4 @@
-import {
-  db,
-  invoiceDocumentSequences,
-  invoiceTemplates,
-  templateHeaderFields,
-  templateSections,
-} from "@starter/db";
+import { db, invoiceDocumentSequences, invoiceTemplates } from "@starter/db";
 import { and, eq } from "drizzle-orm";
 import { Context } from "hono";
 import { z } from "zod";
@@ -27,7 +21,7 @@ const updateTemplateSchema = z.object({
 
 export class InvoiceTemplatesController {
   static async listTemplates(c: Context) {
-    const user = c.get("user");
+    const _user = c.get("user");
     const organizationId = c.get("organizationId");
     if (!organizationId) return c.json({ error: "Unauthorized" }, 401);
 
@@ -49,7 +43,7 @@ export class InvoiceTemplatesController {
 
   static async getTemplate(c: Context) {
     const id = c.req.param("id") as string;
-    const user = c.get("user");
+    const _user = c.get("user");
     const organizationId = c.get("organizationId");
     if (!organizationId) return c.json({ error: "Unauthorized" }, 401);
 
@@ -165,7 +159,7 @@ export class InvoiceTemplatesController {
 
   static async updateTemplate(c: Context) {
     const id = c.req.param("id") as string;
-    const user = c.get("user");
+    const _user = c.get("user");
     const organizationId = c.get("organizationId");
     if (!organizationId) return c.json({ error: "Unauthorized" }, 401);
 
@@ -186,7 +180,7 @@ export class InvoiceTemplatesController {
 
   static async deleteTemplate(c: Context) {
     const id = c.req.param("id") as string;
-    const user = c.get("user");
+    const _user = c.get("user");
     const organizationId = c.get("organizationId");
     if (!organizationId) return c.json({ error: "Unauthorized" }, 401);
 

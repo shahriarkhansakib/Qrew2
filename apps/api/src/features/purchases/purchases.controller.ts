@@ -8,8 +8,8 @@
  * - cancelPurchase (CONFIRMED only): writes reversing -quantity rows (append-only audit trail).
  */
 
-import { db, inventoryTransactions, products, purchaseItems, purchases } from "@starter/db";
-import { and, desc, eq, inArray, sql } from "drizzle-orm";
+import { db, inventoryTransactions, purchaseItems, purchases } from "@starter/db";
+import { and, eq } from "drizzle-orm";
 import { type Context } from "hono";
 import { v4 as uuidv4 } from "uuid";
 import { z } from "zod";

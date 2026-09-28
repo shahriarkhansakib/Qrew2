@@ -12,9 +12,7 @@
 import { format } from "date-fns";
 import {
   CheckCircle2,
-  Clock,
   Edit,
-  FileCheck,
   FileText,
   Package,
   Plus,
@@ -49,17 +47,9 @@ import {
   DropdownMenu,
   DropdownMenuCheckboxItem,
   DropdownMenuContent,
-  DropdownMenuItem,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { Input } from "@/components/ui/input";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
 import { Table, TableBody, TableCell, TableHeader, TableRow } from "@/components/ui/table";
 import {
   FilterableTableCell,
@@ -156,7 +146,7 @@ export default function ProductsPage() {
     if (saved) {
       try {
         setHiddenCols(JSON.parse(saved));
-      } catch (e) {}
+      } catch (_e) {}
     }
   }, []);
 
@@ -191,7 +181,7 @@ export default function ProductsPage() {
   const { data: purchaseDrafts, refetch: refetchPurchaseDrafts } = usePurchases("DRAFT");
   const { data: saleDrafts, refetch: refetchSaleDrafts } = useSales("DRAFT");
 
-  const totalDraftsCount = (purchaseDrafts?.length || 0) + (saleDrafts?.length || 0);
+  const _totalDraftsCount = (purchaseDrafts?.length || 0) + (saleDrafts?.length || 0);
 
   const confirmPurchase = useConfirmPurchase();
   const deletePurchase = useDeletePurchase();
@@ -233,9 +223,9 @@ export default function ProductsPage() {
       list = list.filter(
         (p: any) =>
           p.name?.toLowerCase().includes(q) ||
-          (p.sku && p.sku.toLowerCase().includes(q)) ||
-          (p.category?.name && p.category.name.toLowerCase().includes(q)) ||
-          (p.brand?.name && p.brand.name.toLowerCase().includes(q)),
+          p.sku?.toLowerCase().includes(q) ||
+          p.category?.name?.toLowerCase().includes(q) ||
+          p.brand?.name?.toLowerCase().includes(q),
       );
     }
     return list;
@@ -247,8 +237,7 @@ export default function ProductsPage() {
     const q = searchQuery.toLowerCase().trim();
     return purchaseDrafts.filter(
       (p: any) =>
-        p.purchaseNumber?.toLowerCase().includes(q) ||
-        (p.supplier?.name && p.supplier.name.toLowerCase().includes(q)),
+        p.purchaseNumber?.toLowerCase().includes(q) || p.supplier?.name?.toLowerCase().includes(q),
     );
   }, [purchaseDrafts, searchQuery]);
 
@@ -258,8 +247,7 @@ export default function ProductsPage() {
     const q = searchQuery.toLowerCase().trim();
     return saleDrafts.filter(
       (s: any) =>
-        s.saleNumber?.toLowerCase().includes(q) ||
-        (s.customer?.name && s.customer.name.toLowerCase().includes(q)),
+        s.saleNumber?.toLowerCase().includes(q) || s.customer?.name?.toLowerCase().includes(q),
     );
   }, [saleDrafts, searchQuery]);
 
@@ -491,46 +479,46 @@ export default function ProductsPage() {
               </DropdownMenuTrigger>
               <DropdownMenuContent align="end" className="w-[180px]">
                 <DropdownMenuCheckboxItem
-                  checked={!hiddenCols["name"]}
+                  checked={!hiddenCols.name}
                   onCheckedChange={(c) => toggleColumn("name", c)}
                 >
                   Name
                 </DropdownMenuCheckboxItem>
                 <DropdownMenuCheckboxItem
-                  checked={!hiddenCols["category"]}
+                  checked={!hiddenCols.category}
                   onCheckedChange={(c) => toggleColumn("category", c)}
                 >
                   Category
                 </DropdownMenuCheckboxItem>
                 <DropdownMenuCheckboxItem
-                  checked={!hiddenCols["brand"]}
+                  checked={!hiddenCols.brand}
                   onCheckedChange={(c) => toggleColumn("brand", c)}
                 >
                   Brand
                 </DropdownMenuCheckboxItem>
                 <DropdownMenuCheckboxItem
-                  checked={!hiddenCols["unit"]}
+                  checked={!hiddenCols.unit}
                   onCheckedChange={(c) => toggleColumn("unit", c)}
                 >
                   Unit
                 </DropdownMenuCheckboxItem>
                 <Can I="inventory:view_cost_price">
                   <DropdownMenuCheckboxItem
-                    checked={!hiddenCols["buyPrice"]}
+                    checked={!hiddenCols.buyPrice}
                     onCheckedChange={(c) => toggleColumn("buyPrice", c)}
                   >
                     Buy Price
                   </DropdownMenuCheckboxItem>
                 </Can>
                 <DropdownMenuCheckboxItem
-                  checked={!hiddenCols["sellPrice"]}
+                  checked={!hiddenCols.sellPrice}
                   onCheckedChange={(c) => toggleColumn("sellPrice", c)}
                 >
                   Sell Price
                 </DropdownMenuCheckboxItem>
                 <Can I="inventory:view_stock">
                   <DropdownMenuCheckboxItem
-                    checked={!hiddenCols["stock"]}
+                    checked={!hiddenCols.stock}
                     onCheckedChange={(c) => toggleColumn("stock", c)}
                   >
                     Stock
@@ -548,59 +536,59 @@ export default function ProductsPage() {
           <Table>
             <TableHeader>
               <TableRow className="bg-muted/50">
-                {!hiddenCols["name"] && (
+                {!hiddenCols.name && (
                   <FilterableTableHeader
                     columnKey="name"
                     title="Name"
                     isFiltered={isColumnFiltered("name")}
-                    activeValue={filters["name"]}
+                    activeValue={filters.name}
                     onClear={() => clearColumnFilter("name")}
-                    width={columnWidths["name"]}
+                    width={columnWidths.name}
                     onResizeStart={handleResizeStart}
                     onResetWidth={resetColumnWidth}
                   />
                 )}
-                {!hiddenCols["category"] && (
+                {!hiddenCols.category && (
                   <FilterableTableHeader
                     columnKey="category"
                     title="Category"
                     isFiltered={isColumnFiltered("category")}
-                    activeValue={filters["category"]}
+                    activeValue={filters.category}
                     onClear={() => clearColumnFilter("category")}
                     options={categoryOptions}
                     onSelectOption={(val) => toggleFilter("category", val)}
-                    width={columnWidths["category"]}
+                    width={columnWidths.category}
                     onResizeStart={handleResizeStart}
                     onResetWidth={resetColumnWidth}
                   />
                 )}
-                {!hiddenCols["brand"] && (
+                {!hiddenCols.brand && (
                   <FilterableTableHeader
                     columnKey="brand"
                     title="Brand"
                     isFiltered={isColumnFiltered("brand")}
-                    activeValue={filters["brand"]}
+                    activeValue={filters.brand}
                     onClear={() => clearColumnFilter("brand")}
                     options={brandOptions}
                     onSelectOption={(val) => toggleFilter("brand", val)}
-                    width={columnWidths["brand"]}
+                    width={columnWidths.brand}
                     onResizeStart={handleResizeStart}
                     onResetWidth={resetColumnWidth}
                   />
                 )}
-                {!hiddenCols["unit"] && (
+                {!hiddenCols.unit && (
                   <FilterableTableHeader
                     columnKey="unit"
                     title="Unit"
                     isFiltered={isColumnFiltered("unit")}
-                    activeValue={filters["unit"]}
+                    activeValue={filters.unit}
                     onClear={() => clearColumnFilter("unit")}
-                    width={columnWidths["unit"]}
+                    width={columnWidths.unit}
                     onResizeStart={handleResizeStart}
                     onResetWidth={resetColumnWidth}
                   />
                 )}
-                {!hiddenCols["buyPrice"] && (
+                {!hiddenCols.buyPrice && (
                   <TableCell className="text-right font-medium text-muted-foreground w-[100px]">
                     <Can I="inventory:view_cost_price">Buy Price</Can>
                     <Can I="inventory:view_cost_price" not>
@@ -608,20 +596,20 @@ export default function ProductsPage() {
                     </Can>
                   </TableCell>
                 )}
-                {!hiddenCols["sellPrice"] && (
+                {!hiddenCols.sellPrice && (
                   <FilterableTableHeader
                     columnKey="sellPrice"
                     title="Sell Price"
                     isFiltered={isColumnFiltered("sellPrice")}
-                    activeValue={filters["sellPrice"]}
+                    activeValue={filters.sellPrice}
                     onClear={() => clearColumnFilter("sellPrice")}
-                    width={columnWidths["sellPrice"]}
+                    width={columnWidths.sellPrice}
                     onResizeStart={handleResizeStart}
                     onResetWidth={resetColumnWidth}
                     className="text-right"
                   />
                 )}
-                {!hiddenCols["stock"] && (
+                {!hiddenCols.stock && (
                   <TableCell className="font-medium text-muted-foreground">
                     <Can I="inventory:view_stock">Stock</Can>
                   </TableCell>
@@ -647,14 +635,14 @@ export default function ProductsPage() {
               ) : (
                 filteredProducts.map((product: any) => (
                   <TableRow key={product.id} className="hover:bg-muted/30 transition-colors">
-                    {!hiddenCols["name"] && (
+                    {!hiddenCols.name && (
                       <FilterableTableCell
                         columnKey="name"
                         value={product.name}
                         isFiltered={isColumnFiltered("name")}
                         onToggleFilter={toggleFilter}
                         onTextClick={() => setDetailProduct(product)}
-                        width={columnWidths["name"]}
+                        width={columnWidths.name}
                       >
                         <span>
                           {product.name}
@@ -666,40 +654,40 @@ export default function ProductsPage() {
                         </span>
                       </FilterableTableCell>
                     )}
-                    {!hiddenCols["category"] && (
+                    {!hiddenCols.category && (
                       <FilterableTableCell
                         columnKey="category"
                         value={product.category?.name ?? "—"}
                         isFiltered={isColumnFiltered("category")}
                         onToggleFilter={toggleFilter}
-                        width={columnWidths["category"]}
+                        width={columnWidths.category}
                       >
                         {product.category?.name ?? "—"}
                       </FilterableTableCell>
                     )}
-                    {!hiddenCols["brand"] && (
+                    {!hiddenCols.brand && (
                       <FilterableTableCell
                         columnKey="brand"
                         value={product.brand?.name ?? "—"}
                         isFiltered={isColumnFiltered("brand")}
                         onToggleFilter={toggleFilter}
-                        width={columnWidths["brand"]}
+                        width={columnWidths.brand}
                       >
                         {product.brand?.name ?? "—"}
                       </FilterableTableCell>
                     )}
-                    {!hiddenCols["unit"] && (
+                    {!hiddenCols.unit && (
                       <FilterableTableCell
                         columnKey="unit"
                         value={product.unit ?? "—"}
                         isFiltered={isColumnFiltered("unit")}
                         onToggleFilter={toggleFilter}
-                        width={columnWidths["unit"]}
+                        width={columnWidths.unit}
                       >
                         {product.unit}
                       </FilterableTableCell>
                     )}
-                    {!hiddenCols["buyPrice"] && (
+                    {!hiddenCols.buyPrice && (
                       <TableCell className="text-right">
                         <Can I="inventory:view_cost_price">
                           {product.purchasePrice
@@ -711,19 +699,19 @@ export default function ProductsPage() {
                         </Can>
                       </TableCell>
                     )}
-                    {!hiddenCols["sellPrice"] && (
+                    {!hiddenCols.sellPrice && (
                       <FilterableTableCell
                         columnKey="sellPrice"
                         value={product.sellingPrice ? formatNumber(product.sellingPrice, 2) : "—"}
                         isFiltered={isColumnFiltered("sellPrice")}
                         onToggleFilter={toggleFilter}
-                        width={columnWidths["sellPrice"]}
+                        width={columnWidths.sellPrice}
                         className="text-right"
                       >
                         {product.sellingPrice ? `৳${formatNumber(product.sellingPrice, 2)}` : "—"}
                       </FilterableTableCell>
                     )}
-                    {!hiddenCols["stock"] && (
+                    {!hiddenCols.stock && (
                       <TableCell>
                         <Can I="inventory:view_stock">
                           <StockBadges

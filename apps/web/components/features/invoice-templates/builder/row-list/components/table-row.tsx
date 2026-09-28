@@ -70,7 +70,7 @@ export function RowFormulaBadge({
     checkTruncation();
     window.addEventListener("resize", checkTruncation);
     return () => window.removeEventListener("resize", checkTruncation);
-  }, [formula, zoomLevel]);
+  }, []);
 
   const shouldExpand = isHovered && isTruncated;
 

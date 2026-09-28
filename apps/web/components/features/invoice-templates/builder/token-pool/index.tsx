@@ -118,7 +118,7 @@ const TOKEN_TYPE_CONFIG: Record<
   },
 };
 
-const CONSTANT_LEGEND = [
+const _CONSTANT_LEGEND = [
   {
     dot: "bg-indigo-400",
     label: "Global Constant",
@@ -1160,7 +1160,8 @@ export function TemplateTokenPool({
                           </span>
                         </div>
                         <p className="text-xs text-muted-foreground/80 mt-1 leading-relaxed">
-                          Grand total of all recorded expenses across every category for the project.
+                          Grand total of all recorded expenses across every category for the
+                          project.
                         </p>
                       </div>
                     </div>
@@ -1182,7 +1183,8 @@ export function TemplateTokenPool({
 
                     <div className="p-3 rounded-lg bg-muted/20 border border-border/30 text-[11px] text-muted-foreground/80 space-y-1.5 mt-2">
                       <p>
-                        • In the template builder, all expense category tokens evaluate to <code>0</code>.
+                        • In the template builder, all expense category tokens evaluate to{" "}
+                        <code>0</code>.
                       </p>
                       <p>
                         • At invoice generation time, they resolve to the live project expense sums.

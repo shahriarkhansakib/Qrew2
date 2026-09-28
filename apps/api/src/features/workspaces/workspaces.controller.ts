@@ -1,6 +1,5 @@
 import * as schema from "@starter/db";
 import { db, members, orgMemberRoles, orgRoles, users } from "@starter/db";
-import crypto from "crypto";
 import { and, desc, eq, sql } from "drizzle-orm";
 import { Context } from "hono";
 import { v4 as uuidv4 } from "uuid";
@@ -544,7 +543,7 @@ export class WorkspacesController {
         if (org.metadata) {
           metadata = JSON.parse(org.metadata);
         }
-      } catch (e) {
+      } catch (_e) {
         // Ignore parse errors
       }
 
@@ -579,7 +578,7 @@ export class WorkspacesController {
         if (org.metadata) {
           currentMetadata = JSON.parse(org.metadata);
         }
-      } catch (e) {
+      } catch (_e) {
         // Ignore parse errors
       }
 
@@ -616,7 +615,7 @@ export class WorkspacesController {
       let metadata: any = {};
       try {
         if (org.metadata) metadata = JSON.parse(org.metadata);
-      } catch (e) {}
+      } catch (_e) {}
 
       const userPrefs = metadata[`userPrefs_${userId}`] || {};
       return c.json({ preferences: userPrefs });
@@ -648,7 +647,7 @@ export class WorkspacesController {
       let currentMetadata: any = {};
       try {
         if (org.metadata) currentMetadata = JSON.parse(org.metadata);
-      } catch (e) {}
+      } catch (_e) {}
 
       const key = `userPrefs_${userId}`;
       const currentUserPrefs = currentMetadata[key] || {};

@@ -105,7 +105,7 @@ export function ClientDetailsModal({
     if (fieldDef?.fieldType === "date") {
       try {
         return format(new Date(val), "MMM d, yyyy");
-      } catch (e) {}
+      } catch (_e) {}
     }
     return val;
   };

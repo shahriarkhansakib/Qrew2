@@ -1,5 +1,5 @@
-const fs = require("fs");
-const path = require("path");
+const fs = require("node:fs");
+const path = require("node:path");
 
 const controllersDir =
   "c:/__projects/Hybrid/starter/apps/api/src/features/invoice-templates/rows/controllers";
@@ -25,7 +25,7 @@ for (const file of files) {
     let controllerFileName;
     // We need to find the controller file for this function
     if (fnName.includes("Charge")) {
-      const kebab = fnName
+      const _kebab = fnName
         .replace("Charge", "-charge")
         .replace("Charges", "-charges")
         .replace(/([a-z])([A-Z])/g, "$1-$2")
@@ -57,7 +57,7 @@ for (const file of files) {
     }
 
     if (controllerFileName) {
-      content = `import { ${fnName} } from "./${controllerFileName}";\n` + content;
+      content = `import { ${fnName} } from "./${controllerFileName}";\n${content}`;
     } else {
       console.log(`Could not find controller for ${fnName} in ${file}`);
     }

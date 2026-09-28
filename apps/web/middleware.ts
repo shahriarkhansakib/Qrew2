@@ -70,7 +70,7 @@ export async function middleware(request: NextRequest) {
     } else {
       console.error(`[Middleware] Auth Rejected: ${res.status}`);
     }
-  } catch (err) {
+  } catch (_err) {
     console.warn("[Middleware] Auth check bypassed (network error or timeout)");
   }
 

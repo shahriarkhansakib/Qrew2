@@ -1,4 +1,4 @@
-import * as crypto from "crypto";
+import * as crypto from "node:crypto";
 import { v4 as uuidv4 } from "uuid";
 import "dotenv/config";
 import {
@@ -498,7 +498,7 @@ async function seedSST() {
   const dbStatuses = await db.query.projectStatuses.findMany({
     where: (s, { eq }) => eq(s.organizationId, orgDb.id),
   });
-  const createdStatus = dbStatuses.find((s) => s.name === "Created");
+  const _createdStatus = dbStatuses.find((s) => s.name === "Created");
   const completedStatus = dbStatuses.find((s) => s.name === "Completed");
 
   const { projectStatuses } = await import("./index");
@@ -870,7 +870,7 @@ async function seedSST() {
     const totalStr = (subtotal + taxNum).toFixed(2);
 
     const issueDate = getRandomDateInPastDays(60);
-    const dueDate = new Date(issueDate.getTime() + 86400000 * 30); // 30 days later
+    const _dueDate = new Date(issueDate.getTime() + 86400000 * 30); // 30 days later
 
     const clientObj = createdClients.find((c) => c.id === projectObj.clientId);
     const issuedToClientName = clientObj?.name ?? "Demo Client";

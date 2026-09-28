@@ -47,10 +47,7 @@ export async function reorderCharges(c: Context) {
   await db.transaction(async (tx) => {
     await Promise.all(
       orderedIds.map((id, index) =>
-        tx
-          .update(tokens)
-          .set({ sortOrder: index })
-          .where(eq(tokens.id, id)),
+        tx.update(tokens).set({ sortOrder: index }).where(eq(tokens.id, id)),
       ),
     );
   });

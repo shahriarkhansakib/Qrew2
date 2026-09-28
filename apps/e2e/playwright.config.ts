@@ -1,6 +1,6 @@
+import * as path from "node:path";
 import { defineConfig, devices } from "@playwright/test";
 import * as dotenv from "dotenv";
-import * as path from "path";
 
 /**
  * Load environment variables.

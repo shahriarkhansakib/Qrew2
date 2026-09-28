@@ -1,7 +1,6 @@
 import {
   db,
   decodeFormula,
-  encodeFormula,
   invoiceTemplates,
   templateSectionCharges,
   templateSections,
@@ -90,10 +89,7 @@ export async function updateSectionCharge(c: Context) {
 
   if (parsed.data.chargeToken && parsed.data.chargeToken !== existingToken.tokenKey) {
     const dup = await db.query.tokens?.findFirst({
-      where: and(
-        eq(tokens.templateId, templateId),
-        eq(tokens.tokenKey, parsed.data.chargeToken),
-      ),
+      where: and(eq(tokens.templateId, templateId), eq(tokens.tokenKey, parsed.data.chargeToken)),
     });
     if (dup) {
       return c.json(
@@ -108,8 +104,7 @@ export async function updateSectionCharge(c: Context) {
   const tokenPatch: any = {};
   if (parsed.data.chargeToken !== undefined) tokenPatch.tokenKey = parsed.data.chargeToken;
   if (parsed.data.label !== undefined) tokenPatch.label = parsed.data.label;
-  if (parsed.data.subDescription !== undefined)
-    tokenPatch.description = parsed.data.subDescription;
+  if (parsed.data.subDescription !== undefined) tokenPatch.description = parsed.data.subDescription;
   if (parsed.data.orderIndex !== undefined) tokenPatch.sortOrder = parsed.data.orderIndex;
 
   const chargePatch: any = {};
@@ -157,8 +152,7 @@ export async function updateSectionCharge(c: Context) {
     label: tokenPatch.label ?? existingToken.label,
     subDescription:
       tokenPatch.description !== undefined ? tokenPatch.description : existingToken.description,
-    sortOrder:
-      tokenPatch.sortOrder !== undefined ? tokenPatch.sortOrder : existingToken.sortOrder,
+    sortOrder: tokenPatch.sortOrder !== undefined ? tokenPatch.sortOrder : existingToken.sortOrder,
   };
 
   const decoded =
