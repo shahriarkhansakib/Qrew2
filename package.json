@@ -4,6 +4,7 @@
   "private": true,
   "packageManager": "pnpm@10.27.0",
   "scripts": {
+    "prepare": "husky",
     "dev": "turbo run dev",
     "build": "turbo run build",
     "start": "turbo run start",
@@ -25,7 +26,14 @@
   },
   "devDependencies": {
     "@biomejs/biome": "^2.5.14",
+    "husky": "^9.1.7",
+    "lint-staged": "^17.6.0",
     "turbo": "^2.9.6",
     "typescript": "^5.9.3"
+  },
+  "lint-staged": {
+    "*.{ts,tsx,js,jsx,mjs,cjs,json,css}": [
+      "biome check --write --no-errors-on-unmatched"
+    ]
   }
 }
