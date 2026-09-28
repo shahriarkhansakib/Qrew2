@@ -2,7 +2,7 @@
 
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { Pencil, Plus, X } from "lucide-react";
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { toast } from "sonner";
 import {
   AlertDialog,
@@ -513,24 +513,27 @@ function WorkspaceInner({
     },
   });
 
-  const sortedSections = [...(sections || [])].sort((a: any, b: any) => a.sortOrder - b.sortOrder);
+  const sortedSections = useMemo(() => {
+    if (!sections) return [];
+    return [...sections].sort((a: any, b: any) => (a.sortOrder ?? 0) - (b.sortOrder ?? 0));
+  }, [sections]);
 
   // ── Compute token map and push it to context ──────────────────────────────
   // Pass constants, file fields, and expense categories so formula rows that reference them resolve correctly
-  const tokenMap = buildTokenMap(
-    sortedSections,
-    orgConfigs ?? [],
-    constantsData ?? [],
-    templateHeaderFields ?? [],
-    expenseCategoriesData ?? [],
-  );
+  const tokenMap = useMemo(() => {
+    return buildTokenMap(
+      sortedSections,
+      orgConfigs ?? [],
+      constantsData ?? [],
+      templateHeaderFields ?? [],
+      expenseCategoriesData ?? [],
+    );
+  }, [sortedSections, orgConfigs, constantsData, templateHeaderFields, expenseCategoriesData]);
 
-  // eslint-disable-next-line react-hooks/exhaustive-deps
   useEffect(() => {
     setTokenMap(tokenMap);
   }, [tokenMap, setTokenMap]);
 
-  // eslint-disable-next-line react-hooks/exhaustive-deps
   useEffect(() => {
     if (setSections) setSections(sortedSections);
   }, [sortedSections, setSections]);
@@ -601,22 +604,24 @@ function WorkspaceInner({
   }, [orgConfigs, constantsData, templateHeaderFields, expenseCategoriesData, setExternalTokens]);
 
   // ── Global SL offsets ─────────────────────────────────────────────────────
-  const sectionSlOffsets: number[] = [];
-  let globalCounter = 0;
-  for (const sec of sortedSections) {
-    sectionSlOffsets.push(globalCounter);
-    globalCounter += (sec.rows ?? []).length;
-  }
+  const sectionSlOffsets = useMemo(() => {
+    const offsets: number[] = [];
+    let globalCounter = 0;
+    for (const sec of sortedSections) {
+      offsets.push(globalCounter);
+      globalCounter += (sec.rows ?? []).length;
+    }
+    return offsets;
+  }, [sortedSections]);
 
   // ── Grand total ───────────────────────────────────────────────────────────
-  const grandTotal =
-    sortedSections.length > 0
-      ? sortedSections.reduce((sum: number, sec: any) => {
-          const v =
-            tokenMap[`SEC_${sec.sectionToken}`] ?? tokenMap[`SEC_${sec.sectionToken}_TOTAL`];
-          return sum + (v ?? 0);
-        }, 0)
-      : null;
+  const grandTotal = useMemo(() => {
+    if (sortedSections.length === 0) return null;
+    return sortedSections.reduce((sum: number, sec: any) => {
+      const v = tokenMap[`SEC_${sec.sectionToken}`] ?? tokenMap[`SEC_${sec.sectionToken}_TOTAL`];
+      return sum + (v ?? 0);
+    }, 0);
+  }, [sortedSections, tokenMap]);
 
   const handleConfirmDeleteField = async () => {
     if (!fieldToDelete) return;

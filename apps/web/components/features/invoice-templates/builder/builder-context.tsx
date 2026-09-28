@@ -53,11 +53,11 @@ type BuilderContextValue = {
   setSelectedCell: (cell: SelectedCell | null) => void;
   /** Live token map — updated by the workspace whenever sections data changes. */
   tokenMap: TokenMap;
-  setTokenMap: (map: TokenMap) => void;
+  setTokenMap: (map: TokenMap | ((prev: TokenMap) => TokenMap)) => void;
   sections: any[];
-  setSections?: (sections: any[]) => void;
+  setSections?: (sections: any[] | ((prev: any[]) => any[])) => void;
   externalTokens: ExternalTokens;
-  setExternalTokens?: (tokens: ExternalTokens) => void;
+  setExternalTokens?: (tokens: ExternalTokens | ((prev: ExternalTokens) => ExternalTokens)) => void;
   hiddenTokens: Set<string>;
   invalidTokens: Set<string>;
   tokenDisabledReasons: Map<string, string>;
@@ -120,10 +120,57 @@ export function BuilderProvider({
   children: React.ReactNode;
 }) {
   const [selectedCell, setSelectedCell] = useState<SelectedCell | null>(null);
-  const [tokenMap, setTokenMap] = useState<TokenMap>({});
-  const [sections, setSections] = useState<any[]>([]);
+  const [tokenMap, setTokenMapState] = useState<TokenMap>({});
+  const [sections, setSectionsState] = useState<any[]>([]);
   const [clipboardToken, setClipboardToken] = useState<string | null>(null);
-  const [externalTokens, setExternalTokens] = useState<ExternalTokens>(DEFAULT_EXTERNAL_TOKENS);
+  const [externalTokens, setExternalTokensState] =
+    useState<ExternalTokens>(DEFAULT_EXTERNAL_TOKENS);
+
+  const setTokenMap = useCallback((mapOrFn: TokenMap | ((prev: TokenMap) => TokenMap)) => {
+    setTokenMapState((prev) => {
+      const next = typeof mapOrFn === "function" ? mapOrFn(prev) : mapOrFn;
+      if (prev === next) return prev;
+      const prevKeys = Object.keys(prev);
+      const nextKeys = Object.keys(next);
+      if (prevKeys.length === nextKeys.length && prevKeys.every((k) => prev[k] === next[k])) {
+        return prev;
+      }
+      return next;
+    });
+  }, []);
+
+  const setSections = useCallback((sectionsOrFn: any[] | ((prev: any[]) => any[])) => {
+    setSectionsState((prev) => {
+      const next = typeof sectionsOrFn === "function" ? sectionsOrFn(prev) : sectionsOrFn;
+      if (prev === next) return prev;
+      if (prev.length === next.length && prev.every((item, i) => item === next[i])) {
+        return prev;
+      }
+      return next;
+    });
+  }, []);
+
+  const setExternalTokens = useCallback(
+    (tokensOrFn: ExternalTokens | ((prev: ExternalTokens) => ExternalTokens)) => {
+      setExternalTokensState((prev) => {
+        const next = typeof tokensOrFn === "function" ? tokensOrFn(prev) : tokensOrFn;
+        if (prev === next) return prev;
+        const areSetsEqual = (a: Set<string>, b: Set<string>) =>
+          a.size === b.size && Array.from(a).every((x) => b.has(x));
+
+        if (
+          areSetsEqual(prev.global, next.global) &&
+          areSetsEqual(prev.template, next.template) &&
+          areSetsEqual(prev.file, next.file) &&
+          areSetsEqual(prev.category, next.category)
+        ) {
+          return prev;
+        }
+        return next;
+      });
+    },
+    [],
+  );
 
   const tokenTypes = useMemo(() => {
     const rowBases = new Set<string>();
@@ -334,28 +381,50 @@ export function BuilderProvider({
   );
 
   // Expose context
-  const value = {
-    selectedCell,
-    setSelectedCell,
-    tokenMap,
-    setTokenMap,
-    sections,
-    setSections,
-    externalTokens,
-    setExternalTokens,
-    hiddenTokens,
-    invalidTokens,
-    tokenDisabledReasons,
-    getTokenDisabledReason,
-    tokenPoolOpen,
-    apiBasePath,
-    mode,
-    invalidateKey,
-    validationErrors,
-    clipboardToken,
-    setClipboardToken,
-    getTokenColor,
-  };
+  const value = useMemo(
+    () => ({
+      selectedCell,
+      setSelectedCell,
+      tokenMap,
+      setTokenMap,
+      sections,
+      setSections,
+      externalTokens,
+      setExternalTokens,
+      hiddenTokens,
+      invalidTokens,
+      tokenDisabledReasons,
+      getTokenDisabledReason,
+      tokenPoolOpen,
+      apiBasePath,
+      mode,
+      invalidateKey,
+      validationErrors,
+      clipboardToken,
+      setClipboardToken,
+      getTokenColor,
+    }),
+    [
+      selectedCell,
+      tokenMap,
+      setTokenMap,
+      sections,
+      setSections,
+      externalTokens,
+      setExternalTokens,
+      hiddenTokens,
+      invalidTokens,
+      tokenDisabledReasons,
+      getTokenDisabledReason,
+      tokenPoolOpen,
+      apiBasePath,
+      mode,
+      invalidateKey,
+      validationErrors,
+      clipboardToken,
+      getTokenColor,
+    ],
+  );
 
   return <BuilderContext.Provider value={value}>{children}</BuilderContext.Provider>;
 }
