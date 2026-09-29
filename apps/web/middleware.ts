@@ -34,6 +34,7 @@ export async function middleware(request: NextRequest) {
     pathname.startsWith("/dashboard") ||
     pathname.startsWith("/admin") ||
     pathname.startsWith("/super-admin") ||
+    pathname.startsWith("/org-admin") ||
     pathname.startsWith("/onboarding");
 
   if (!isAuthRoute && !isProtectedRoute) {
@@ -125,7 +126,9 @@ export async function middleware(request: NextRequest) {
   // We only run this if they are trying to access the tenant dashboard or onboarding
   if (
     globalLevel === ROLE_HIERARCHY.user &&
-    (pathname.startsWith("/dashboard") || pathname.startsWith("/onboarding"))
+    (pathname.startsWith("/dashboard") ||
+      pathname.startsWith("/onboarding") ||
+      pathname.startsWith("/org-admin"))
   ) {
     const activeOrgId = sessionData?.session?.activeOrganizationId;
     const isOnboarding = pathname.startsWith("/onboarding/organization");

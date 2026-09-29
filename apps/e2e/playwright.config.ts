@@ -52,5 +52,7 @@ export default defineConfig({
     reuseExistingServer: !process.env.CI,
     // Give the turborepo and DB time to boot
     timeout: 120 * 1000,
+    stdout: "pipe",
+    stderr: "pipe",
   },
 });

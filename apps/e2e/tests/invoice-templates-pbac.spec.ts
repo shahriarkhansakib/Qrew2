@@ -9,21 +9,16 @@ import { expect, test } from "@playwright/test";
  *    from the DOM (`toHaveCount(0)`), not just hidden via CSS (`display: none`).
  * 3. Direct routing to protected routes (e.g. `/templates/new`) without permission redirects or renders 403.
  */
-
-const TENANT_HOST = "app.localhost:5002";
-
 test.describe("Invoice Templates — PBAC Feature Gating", () => {
   test("Viewer role without finance:manage_invoices cannot see mutation controls in the DOM", async ({
     browser,
   }) => {
     // 1. Launch context as a viewer (without finance:manage_invoices)
-    const context = await browser.newContext({
-      extraHTTPHeaders: { Host: TENANT_HOST },
-    });
+    const context = await browser.newContext();
     const page = await context.newPage();
 
     // 2. Navigate to invoice templates list
-    await page.goto("/dashboard/settings/invoices/templates");
+    await page.goto("/org-admin/invoice-templates");
 
     const currentUrl = page.url();
     if (!currentUrl.includes("/sign-in")) {
@@ -35,9 +30,11 @@ test.describe("Invoice Templates — PBAC Feature Gating", () => {
       );
 
       // 4. Direct navigation to template creation route must be rejected
-      await page.goto("/dashboard/settings/invoices/templates/new");
+      await page.goto("/org-admin/invoice-templates/new");
       await expect(page.getByTestId("create-template-form")).toHaveCount(0);
       await expect(page).toHaveURL(/403|unauthorized|forbidden|templates$|sign-in/);
+    } else {
+      expect(currentUrl).toContain("/sign-in");
     }
 
     await context.close();
@@ -46,13 +43,11 @@ test.describe("Invoice Templates — PBAC Feature Gating", () => {
   test("Template editor enforces read-only state when lacking edit permissions", async ({
     browser,
   }) => {
-    const context = await browser.newContext({
-      extraHTTPHeaders: { Host: TENANT_HOST },
-    });
+    const context = await browser.newContext();
     const page = await context.newPage();
 
     // Navigate to a template view in read-only / unauthorized mode
-    await page.goto("/dashboard/settings/invoices/templates/sample-template-001");
+    await page.goto("/org-admin/invoice-templates/sample-template-001");
 
     const currentUrl = page.url();
     if (!currentUrl.includes("/sign-in")) {
@@ -60,6 +55,8 @@ test.describe("Invoice Templates — PBAC Feature Gating", () => {
       await expect(page.getByTestId("add-row-button")).toHaveCount(0);
       await expect(page.getByTestId("add-charge-button")).toHaveCount(0);
       await expect(page.getByTestId("save-formula-button")).toHaveCount(0);
+    } else {
+      expect(currentUrl).toContain("/sign-in");
     }
 
     await context.close();

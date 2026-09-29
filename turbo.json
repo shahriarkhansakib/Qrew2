@@ -4,7 +4,24 @@
     "build": {
       "dependsOn": ["^build"],
       "outputs": [".next/**", "dist/**", "!.next/cache/**"],
-      "env": ["DATABASE_URL", "BETTER_AUTH_SECRET", "NODE_ENV"]
+      "env": [
+        "DATABASE_URL",
+        "BETTER_AUTH_SECRET",
+        "BETTER_AUTH_URL",
+        "NEXT_PUBLIC_APP_URL",
+        "NEXT_PUBLIC_API_URL",
+        "NODE_ENV",
+        "REDIS_URL",
+        "UPSTASH_URL",
+        "UPSTASH_TOKEN",
+        "GOOGLE_CLIENT_ID",
+        "GOOGLE_CLIENT_SECRET",
+        "RESEND_API_KEY",
+        "R2_BUCKET_NAME",
+        "R2_ACCOUNT_ID",
+        "R2_ACCESS_KEY_ID",
+        "R2_SECRET_ACCESS_KEY"
+      ]
     },
     "dev": {
       "cache": false,

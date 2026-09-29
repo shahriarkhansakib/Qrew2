@@ -2,6 +2,7 @@ import app from "@starter/api/src/index";
 import { handle } from "hono/vercel";
 
 export const runtime = "nodejs";
+export const dynamic = "force-dynamic";
 
 export const GET = handle(app);
 export const POST = handle(app);

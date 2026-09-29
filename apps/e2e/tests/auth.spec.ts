@@ -19,6 +19,15 @@ test.describe("Authentication & Dashboard User Flow", () => {
     await page.getByRole("link", { name: "Sign in", exact: true }).click();
     await page.waitForURL("**/sign-in");
 
+    // Intercept Google OAuth navigation so CI E2E does not hang on external network or Google bot detection
+    await page.route("**/accounts.google.com/**", (route) => {
+      return route.fulfill({
+        status: 200,
+        contentType: "text/html",
+        body: "<html><body>Mock Google OAuth Consent Screen</body></html>",
+      });
+    });
+
     // 4. Click the Continue with Google button
     // It could say "Sign in with Google" or similar, so we use a regex for "Google"
     await page.getByRole("button", { name: /Google/i }).click();
