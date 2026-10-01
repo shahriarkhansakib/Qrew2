@@ -19,6 +19,18 @@ test.describe("Authentication & Dashboard User Flow", () => {
     await page.getByRole("link", { name: "Sign in", exact: true }).click();
     await page.waitForURL("**/sign-in");
 
+    // Intercept Google OAuth backend request to return mock redirect URL so CI doesn't depend on external provider
+    await page.route("**/api/auth/sign-in/social", (route) => {
+      return route.fulfill({
+        status: 200,
+        contentType: "application/json",
+        body: JSON.stringify({
+          url: "https://accounts.google.com/o/oauth2/v2/auth?client_id=mock-client-id&redirect_uri=mock&response_type=code&scope=openid%20profile%20email&state=mock-state",
+          redirect: true,
+        }),
+      });
+    });
+
     // Intercept Google OAuth navigation so CI E2E does not hang on external network or Google bot detection
     await page.route("**/accounts.google.com/**", (route) => {
       return route.fulfill({
