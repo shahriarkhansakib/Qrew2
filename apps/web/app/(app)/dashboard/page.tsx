@@ -12,7 +12,6 @@ import {
   Layers,
   Plus,
   Receipt,
-  Sparkles,
   TrendingDown,
   TrendingUp,
   Users,

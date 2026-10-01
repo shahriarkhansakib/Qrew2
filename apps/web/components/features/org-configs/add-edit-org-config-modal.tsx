@@ -68,7 +68,7 @@ export function AddEditOrgConfigModal({
         displayLabel: "",
       });
     }
-  }, [editConfig, isOpen]);
+  }, [editConfig]);
 
   const mutation = useMutation({
     mutationFn: async (payload: any) => {

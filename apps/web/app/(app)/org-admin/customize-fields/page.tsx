@@ -1,24 +1,13 @@
 "use client";
 
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import {
-  Check,
-  Edit2,
-  ExternalLink,
-  GitBranch,
-  Loader2,
-  Plus,
-  Save,
-  Trash2,
-  X,
-} from "lucide-react";
+import { Check, Edit2, GitBranch, Loader2, Plus, Trash2, X } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
 import { toast } from "sonner";
 import { AddCustomFieldModal } from "@/components/features/custom-fields/add-custom-field-modal";
 import { CustomFieldsDataTable } from "@/components/features/custom-fields/custom-fields-data-table";
 import { AddExpenseCategoryModal } from "@/components/features/expense-categories/add-expense-category-modal";
-import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Input } from "@/components/ui/input";

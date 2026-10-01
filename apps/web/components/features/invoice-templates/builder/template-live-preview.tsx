@@ -22,7 +22,7 @@ function useDebounce<T>(value: T, delay: number): T {
 function formatCurrency(value: string | number | null | undefined): string {
   if (value === null || value === undefined || value === "") return "";
   const num = typeof value === "string" ? parseFloat(value) : value;
-  if (isNaN(num)) return "";
+  if (Number.isNaN(num)) return "";
   return num.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 }
 
@@ -58,15 +58,10 @@ export function TemplateLivePreview({ templateId }: { templateId: string }) {
   } = useQuery({
     queryKey: ["invoice-preview", templateId, debouncedInputs],
     queryFn: async () => {
-      const processedInputs: Record<string, number> = {};
+      const processedInputs: Record<string, string> = {};
       Object.entries(debouncedInputs).forEach(([k, v]) => {
-        if (v && !isNaN(parseFloat(v))) {
-          const num = parseFloat(v);
-          processedInputs[k] = num;
-          if (!k.startsWith("GBL_") && !k.startsWith("ORG_") && !k.startsWith("CAT_")) {
-            processedInputs[`GBL_${k}`] = num;
-            processedInputs[`ORG_${k}`] = num;
-          }
+        if (v !== undefined && v !== "" && !Number.isNaN(parseFloat(v))) {
+          processedInputs[k] = v;
         }
       });
 
@@ -74,11 +69,14 @@ export function TemplateLivePreview({ templateId }: { templateId: string }) {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         credentials: "include",
-        body: JSON.stringify({ templateId, inputs: processedInputs }),
+        body: JSON.stringify({ templateId, externalOverrides: processedInputs }),
       });
       if (!res.ok) {
         const errData = await res.json();
-        const error = new Error(errData.error || "Preview failed");
+        const error = new Error(
+          errData?.error?.message ||
+            (typeof errData?.error === "string" ? errData.error : "Preview failed"),
+        );
         (error as any).status = res.status;
         throw error;
       }
@@ -89,16 +87,23 @@ export function TemplateLivePreview({ templateId }: { templateId: string }) {
     gcTime: 0, // Don't keep stale preview data around
   });
 
-  // Group rows by section for rendering
-  const sections = groupRowsBySections(previewData?.computedRows ?? []);
-  const grandTotal = computeGrandTotal(previewData?.computedRows ?? []);
+  const sections = previewData?.data?.sections ?? [];
+  const grandTotal = previewData?.data?.grandTotal ?? "0";
+  const validationErrors = previewData?.data?.validationErrors ?? [];
   let slCounter = 0;
 
   const inputTokens = [
-    ...(tokens?.categories || []).map((c: any) => ({ key: `CAT_${c.tokenKey}`, label: c.label })),
+    ...(tokens?.categories || []).map((c: any) => ({
+      key: c.token,
+      label: c.label,
+    })),
     ...(tokens?.orgConfigs || []).map((o: any) => ({
-      key: (o.configKey || "").replace(/^(GBL_|ORG_)/, ""),
+      key: o.token,
       label: o.displayLabel,
+    })),
+    ...(tokens?.fileFields || []).map((f: any) => ({
+      key: f.token,
+      label: f.displayLabel,
     })),
   ];
 
@@ -140,6 +145,24 @@ export function TemplateLivePreview({ templateId }: { templateId: string }) {
           </div>
         )}
 
+        {/* Validation Errors Notice */}
+        {validationErrors.length > 0 && (
+          <div className="bg-amber-500/10 border border-amber-500/30 text-amber-900 dark:text-amber-300 p-3 rounded-xl text-xs space-y-1">
+            <div className="font-semibold flex items-center gap-1.5">
+              <AlertCircle className="h-4 w-4 shrink-0 text-amber-500" />
+              Formula Notices ({validationErrors.length})
+            </div>
+            <ul className="list-disc list-inside space-y-0.5 text-[11px] text-muted-foreground pl-1">
+              {validationErrors.map((vErr: any, idx: number) => (
+                <li key={idx}>
+                  {vErr.rowToken ? `[${vErr.rowToken}] ` : ""}
+                  {vErr.message}
+                </li>
+              ))}
+            </ul>
+          </div>
+        )}
+
         {/* PDA Table Preview */}
         <div className="bg-white border rounded-xl shadow-sm overflow-hidden font-sans">
           <div className="bg-gray-800 text-white px-4 py-2">
@@ -159,7 +182,7 @@ export function TemplateLivePreview({ templateId }: { templateId: string }) {
               <Loader2 className="h-5 w-5 animate-spin mx-auto mb-2" />
               Calculating...
             </div>
-          ) : !previewData?.computedRows?.length ? (
+          ) : !sections.length ? (
             <div className="p-8 text-center text-sm text-muted-foreground">
               No rows to preview. Add rows in the builder.
             </div>
@@ -180,75 +203,110 @@ export function TemplateLivePreview({ templateId }: { templateId: string }) {
                 </tr>
               </thead>
               <tbody>
-                {sections.map((section: any) => (
-                  <React.Fragment key={section.sectionToken}>
-                    {/* Section header row */}
-                    {section.name && (
-                      <tr className="bg-gray-50 border-b border-gray-200">
-                        <td className="px-2 py-1 border-r border-gray-200" />
-                        <td
-                          colSpan={3}
-                          className="px-3 py-1.5 font-bold text-gray-700 text-[11px] uppercase tracking-wide"
-                        >
-                          {section.name}
-                        </td>
-                      </tr>
-                    )}
+                {sections.map((section: any) => {
+                  const sectionName =
+                    section.label || (section.autoName ? `SECTION ${section.autoName}` : "");
+                  return (
+                    <React.Fragment key={section.sectionToken || section.id}>
+                      {/* Section header row */}
+                      {sectionName && (
+                        <tr className="bg-gray-50 border-b border-gray-200">
+                          <td className="px-2 py-1 border-r border-gray-200" />
+                          <td
+                            colSpan={3}
+                            className="px-3 py-1.5 font-bold text-gray-700 text-[11px] uppercase tracking-wide"
+                          >
+                            {sectionName}
+                          </td>
+                        </tr>
+                      )}
 
-                    {/* Rows */}
-                    {section.rows.map((row: any) => {
-                      if (!row.isVisible) return null;
-                      slCounter++;
-                      const hasSurcharge =
-                        row.surchargeLabel && parseFloat(row.surchargeValue || "0") !== 0;
-                      const baseVal = formatCurrency(row.baseValue);
-                      const totalVal = formatCurrency(row.totalValue);
+                      {/* Rows */}
+                      {(section.rows || []).map((row: any) => {
+                        slCounter++;
+                        const hasCharges = row.charges && row.charges.length > 0;
+                        const baseVal = formatCurrency(row.baseValue);
+                        const totalVal = formatCurrency(row.totalValue);
 
-                      return (
-                        <React.Fragment key={row.rowToken}>
-                          {/* Main row */}
-                          <tr className="border-b border-gray-100 hover:bg-gray-50/50">
-                            <td className="px-2 py-2 text-center text-gray-500 border-r border-gray-100 align-top leading-tight">
-                              {slCounter < 10 ? `0${slCounter}` : slCounter}
-                            </td>
-                            <td className="px-3 py-2 border-r border-gray-100">
-                              <div className="font-semibold text-gray-800 leading-tight uppercase">
-                                {row.label}
-                              </div>
-                              {row.subDescription && (
-                                <div className="text-gray-500 text-[10px] mt-0.5 leading-tight">
-                                  {row.subDescription}
-                                </div>
-                              )}
-                            </td>
-                            <td className="px-2 py-2 text-right text-gray-700 font-mono border-r border-gray-100 align-top">
-                              {hasSurcharge ? baseVal : ""}
-                            </td>
-                            <td className="px-2 py-2 text-right font-mono font-semibold text-gray-800 align-top">
-                              {!hasSurcharge ? baseVal : totalVal}
-                            </td>
-                          </tr>
-
-                          {/* Surcharge sub-row */}
-                          {hasSurcharge && (
-                            <tr className="border-b border-gray-100">
-                              <td className="border-r border-gray-100" />
-                              <td className="px-3 pb-2 border-r border-gray-100">
-                                <div className="text-right text-gray-500 italic text-[10px]">
-                                  {row.surchargeLabel}
+                        return (
+                          <React.Fragment key={row.rowToken || row.id}>
+                            {/* Main row */}
+                            <tr className="border-b border-gray-100 hover:bg-gray-50/50">
+                              <td className="px-2 py-2 text-center text-gray-500 border-r border-gray-100 align-top leading-tight">
+                                {slCounter < 10 ? `0${slCounter}` : slCounter}
+                              </td>
+                              <td className="px-3 py-2 border-r border-gray-100">
+                                <div className="font-semibold text-gray-800 leading-tight uppercase">
+                                  {row.label}
                                 </div>
                               </td>
-                              <td className="border-r border-gray-100" />
-                              <td className="px-2 pb-2 text-right font-mono font-semibold text-gray-800 text-[11px]">
-                                {totalVal}
+                              <td className="px-2 py-2 text-right text-gray-700 font-mono border-r border-gray-100 align-top">
+                                {hasCharges ? baseVal : ""}
+                              </td>
+                              <td className="px-2 py-2 text-right font-mono font-semibold text-gray-800 align-top">
+                                {!hasCharges ? totalVal : ""}
                               </td>
                             </tr>
-                          )}
-                        </React.Fragment>
-                      );
-                    })}
-                  </React.Fragment>
-                ))}
+
+                            {/* Row Charge sub-rows */}
+                            {hasCharges &&
+                              row.charges.map((charge: any, idx: number) => {
+                                const isLast = idx === row.charges.length - 1;
+                                return (
+                                  <tr
+                                    key={charge.chargeToken || charge.id || idx}
+                                    className="border-b border-gray-100 bg-muted/5"
+                                  >
+                                    <td className="border-r border-gray-100" />
+                                    <td className="px-3 py-1.5 border-r border-gray-100">
+                                      <div className="text-right text-gray-600 italic text-[11px]">
+                                        {charge.label}
+                                      </div>
+                                      {charge.subDescription && (
+                                        <div className="text-right text-gray-400 text-[10px]">
+                                          {charge.subDescription}
+                                        </div>
+                                      )}
+                                    </td>
+                                    <td className="px-2 py-1.5 text-right font-mono text-gray-600 border-r border-gray-100 text-[11px] align-top">
+                                      {formatCurrency(charge.value)}
+                                    </td>
+                                    <td className="px-2 py-1.5 text-right font-mono font-semibold text-gray-800 text-[11px] align-top">
+                                      {isLast ? totalVal : ""}
+                                    </td>
+                                  </tr>
+                                );
+                              })}
+                          </React.Fragment>
+                        );
+                      })}
+
+                      {/* Section Charges */}
+                      {(section.sectionCharges || []).map((sc: any) => (
+                        <tr
+                          key={sc.chargeToken || sc.id}
+                          className="border-b border-gray-200 bg-gray-50/70"
+                        >
+                          <td className="border-r border-gray-200" />
+                          <td className="px-3 py-1.5 border-r border-gray-200">
+                            <div className="font-semibold text-gray-700 text-[11px] uppercase">
+                              {sc.label}
+                            </div>
+                            {sc.subDescription && (
+                              <div className="text-gray-500 text-[10px]">{sc.subDescription}</div>
+                            )}
+                          </td>
+                          <td className="px-2 py-1.5 text-right font-mono text-gray-700 border-r border-gray-200 text-[11px]">
+                            {formatCurrency(sc.value)}
+                          </td>
+                          <td className="px-2 py-1.5 text-right font-mono font-bold text-gray-800 text-[11px]">
+                            {formatCurrency(sc.value)}
+                          </td>
+                        </tr>
+                      ))}
+                    </React.Fragment>
+                  );
+                })}
 
                 {/* Grand Total */}
                 <tr className="bg-gray-800 text-white">
@@ -268,32 +326,4 @@ export function TemplateLivePreview({ templateId }: { templateId: string }) {
       </div>
     </div>
   );
-}
-
-// ─── Helpers ──────────────────────────────────────────────────────────────────
-
-function groupRowsBySections(
-  rows: any[],
-): Array<{ name: string; sectionToken: string; rows: any[] }> {
-  const sectionsMap = new Map<string, { name: string; sectionToken: string; rows: any[] }>();
-
-  for (const row of rows) {
-    const key = row.sectionToken || "__unsectioned__";
-    if (!sectionsMap.has(key)) {
-      sectionsMap.set(key, { name: row.sectionName || "", sectionToken: key, rows: [] });
-    }
-    sectionsMap.get(key)!.rows.push(row);
-  }
-
-  return Array.from(sectionsMap.values());
-}
-
-function computeGrandTotal(rows: any[]): string {
-  let total = 0;
-  for (const row of rows) {
-    if (row.isVisible && row.totalValue) {
-      total += parseFloat(row.totalValue) || 0;
-    }
-  }
-  return total.toString();
 }

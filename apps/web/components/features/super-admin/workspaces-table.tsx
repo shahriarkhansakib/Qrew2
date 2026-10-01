@@ -108,21 +108,21 @@ export function WorkspacesTable() {
                 columnKey="name"
                 title="Organization Name"
                 isFiltered={isColumnFiltered("name")}
-                activeValue={filters["name"]}
+                activeValue={filters.name}
                 onClear={() => clearColumnFilter("name")}
               />
               <FilterableTableHeader
                 columnKey="slug"
                 title="Slug"
                 isFiltered={isColumnFiltered("slug")}
-                activeValue={filters["slug"]}
+                activeValue={filters.slug}
                 onClear={() => clearColumnFilter("slug")}
               />
               <FilterableTableHeader
                 columnKey="createdAt"
                 title="Created At"
                 isFiltered={isColumnFiltered("createdAt")}
-                activeValue={filters["createdAt"]}
+                activeValue={filters.createdAt}
                 onClear={() => clearColumnFilter("createdAt")}
               />
               <TableCell className="text-right font-medium text-muted-foreground">

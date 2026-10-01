@@ -32,7 +32,7 @@ export function useColumnResizable({
           setColumnWidths((prev) => ({ ...prev, ...parsed }));
         }
       }
-    } catch (e) {}
+    } catch (_e) {}
   }, [tableId]);
 
   // 2. Fetch from Database per-user settings
@@ -56,7 +56,7 @@ export function useColumnResizable({
           const next = { ...prev, ...dbWidths };
           try {
             localStorage.setItem(`table-widths-${tableId}`, JSON.stringify(next));
-          } catch (e) {}
+          } catch (_e) {}
           return next;
         });
       }
@@ -81,7 +81,7 @@ export function useColumnResizable({
               },
             }),
           });
-        } catch (e) {}
+        } catch (_e) {}
       }, 600);
     },
     [tableId],
@@ -112,7 +112,7 @@ export function useColumnResizable({
           const next = { ...prev, [columnKey]: newWidth };
           try {
             localStorage.setItem(`table-widths-${tableId}`, JSON.stringify(next));
-          } catch (err) {}
+          } catch (_err) {}
           return next;
         });
       };
@@ -141,7 +141,7 @@ export function useColumnResizable({
         delete next[columnKey];
         try {
           localStorage.setItem(`table-widths-${tableId}`, JSON.stringify(next));
-        } catch (e) {}
+        } catch (_e) {}
         syncToDatabase(next);
         return next;
       });

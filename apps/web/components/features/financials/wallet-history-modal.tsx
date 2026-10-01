@@ -2,8 +2,6 @@
 
 import { useQuery } from "@tanstack/react-query";
 import { format } from "date-fns";
-import { Can } from "@/components/features/auth/can";
-import { Button } from "@/components/ui/button";
 import {
   Dialog,
   DialogContent,

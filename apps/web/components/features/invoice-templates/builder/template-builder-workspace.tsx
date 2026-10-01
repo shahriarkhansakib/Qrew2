@@ -2,7 +2,7 @@
 
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { Pencil, Plus, X } from "lucide-react";
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { toast } from "sonner";
 import {
   AlertDialog,
@@ -20,11 +20,10 @@ import { buildTokenMap, fmt } from "@/lib/formula-evaluator";
 import { cn } from "@/lib/utils";
 import { AddHeaderFieldModal } from "./add-header-field-modal";
 import { AddSectionModal } from "./add-section-modal";
-import { BuilderProvider, useBuilderContext } from "./builder-context";
+import { useBuilderContext } from "./builder-context";
 import { TemplateFormulaBar } from "./formula-bar";
 import { SectionColor } from "./row-list";
 import { TemplateSectionCard } from "./template-section-card";
-import { TemplateTokenPool } from "./token-pool";
 
 // ─── Section color palette ────────────────────────────────────────────────────
 export const SECTION_PALETTE: SectionColor[] = [
@@ -502,32 +501,60 @@ function WorkspaceInner({
     },
   });
 
-  const sortedSections = [...(sections || [])].sort((a: any, b: any) => a.sortOrder - b.sortOrder);
+  // ── Fetch expense categories ──
+  const { data: expenseCategoriesData } = useQuery({
+    queryKey: ["expense-categories"],
+    queryFn: async () => {
+      const res = await fetch(`${apiUrl}/api/expense-categories`, {
+        credentials: "include",
+      });
+      if (!res.ok) return [];
+      return res.json();
+    },
+  });
+
+  const sortedSections = useMemo(() => {
+    if (!sections) return [];
+    return [...sections].sort((a: any, b: any) => (a.sortOrder ?? 0) - (b.sortOrder ?? 0));
+  }, [sections]);
 
   // ── Compute token map and push it to context ──────────────────────────────
-  // Pass constants and file fields so formula rows that reference them resolve correctly
-  const tokenMap = buildTokenMap(
-    sortedSections,
-    orgConfigs ?? [],
-    constantsData ?? [],
-    templateHeaderFields ?? [],
-  );
+  // Pass constants, file fields, and expense categories so formula rows that reference them resolve correctly
+  const tokenMap = useMemo(() => {
+    return buildTokenMap(
+      sortedSections,
+      orgConfigs ?? [],
+      constantsData ?? [],
+      templateHeaderFields ?? [],
+      expenseCategoriesData ?? [],
+    );
+  }, [sortedSections, orgConfigs, constantsData, templateHeaderFields, expenseCategoriesData]);
 
-  // eslint-disable-next-line react-hooks/exhaustive-deps
   useEffect(() => {
     setTokenMap(tokenMap);
-  }, [JSON.stringify(tokenMap)]);
+  }, [tokenMap, setTokenMap]);
 
-  // eslint-disable-next-line react-hooks/exhaustive-deps
   useEffect(() => {
     if (setSections) setSections(sortedSections);
-  }, [JSON.stringify(sortedSections)]);
+  }, [sortedSections, setSections]);
 
   useEffect(() => {
     if (!setExternalTokens) return;
     const globalSet = new Set<string>();
     const templateSet = new Set<string>();
     const fileSet = new Set<string>();
+    const categorySet = new Set<string>();
+
+    categorySet.add("EXP_TOTAL");
+    if (expenseCategoriesData) {
+      for (const cat of expenseCategoriesData) {
+        const key = cat.tokenKey;
+        if (key && key !== "EXP_TOTAL") {
+          const bare = key.replace(/^EXP_/, "");
+          categorySet.add(bare);
+        }
+      }
+    }
 
     if (orgConfigs) {
       for (const config of orgConfigs) {
@@ -568,26 +595,33 @@ function WorkspaceInner({
       }
     }
 
-    setExternalTokens({ global: globalSet, template: templateSet, file: fileSet });
-  }, [orgConfigs, constantsData, templateHeaderFields, setExternalTokens]);
+    setExternalTokens({
+      global: globalSet,
+      template: templateSet,
+      file: fileSet,
+      category: categorySet,
+    });
+  }, [orgConfigs, constantsData, templateHeaderFields, expenseCategoriesData, setExternalTokens]);
 
   // ── Global SL offsets ─────────────────────────────────────────────────────
-  const sectionSlOffsets: number[] = [];
-  let globalCounter = 0;
-  for (const sec of sortedSections) {
-    sectionSlOffsets.push(globalCounter);
-    globalCounter += (sec.rows ?? []).length;
-  }
+  const sectionSlOffsets = useMemo(() => {
+    const offsets: number[] = [];
+    let globalCounter = 0;
+    for (const sec of sortedSections) {
+      offsets.push(globalCounter);
+      globalCounter += (sec.rows ?? []).length;
+    }
+    return offsets;
+  }, [sortedSections]);
 
   // ── Grand total ───────────────────────────────────────────────────────────
-  const grandTotal =
-    sortedSections.length > 0
-      ? sortedSections.reduce((sum: number, sec: any) => {
-          const v =
-            tokenMap[`SEC_${sec.sectionToken}`] ?? tokenMap[`SEC_${sec.sectionToken}_TOTAL`];
-          return sum + (v ?? 0);
-        }, 0)
-      : null;
+  const grandTotal = useMemo(() => {
+    if (sortedSections.length === 0) return null;
+    return sortedSections.reduce((sum: number, sec: any) => {
+      const v = tokenMap[`SEC_${sec.sectionToken}`] ?? tokenMap[`SEC_${sec.sectionToken}_TOTAL`];
+      return sum + (v ?? 0);
+    }, 0);
+  }, [sortedSections, tokenMap]);
 
   const handleConfirmDeleteField = async () => {
     if (!fieldToDelete) return;

@@ -1,4 +1,4 @@
-import * as crypto from "crypto";
+import * as crypto from "node:crypto";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { CHARGE_ID, makeCtx, SECTION_ID, TEMPLATE_ID } from "../../invoice-templates.fixtures";
 
@@ -46,6 +46,21 @@ vi.mock("@starter/db", () => {
     },
     templateSections: { id: "id", templateId: "templateId", sectionToken: "sectionToken" },
     invoiceTemplates: { id: "id", organizationId: "organizationId" },
+    tokens: {
+      id: "id",
+      tokenKey: "tokenKey",
+      label: "label",
+      description: "description",
+      sortOrder: "sortOrder",
+      valueType: "valueType",
+      domain: "domain",
+      entityType: "entityType",
+      isSystem: "isSystem",
+      isInjectable: "isInjectable",
+      isVisible: "isVisible",
+      organizationId: "organizationId",
+      templateId: "templateId",
+    },
   };
 });
 

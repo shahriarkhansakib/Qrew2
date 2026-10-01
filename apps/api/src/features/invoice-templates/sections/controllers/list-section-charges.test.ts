@@ -47,6 +47,21 @@ vi.mock("@starter/db", () => {
     invoiceTemplates: { id: "id", organizationId: "organizationId" },
     encodeFormula: vi.fn((f: string) => f),
     decodeFormula: vi.fn((f: string) => f ?? ""),
+    tokens: {
+      id: "id",
+      tokenKey: "tokenKey",
+      label: "label",
+      description: "description",
+      sortOrder: "sortOrder",
+      valueType: "valueType",
+      domain: "domain",
+      entityType: "entityType",
+      isSystem: "isSystem",
+      isInjectable: "isInjectable",
+      isVisible: "isVisible",
+      organizationId: "organizationId",
+      templateId: "templateId",
+    },
   };
 });
 

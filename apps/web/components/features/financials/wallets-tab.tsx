@@ -5,7 +5,6 @@ import { format } from "date-fns";
 import { useState } from "react";
 import { Can } from "@/components/features/auth/can";
 import { WalletHistoryModal } from "@/components/features/financials/wallet-history-modal";
-import { Button } from "@/components/ui/button";
 import {
   Table,
   TableBody,

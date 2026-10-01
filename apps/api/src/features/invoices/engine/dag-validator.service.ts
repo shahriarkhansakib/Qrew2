@@ -25,14 +25,7 @@ import {
   type SecIdToTokenMap,
   type TplIdToTokenMap,
 } from "@starter/db";
-import {
-  type DagValidationResult,
-  type EngineError,
-  type EvaluatorRow,
-  type EvaluatorRowCharge,
-  type EvaluatorSection,
-  type EvaluatorSectionCharge,
-} from "./types";
+import { type DagValidationResult, type EngineError, type EvaluatorSection } from "./types";
 
 // ─────────────────────────────────────────────────────────────────────────────
 // TOKEN EXTRACTION
@@ -218,7 +211,7 @@ export class DagValidatorService {
             );
             const refs = extractTokens(decodedFormula);
             const isExternalToken = (ref: string) =>
-              externalTokens.has(ref) || /^(GBL_|FILE_|TPL_|EXP_|CAT_)/.test(ref);
+              externalTokens.has(ref) || /^(GBL_|FILE_|TPL_|EXP_)/.test(ref);
 
             for (const ref of refs) {
               addEdge(ref, charge.chargeToken);
@@ -251,7 +244,7 @@ export class DagValidatorService {
         );
         const refs = extractTokens(decodedFormula);
         const isExternalToken = (ref: string) =>
-          externalTokens.has(ref) || /^(GBL_|FILE_|TPL_|EXP_|CAT_)/.test(ref);
+          externalTokens.has(ref) || /^(GBL_|FILE_|TPL_|EXP_)/.test(ref);
 
         for (const ref of refs) {
           addEdge(ref, sc.chargeToken);

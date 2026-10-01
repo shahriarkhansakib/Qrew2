@@ -18,7 +18,7 @@ async function run() {
         { id: uuidv4(), organizationId: org.id, name: "Tax Invoice", isDefault: false },
         { id: uuidv4(), organizationId: org.id, name: "Receipt", isDefault: false },
       ]);
-      console.log("Seeded for org: " + org.id);
+      console.log(`Seeded for org: ${org.id}`);
     }
   }
   console.log("Done");

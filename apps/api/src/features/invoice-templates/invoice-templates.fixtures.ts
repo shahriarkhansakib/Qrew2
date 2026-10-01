@@ -194,3 +194,66 @@ export function makeHeaderField(overrides: Record<string, any> = {}) {
     ...overrides,
   };
 }
+
+export function makeToken(overrides: Record<string, any> = {}) {
+  return {
+    id: ROW_ID,
+    tokenKey: "PORT_DUES",
+    label: "Port Dues",
+    description: null,
+    domain: "row" as const,
+    organizationId: ORG_ID,
+    templateId: TEMPLATE_ID,
+    sortOrder: 0,
+    valueType: "number" as const,
+    isInjectable: true,
+    isSystem: false,
+    isVisible: true,
+    deprecatedAt: null,
+    createdAt: new Date("2024-01-01"),
+    updatedAt: new Date("2024-01-01"),
+    ...overrides,
+  };
+}
+
+export function makeSectionToken(overrides: Record<string, any> = {}) {
+  return {
+    id: SECTION_ID,
+    tokenKey: SECTION_TOKEN,
+    label: "Port Costs",
+    description: null,
+    domain: "section" as const,
+    organizationId: ORG_ID,
+    templateId: TEMPLATE_ID,
+    sortOrder: 0,
+    valueType: "number" as const,
+    isInjectable: true,
+    isSystem: false,
+    isVisible: true,
+    deprecatedAt: null,
+    createdAt: new Date("2024-01-01"),
+    updatedAt: new Date("2024-01-01"),
+    ...overrides,
+  };
+}
+
+export function makeChargeToken(overrides: Record<string, any> = {}) {
+  return {
+    id: CHARGE_ID,
+    tokenKey: `SEC_${SECTION_TOKEN}_PORT_LEVY`,
+    label: "Port Levy",
+    description: null,
+    domain: "section_charge" as const,
+    organizationId: ORG_ID,
+    templateId: TEMPLATE_ID,
+    sortOrder: 0,
+    valueType: "number" as const,
+    isInjectable: true,
+    isSystem: false,
+    isVisible: true,
+    deprecatedAt: null,
+    createdAt: new Date("2024-01-01"),
+    updatedAt: new Date("2024-01-01"),
+    ...overrides,
+  };
+}

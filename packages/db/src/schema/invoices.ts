@@ -12,7 +12,7 @@ import {
 } from "drizzle-orm/pg-core";
 import { organizations, users } from "./auth";
 import { clients } from "./clients";
-import { documentTypeEnum, invoiceStatusEnum } from "./invoice-enums";
+import { invoiceStatusEnum } from "./invoice-enums";
 import { invoiceTemplates } from "./invoice-templates";
 import { projects } from "./projects";
 

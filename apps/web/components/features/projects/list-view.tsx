@@ -105,13 +105,13 @@ export function ListView({
         if (val && field.fieldType === "date") {
           try {
             return format(new Date(val), "MMM d, yyyy");
-          } catch (e) {}
+          } catch (_e) {}
         }
         return val || "-";
       };
     });
     return map;
-  }, [customFields]);
+  }, [customFields, formatCurrency]);
 
   const displayProjects = useMemo(() => {
     return filterRows(projects || [], extractors);
@@ -164,9 +164,9 @@ export function ListView({
                   columnKey="total_expenses"
                   title="Total Expenses"
                   isFiltered={isColumnFiltered("total_expenses")}
-                  activeValue={filters["total_expenses"]}
+                  activeValue={filters.total_expenses}
                   onClear={() => clearColumnFilter("total_expenses")}
-                  width={columnWidths["total_expenses"]}
+                  width={columnWidths.total_expenses}
                   onResizeStart={handleResizeStart}
                   onResetWidth={resetColumnWidth}
                 />
@@ -177,9 +177,9 @@ export function ListView({
                 columnKey="createdAt"
                 title="Created At"
                 isFiltered={isColumnFiltered("createdAt")}
-                activeValue={filters["createdAt"]}
+                activeValue={filters.createdAt}
                 onClear={() => clearColumnFilter("createdAt")}
-                width={columnWidths["createdAt"]}
+                width={columnWidths.createdAt}
                 onResizeStart={handleResizeStart}
                 onResetWidth={resetColumnWidth}
               />
@@ -189,9 +189,9 @@ export function ListView({
                 columnKey="archivedAt"
                 title="Archived At"
                 isFiltered={isColumnFiltered("archivedAt")}
-                activeValue={filters["archivedAt"]}
+                activeValue={filters.archivedAt}
                 onClear={() => clearColumnFilter("archivedAt")}
-                width={columnWidths["archivedAt"]}
+                width={columnWidths.archivedAt}
                 onResizeStart={handleResizeStart}
                 onResetWidth={resetColumnWidth}
               />
@@ -313,7 +313,7 @@ export function ListView({
                       value={formatCurrency(project.totalExpenses)}
                       isFiltered={isColumnFiltered("total_expenses")}
                       onToggleFilter={toggleFilter}
-                      width={columnWidths["total_expenses"]}
+                      width={columnWidths.total_expenses}
                     >
                       {formatCurrency(project.totalExpenses)}
                     </FilterableTableCell>
@@ -325,7 +325,7 @@ export function ListView({
                     value={format(new Date(project.createdAt), "MMM d, yyyy")}
                     isFiltered={isColumnFiltered("createdAt")}
                     onToggleFilter={toggleFilter}
-                    width={columnWidths["createdAt"]}
+                    width={columnWidths.createdAt}
                   >
                     {format(new Date(project.createdAt), "MMM d, yyyy")}
                   </FilterableTableCell>
@@ -338,7 +338,7 @@ export function ListView({
                     }
                     isFiltered={isColumnFiltered("archivedAt")}
                     onToggleFilter={toggleFilter}
-                    width={columnWidths["archivedAt"]}
+                    width={columnWidths.archivedAt}
                   >
                     {project.archivedAt ? format(new Date(project.archivedAt), "MMM d, yyyy") : "-"}
                   </FilterableTableCell>
@@ -374,7 +374,7 @@ export function ListView({
                   if (val && field.fieldType === "date") {
                     try {
                       displayVal = format(new Date(val), "MMM d, yyyy");
-                    } catch (e) {}
+                    } catch (_e) {}
                   }
 
                   return (

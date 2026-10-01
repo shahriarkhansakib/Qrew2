@@ -1,4 +1,4 @@
-import { db, users, walletTransactions } from "@starter/db";
+import { db, walletTransactions } from "@starter/db";
 import { and, desc, eq, sql } from "drizzle-orm";
 import { type Context } from "hono";
 import { auth } from "../../infra/lib/auth";
@@ -74,7 +74,7 @@ export async function addManualAdjustment(c: Context) {
     const body = await c.req.json();
     const { amount, type, description } = body;
 
-    if (!amount || isNaN(Number(amount)) || Number(amount) <= 0) {
+    if (!amount || Number.isNaN(Number(amount)) || Number(amount) <= 0) {
       return c.json({ error: "Invalid positive amount required" }, 400);
     }
     if (type !== "credit" && type !== "debit") {

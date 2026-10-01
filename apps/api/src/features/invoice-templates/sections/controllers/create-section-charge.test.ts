@@ -1,5 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import {
+  makeChargeToken,
   makeCtx,
   makeSectionCharge,
   SECTION_ID,
@@ -33,6 +34,7 @@ vi.mock("@starter/db", () => {
     transaction: vi.fn(),
     query: {
       templateSectionCharges: { findFirst: vi.fn() },
+      tokens: { findFirst: vi.fn(), findMany: vi.fn() },
     },
   };
 
@@ -54,6 +56,21 @@ vi.mock("@starter/db", () => {
     invoiceTemplates: { id: "id", organizationId: "organizationId" },
     encodeFormula: vi.fn((f: string) => f),
     decodeFormula: vi.fn((f: string) => f ?? ""),
+    tokens: {
+      id: "id",
+      tokenKey: "tokenKey",
+      label: "label",
+      description: "description",
+      sortOrder: "sortOrder",
+      valueType: "valueType",
+      domain: "domain",
+      entityType: "entityType",
+      isSystem: "isSystem",
+      isInjectable: "isInjectable",
+      isVisible: "isVisible",
+      organizationId: "organizationId",
+      templateId: "templateId",
+    },
   };
 });
 
@@ -66,6 +83,7 @@ function mockSectionOwned(charges: any[] = []) {
       hoistedChain([
         {
           section: { id: SECTION_ID, templateId: TEMPLATE_ID, sectionToken: SECTION_TOKEN },
+          sectionToken: SECTION_TOKEN,
           templateId: TEMPLATE_ID,
         },
       ]),
@@ -145,7 +163,7 @@ describe("createSectionCharge", () => {
 
   it("returns 409 when chargeToken already exists in section", async () => {
     mockSectionOwned();
-    (db.query.templateSectionCharges.findFirst as any).mockResolvedValue(makeSectionCharge());
+    (db.query.tokens.findFirst as any).mockResolvedValue(makeChargeToken());
     const ctx = makeCtx({
       params: { sectionId: SECTION_ID, templateId: TEMPLATE_ID },
       body: { label: "Port Levy", formula: "SEC_SECTION_A * 0.10" },
@@ -156,7 +174,7 @@ describe("createSectionCharge", () => {
 
   it("creates charge successfully with 201", async () => {
     mockSectionOwned();
-    (db.query.templateSectionCharges.findFirst as any).mockResolvedValue(null);
+    (db.query.tokens.findFirst as any).mockResolvedValue(null);
     const newCharge = makeSectionCharge();
     mockInsertReturns(newCharge);
     (db.select as any)
@@ -174,7 +192,7 @@ describe("createSectionCharge", () => {
 
   it("accepts null for optional fields (subDescription, qualifier)", async () => {
     mockSectionOwned();
-    (db.query.templateSectionCharges.findFirst as any).mockResolvedValue(null);
+    (db.query.tokens.findFirst as any).mockResolvedValue(null);
     mockInsertReturns(makeSectionCharge());
     (db.select as any)
       .mockReturnValueOnce(hoistedChain([]))
@@ -196,7 +214,7 @@ describe("createSectionCharge", () => {
   describe("regression: section charge response decoding", () => {
     it("createSectionCharge response formula is decoded (not raw UUID form)", async () => {
       mockSectionOwned();
-      (db.query.templateSectionCharges.findFirst as any).mockResolvedValue(null);
+      (db.query.tokens.findFirst as any).mockResolvedValue(null);
       const rawCharge = makeSectionCharge({ formula: "{{$row:abc-123}} * 0.10" });
       mockInsertReturns(rawCharge);
       (db.select as any)

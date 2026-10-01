@@ -24,7 +24,9 @@ function UnresolvedNoticeButton({ notices }: { notices: any[] }) {
         <div className="flex items-start gap-2">
           <TriangleAlert className="w-4 h-4 text-accent-foreground shrink-0 mt-0.5" />
           <div>
-            <p className="text-xs font-semibold text-accent-foreground mb-1">Unresolved References</p>
+            <p className="text-xs font-semibold text-accent-foreground mb-1">
+              Unresolved References
+            </p>
             <p className="text-[11px] text-muted-foreground mb-2">
               These tokens were not yet available and were treated as{" "}
               <span className="font-mono text-accent-foreground">0</span>.

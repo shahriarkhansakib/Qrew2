@@ -8,6 +8,7 @@ import {
   templateRows,
   templateSectionCharges,
   templateSections,
+  tokens,
 } from "@starter/db";
 import { eq, inArray } from "drizzle-orm";
 import { DagValidatorService } from "./dag-validator.service";
@@ -19,31 +20,75 @@ export async function validateTemplateDag(
 ): Promise<DagValidationResult> {
   const [dbSections, dbRows, dbSectionCharges, dbConstants] = await Promise.all([
     tx
-      .select()
+      .select({
+        id: templateSections.id,
+        templateId: templateSections.templateId,
+        sectionToken: tokens.tokenKey,
+        label: tokens.label,
+        sortOrder: tokens.sortOrder,
+      })
       .from(templateSections)
+      .innerJoin(tokens, eq(tokens.id, templateSections.id))
       .where(eq(templateSections.templateId, templateId))
-      .orderBy(templateSections.sortOrder),
+      .orderBy(tokens.sortOrder),
     tx
-      .select()
+      .select({
+        id: templateRows.id,
+        templateId: templateRows.templateId,
+        sectionId: templateRows.sectionId,
+        valueType: templateRows.valueType,
+        formula: templateRows.formula,
+        initialValue: templateRows.initialValue,
+        rowToken: tokens.tokenKey,
+        label: tokens.label,
+        sortOrder: tokens.sortOrder,
+      })
       .from(templateRows)
+      .innerJoin(tokens, eq(tokens.id, templateRows.id))
       .where(eq(templateRows.templateId, templateId))
-      .orderBy(templateRows.sortOrder),
+      .orderBy(tokens.sortOrder),
     tx
-      .select()
+      .select({
+        id: templateSectionCharges.id,
+        templateId: templateSectionCharges.templateId,
+        sectionId: templateSectionCharges.sectionId,
+        formula: templateSectionCharges.formula,
+        chargeToken: tokens.tokenKey,
+        label: tokens.label,
+        sortOrder: tokens.sortOrder,
+      })
       .from(templateSectionCharges)
+      .innerJoin(tokens, eq(tokens.id, templateSectionCharges.id))
       .where(eq(templateSectionCharges.templateId, templateId))
-      .orderBy(templateSectionCharges.sortOrder),
-    tx.select().from(templateConstants).where(eq(templateConstants.templateId, templateId)),
+      .orderBy(tokens.sortOrder),
+    tx
+      .select({
+        id: templateConstants.id,
+        templateId: templateConstants.templateId,
+        token: tokens.tokenKey,
+        name: tokens.label,
+      })
+      .from(templateConstants)
+      .innerJoin(tokens, eq(tokens.id, templateConstants.id))
+      .where(eq(templateConstants.templateId, templateId)),
   ]);
 
   const rowIds = dbRows.map((r: any) => r.id);
   const dbRowCharges =
     rowIds.length > 0
       ? await tx
-          .select()
+          .select({
+            id: templateRowCharges.id,
+            rowId: templateRowCharges.rowId,
+            formula: templateRowCharges.formula,
+            chargeToken: tokens.tokenKey,
+            label: tokens.label,
+            sortOrder: tokens.sortOrder,
+          })
           .from(templateRowCharges)
+          .innerJoin(tokens, eq(tokens.id, templateRowCharges.id))
           .where(inArray(templateRowCharges.rowId, rowIds))
-          .orderBy(templateRowCharges.sortOrder)
+          .orderBy(tokens.sortOrder)
       : [];
 
   const idToToken: RowIdToTokenMap = {};

@@ -54,7 +54,8 @@ export class PermissionService {
     // 6. Save to Redis (TTL: 900 seconds / 15 minutes)
     if (finalPermissionSet.size > 0) {
       const pipeline = redis.pipeline();
-      pipeline.sadd(cacheKey, ...Array.from(finalPermissionSet));
+      const items = Array.from(finalPermissionSet) as [string, ...string[]];
+      pipeline.sadd(cacheKey, ...items);
       pipeline.expire(cacheKey, 900);
       await pipeline.exec();
     }

@@ -22,7 +22,7 @@ import { Field, FieldError, FieldLabel } from "@/components/ui/field";
 import { Input } from "@/components/ui/input";
 import { authClient, signIn, signOut, signUp, useSession } from "@/lib/auth-client";
 
-const apiUrl = process.env.NEXT_PUBLIC_API_URL || "http://localhost:3000";
+const apiUrl = process.env.NEXT_PUBLIC_API_URL || "http://localhost:5002";
 
 // Schemas for embedded forms
 const loginSchema = z.object({
@@ -46,7 +46,7 @@ interface InviteData {
 }
 
 function AcceptInviteContent() {
-  const router = useRouter();
+  const _router = useRouter();
   const searchParams = useSearchParams();
   const inviteId = searchParams.get("id");
   const { data: session, isPending: isLoadingSession } = useSession();

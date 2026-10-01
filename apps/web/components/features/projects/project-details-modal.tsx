@@ -11,7 +11,6 @@ import {
   CheckCircle2,
   Download,
   Edit2,
-  ExternalLink,
   FileStack,
   FileText,
   Flag,
@@ -174,12 +173,7 @@ export function ProjectDetailsModal({ project, onClose }: ProjectDetailsModalPro
       }
     }
     return project;
-  }, [
-    project,
-    // Re-derive whenever the mutation invalidates — we use a dummy dep that
-    // changes each render triggered by setSelectedStatusId after onSuccess.
-    selectedStatusId,
-  ]);
+  }, [project, queryClient.getQueriesData]);
 
   // ── Queries ────────────────────────────────────────────────────────────────
 
@@ -384,7 +378,7 @@ export function ProjectDetailsModal({ project, onClose }: ProjectDetailsModalPro
   // ── Derived state ──────────────────────────────────────────────────────────
 
   // Workflows are always on per user decision
-  const workflowsEnabled = true;
+  const _workflowsEnabled = true;
 
   const sortedStatuses = useMemo(() => {
     if (!statuses) return [];

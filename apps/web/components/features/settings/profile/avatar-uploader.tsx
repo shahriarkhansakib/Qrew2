@@ -119,7 +119,7 @@ export function AvatarUploader() {
     if (fileInputRef.current) fileInputRef.current.value = "";
   };
 
-  const onCropComplete = useCallback((croppedArea: any, croppedAreaPixels: any) => {
+  const onCropComplete = useCallback((_croppedArea: any, croppedAreaPixels: any) => {
     setCroppedAreaPixels(croppedAreaPixels);
   }, []);
 

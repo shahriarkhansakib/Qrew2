@@ -1,12 +1,10 @@
 "use client";
 
 import { useMutation, useQueryClient } from "@tanstack/react-query";
-import { Loader2, Plus, X } from "lucide-react";
+import { Loader2, Plus } from "lucide-react";
 import { useEffect, useState } from "react";
 import { toast } from "sonner";
-import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Checkbox } from "@/components/ui/checkbox";
 import {
   Dialog,
   DialogContent,
@@ -17,14 +15,6 @@ import {
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { ScrollArea } from "@/components/ui/scroll-area";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
-import { Separator } from "@/components/ui/separator";
 import { apiUrl } from "@/lib/constants";
 
 export function WorkflowNodeModal({
@@ -84,7 +74,7 @@ export function WorkflowNodeModal({
         setFieldMappings([]);
       }
     }
-  }, [isOpen, node]);
+  }, [isOpen, node, initialTransitions]);
 
   const saveNodeMutation = useMutation({
     mutationFn: async () => {
@@ -225,11 +215,11 @@ export function WorkflowNodeModal({
     onError: (err: any) => toast.error(err.message),
   });
 
-  const toggleTransition = (id: string) => {
+  const _toggleTransition = (id: string) => {
     setTransitions((prev) => (prev.includes(id) ? prev.filter((t) => t !== id) : [...prev, id]));
   };
 
-  const handleFieldMapping = (fieldId: string, key: "isRequiredToEnter" | "isVisibleInStage") => {
+  const _handleFieldMapping = (fieldId: string, key: "isRequiredToEnter" | "isVisibleInStage") => {
     setFieldMappings((prev) => {
       const existing = prev.find((f) => f.fieldId === fieldId);
       if (existing) {
@@ -251,7 +241,7 @@ export function WorkflowNodeModal({
     });
   };
 
-  const availableTargets = allStatuses.filter((s) => s.id !== node?.id);
+  const _availableTargets = allStatuses.filter((s) => s.id !== node?.id);
 
   return (
     <Dialog open={isOpen} onOpenChange={(val) => !val && onClose()}>

@@ -5,11 +5,13 @@ import {
   invoiceTemplates,
   templateRowCharges,
   templateRows,
+  tokens,
 } from "@starter/db";
 import { and, asc, eq } from "drizzle-orm";
 import { Context } from "hono";
 import { z } from "zod";
 import { validateTemplateDag } from "../../../invoices/engine/engine-utils";
+import { TokenService } from "../../../tokens/token.service";
 import { getTemplateFormulaContext } from "../../services/template-formula-context.service";
 import { validateFormulaChars } from "../../validation/formula-validator";
 
@@ -36,26 +38,32 @@ export async function updateRow(c: Context): Promise<any> {
   if (!organizationId) return c.json({ error: "Unauthorized" }, 401);
 
   const rowCheck = await db
-    .select({ row: templateRows, orgId: invoiceTemplates.organizationId })
+    .select({
+      row: templateRows,
+      token: tokens,
+      orgId: invoiceTemplates.organizationId,
+    })
     .from(templateRows)
+    .innerJoin(tokens, eq(tokens.id, templateRows.id))
     .innerJoin(invoiceTemplates, eq(templateRows.templateId, invoiceTemplates.id))
     .where(and(eq(templateRows.id, rowId), eq(invoiceTemplates.organizationId, organizationId)))
     .limit(1);
 
   if (rowCheck.length === 0) return c.json({ error: "Row not found" }, 404);
   const existingRow = rowCheck[0].row;
+  const existingToken = rowCheck[0].token;
 
   const body = await c.req.json();
   const parsed = updateRowSchema.safeParse(body);
   if (!parsed.success) return c.json({ error: parsed.error }, 400);
 
-  const newRowToken = parsed.data.rowToken ?? existingRow.rowToken;
+  const newRowToken = parsed.data.rowToken ?? existingToken?.tokenKey;
 
-  if (parsed.data.rowToken && parsed.data.rowToken !== existingRow.rowToken) {
-    const dup = await db.query.templateRows.findFirst({
+  if (parsed.data.rowToken && parsed.data.rowToken !== existingToken?.tokenKey) {
+    const dup = await db.query.tokens?.findFirst({
       where: and(
-        eq(templateRows.templateId, existingRow.templateId),
-        eq(templateRows.rowToken, parsed.data.rowToken),
+        eq(tokens.templateId, existingRow.templateId),
+        eq(tokens.tokenKey, parsed.data.rowToken),
       ),
     });
     if (dup) {
@@ -70,18 +78,21 @@ export async function updateRow(c: Context): Promise<any> {
   const tokenToId = { ...context.rowTokenToId };
   const idToToken = { ...context.rowIdToToken };
 
-  if (parsed.data.rowToken && parsed.data.rowToken !== existingRow.rowToken) {
-    delete tokenToId[existingRow.rowToken];
+  if (parsed.data.rowToken && parsed.data.rowToken !== existingToken?.tokenKey) {
+    const oldKey = existingToken?.tokenKey;
+    if (oldKey) delete tokenToId[oldKey];
     tokenToId[newRowToken] = rowId;
     idToToken[rowId] = newRowToken;
   }
 
-  const updateFields: any = {};
-  if (parsed.data.label !== undefined) updateFields.label = parsed.data.label;
-  if (parsed.data.rowToken !== undefined) updateFields.rowToken = parsed.data.rowToken;
-  if (parsed.data.description !== undefined) updateFields.description = parsed.data.description;
-  if (parsed.data.orderIndex !== undefined) updateFields.sortOrder = parsed.data.orderIndex;
-  if (parsed.data.valueType !== undefined) updateFields.valueType = parsed.data.valueType;
+  const tokenPatch: any = {};
+  if (parsed.data.label !== undefined) tokenPatch.label = parsed.data.label;
+  if (parsed.data.rowToken !== undefined) tokenPatch.tokenKey = parsed.data.rowToken;
+  if (parsed.data.description !== undefined) tokenPatch.description = parsed.data.description;
+  if (parsed.data.orderIndex !== undefined) tokenPatch.sortOrder = parsed.data.orderIndex;
+
+  const rowPatch: any = {};
+  if (parsed.data.valueType !== undefined) rowPatch.valueType = parsed.data.valueType;
   if (parsed.data.formula !== undefined) {
     const formulaToSave = parsed.data.formula?.trim() ?? null;
     if (formulaToSave) {
@@ -90,7 +101,7 @@ export async function updateRow(c: Context): Promise<any> {
         return c.json({ error: charValidation.error }, 422);
       }
     }
-    updateFields.formula =
+    rowPatch.formula =
       parsed.data.valueType === "formula" || formulaToSave
         ? encodeFormula(
             formulaToSave,
@@ -101,49 +112,92 @@ export async function updateRow(c: Context): Promise<any> {
             context.globalTokens,
           )
         : null;
-    if (formulaToSave) updateFields.initialValue = null;
+    if (formulaToSave) rowPatch.initialValue = null;
   }
   if (parsed.data.initialValue !== undefined) {
-    updateFields.initialValue =
+    rowPatch.initialValue =
       parsed.data.initialValue != null ? String(parsed.data.initialValue) : null;
-    if (parsed.data.initialValue != null) updateFields.formula = null;
+    if (parsed.data.initialValue != null) rowPatch.formula = null;
   }
 
-  if (Object.keys(updateFields).length === 0) {
+  if (Object.keys(tokenPatch).length === 0 && Object.keys(rowPatch).length === 0) {
     return c.json({ error: "No values to set" }, 400);
   }
 
   try {
     const result = await db.transaction(async (tx) => {
-      const [updatedRow] = await tx
-        .update(templateRows)
-        .set(updateFields)
-        .where(eq(templateRows.id, rowId))
-        .returning();
+      if (Object.keys(tokenPatch).length > 0) {
+        await TokenService.updateToken(rowId, tokenPatch, tx);
+      }
 
-      if (updateFields.formula !== undefined || updateFields.rowToken !== undefined) {
+      if (Object.keys(rowPatch).length > 0) {
+        await tx.update(templateRows).set(rowPatch).where(eq(templateRows.id, rowId));
+      }
+
+      if (rowPatch.formula !== undefined || tokenPatch.tokenKey !== undefined) {
         const validation = await validateTemplateDag(existingRow.templateId, tx);
         if (!validation.valid) {
           throw new Error(`DAG_ERROR:${validation.errors[0].message}`);
         }
       }
 
-      const charges = await tx.query.templateRowCharges.findMany({
-        where: eq(templateRowCharges.rowId, rowId),
-        orderBy: [asc(templateRowCharges.sortOrder)],
-      });
+      const [finalRow] = await tx
+        .select({
+          id: templateRows.id,
+          templateId: templateRows.templateId,
+          sectionId: templateRows.sectionId,
+          valueType: templateRows.valueType,
+          formula: templateRows.formula,
+          initialValue: templateRows.initialValue,
+          rowToken: tokens.tokenKey,
+          label: tokens.label,
+          description: tokens.description,
+          sortOrder: tokens.sortOrder,
+        })
+        .from(templateRows)
+        .innerJoin(tokens, eq(tokens.id, templateRows.id))
+        .where(eq(templateRows.id, rowId));
+
+      const charges = await tx
+        .select({
+          id: templateRowCharges.id,
+          rowId: templateRowCharges.rowId,
+          formula: templateRowCharges.formula,
+          qualifier: templateRowCharges.qualifier,
+          tags: templateRowCharges.tags,
+          chargeToken: tokens.tokenKey,
+          label: tokens.label,
+          subDescription: tokens.description,
+          sortOrder: tokens.sortOrder,
+        })
+        .from(templateRowCharges)
+        .innerJoin(tokens, eq(tokens.id, templateRowCharges.id))
+        .where(eq(templateRowCharges.rowId, rowId))
+        .orderBy(asc(tokens.sortOrder));
+
+      const mergedRow = finalRow ?? {
+        ...existingRow,
+        ...existingToken,
+        ...rowPatch,
+        rowToken: newRowToken,
+        label: tokenPatch.label ?? existingToken?.label ?? (existingRow as any)?.label,
+        description:
+          tokenPatch.description !== undefined
+            ? tokenPatch.description
+            : (existingToken?.description ?? (existingRow as any)?.description),
+      };
 
       return {
-        ...updatedRow,
+        ...mergedRow,
         formula: decodeFormula(
-          updatedRow.formula,
+          mergedRow.formula,
           idToToken,
           context.secIdToToken,
           context.tplIdToToken,
           context.fileFieldTokens,
           context.globalTokens,
         ),
-        charges: charges.map((ch) => ({
+        charges: (charges ?? []).map((ch) => ({
           ...ch,
           formula:
             decodeFormula(

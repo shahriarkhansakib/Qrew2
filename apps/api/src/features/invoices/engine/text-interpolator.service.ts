@@ -28,10 +28,10 @@ const KEY_TOKEN_REGEX = /\{\{([A-Z_][A-Z0-9_]*)\}\}/g;
  * caller passes valueType info — but since we don't have that here at this
  * level, the scope value is returned as-is, formatted cleanly.
  */
-function formatScopeValue(tokenName: string, rawValue: string): string {
+function formatScopeValue(_tokenName: string, rawValue: string): string {
   // Try to parse as a number and format cleanly
   const num = parseFloat(rawValue);
-  if (isNaN(num)) return rawValue; // keep as-is for text values
+  if (Number.isNaN(num)) return rawValue; // keep as-is for text values
 
   // Format: remove unnecessary trailing zeros
   // e.g. "20151.000000" → "20151", "0.150000" → "0.15"

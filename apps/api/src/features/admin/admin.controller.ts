@@ -195,7 +195,7 @@ export class AdminController {
       // THE FIX: Safely attempt Serverless execution, catch the getter throw for Node.js fallback
       try {
         c.executionCtx.waitUntil(auditPromise);
-      } catch (e) {
+      } catch (_e) {
         // c.executionCtx getter throws in Node.js local dev. Fallback to standard Promise.
         Promise.resolve(auditPromise);
       }
@@ -261,7 +261,7 @@ export class AdminController {
       // Safely attempt Serverless execution, catch the getter throw for Node.js fallback
       try {
         c.executionCtx.waitUntil(auditPromise);
-      } catch (e) {
+      } catch (_e) {
         Promise.resolve(auditPromise);
       }
 

@@ -1,13 +1,11 @@
 "use client";
 
 import { useMutation, useQueryClient } from "@tanstack/react-query";
-import { ChevronDown, ChevronUp, Edit2, GripVertical, Plus, Trash2 } from "lucide-react";
+import { ChevronDown, ChevronUp, Edit2, Plus, Trash2 } from "lucide-react";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
 import { ConfirmDeleteModal } from "@/components/shared/confirm-delete-modal";
-import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { apiUrl } from "@/lib/constants";
 import { evaluateFormula, fmt, TokenMap } from "@/lib/formula-evaluator";
 import { cn } from "@/lib/utils";
 import { AddEditRowModal } from "./add-edit-row-modal";
@@ -233,7 +231,7 @@ export function TemplateSectionCard({
   const queryClient = useQueryClient();
   const { apiBasePath, invalidateKey, mode, selectedCell } = useBuilderContext();
   const isFormulaMode = !!selectedCell;
-  const isDraftMode = mode === "draft";
+  const _isDraftMode = mode === "draft";
   const [isEditModalOpen, setIsEditModalOpen] = useState(false);
   const [isAddRowModalOpen, setIsAddRowModalOpen] = useState(false);
   const [isAddSectionChargeModalOpen, setIsAddSectionChargeModalOpen] = useState(false);

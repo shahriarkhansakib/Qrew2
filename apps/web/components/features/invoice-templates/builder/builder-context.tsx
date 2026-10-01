@@ -45,6 +45,7 @@ export type ExternalTokens = {
   global: Set<string>;
   template: Set<string>;
   file: Set<string>;
+  category: Set<string>;
 };
 
 type BuilderContextValue = {
@@ -52,11 +53,11 @@ type BuilderContextValue = {
   setSelectedCell: (cell: SelectedCell | null) => void;
   /** Live token map — updated by the workspace whenever sections data changes. */
   tokenMap: TokenMap;
-  setTokenMap: (map: TokenMap) => void;
+  setTokenMap: (map: TokenMap | ((prev: TokenMap) => TokenMap)) => void;
   sections: any[];
-  setSections?: (sections: any[]) => void;
+  setSections?: (sections: any[] | ((prev: any[]) => any[])) => void;
   externalTokens: ExternalTokens;
-  setExternalTokens?: (tokens: ExternalTokens) => void;
+  setExternalTokens?: (tokens: ExternalTokens | ((prev: ExternalTokens) => ExternalTokens)) => void;
   hiddenTokens: Set<string>;
   invalidTokens: Set<string>;
   tokenDisabledReasons: Map<string, string>;
@@ -75,6 +76,7 @@ const DEFAULT_EXTERNAL_TOKENS: ExternalTokens = {
   global: new Set(),
   template: new Set(),
   file: new Set(),
+  category: new Set(),
 };
 
 const BuilderContext = createContext<BuilderContextValue>({
@@ -118,10 +120,57 @@ export function BuilderProvider({
   children: React.ReactNode;
 }) {
   const [selectedCell, setSelectedCell] = useState<SelectedCell | null>(null);
-  const [tokenMap, setTokenMap] = useState<TokenMap>({});
-  const [sections, setSections] = useState<any[]>([]);
+  const [tokenMap, setTokenMapState] = useState<TokenMap>({});
+  const [sections, setSectionsState] = useState<any[]>([]);
   const [clipboardToken, setClipboardToken] = useState<string | null>(null);
-  const [externalTokens, setExternalTokens] = useState<ExternalTokens>(DEFAULT_EXTERNAL_TOKENS);
+  const [externalTokens, setExternalTokensState] =
+    useState<ExternalTokens>(DEFAULT_EXTERNAL_TOKENS);
+
+  const setTokenMap = useCallback((mapOrFn: TokenMap | ((prev: TokenMap) => TokenMap)) => {
+    setTokenMapState((prev) => {
+      const next = typeof mapOrFn === "function" ? mapOrFn(prev) : mapOrFn;
+      if (prev === next) return prev;
+      const prevKeys = Object.keys(prev);
+      const nextKeys = Object.keys(next);
+      if (prevKeys.length === nextKeys.length && prevKeys.every((k) => prev[k] === next[k])) {
+        return prev;
+      }
+      return next;
+    });
+  }, []);
+
+  const setSections = useCallback((sectionsOrFn: any[] | ((prev: any[]) => any[])) => {
+    setSectionsState((prev) => {
+      const next = typeof sectionsOrFn === "function" ? sectionsOrFn(prev) : sectionsOrFn;
+      if (prev === next) return prev;
+      if (prev.length === next.length && prev.every((item, i) => item === next[i])) {
+        return prev;
+      }
+      return next;
+    });
+  }, []);
+
+  const setExternalTokens = useCallback(
+    (tokensOrFn: ExternalTokens | ((prev: ExternalTokens) => ExternalTokens)) => {
+      setExternalTokensState((prev) => {
+        const next = typeof tokensOrFn === "function" ? tokensOrFn(prev) : tokensOrFn;
+        if (prev === next) return prev;
+        const areSetsEqual = (a: Set<string>, b: Set<string>) =>
+          a.size === b.size && Array.from(a).every((x) => b.has(x));
+
+        if (
+          areSetsEqual(prev.global, next.global) &&
+          areSetsEqual(prev.template, next.template) &&
+          areSetsEqual(prev.file, next.file) &&
+          areSetsEqual(prev.category, next.category)
+        ) {
+          return prev;
+        }
+        return next;
+      });
+    },
+    [],
+  );
 
   const tokenTypes = useMemo(() => {
     const rowBases = new Set<string>();
@@ -139,7 +188,7 @@ export function BuilderProvider({
         secTotals.add(`SEC_${sec.sectionToken}`);
         secBases.add(`SEC_${sec.sectionToken}_BASE`);
         secChargeTotals.add(`SEC_${sec.sectionToken}_CHARGES`);
-        for (const charge of sec.charges || []) {
+        for (const charge of sec.sectionCharges || []) {
           secChargeItems.add(charge.chargeToken);
         }
       }
@@ -168,6 +217,9 @@ export function BuilderProvider({
 
   const getTokenColor = useCallback(
     (token: string) => {
+      if (token === "EXP_TOTAL") return "text-rose-500 font-bold bg-rose-500/15";
+      if (externalTokens.category?.has(token) || token.startsWith("EXP_"))
+        return "text-rose-400 bg-rose-500/10";
       if (externalTokens.global.has(token) || token.startsWith("GBL_")) return "text-indigo-400";
       if (externalTokens.template.has(token) || token.startsWith("TPL_")) return "text-blue-400";
       if (externalTokens.file.has(token) || token.startsWith("FILE_")) return "text-sky-400";
@@ -291,7 +343,7 @@ export function BuilderProvider({
     // If editing a section charge:
     if (selectedCell.isSectionCharge && selectedCell.sectionId) {
       const sec = sections.find((s) => s.id === selectedCell.sectionId);
-      if (sec && sec.sectionToken) {
+      if (sec?.sectionToken) {
         const secTokens = [
           sec.sectionToken,
           `SEC_${sec.sectionToken}`,
@@ -329,28 +381,50 @@ export function BuilderProvider({
   );
 
   // Expose context
-  const value = {
-    selectedCell,
-    setSelectedCell,
-    tokenMap,
-    setTokenMap,
-    sections,
-    setSections,
-    externalTokens,
-    setExternalTokens,
-    hiddenTokens,
-    invalidTokens,
-    tokenDisabledReasons,
-    getTokenDisabledReason,
-    tokenPoolOpen,
-    apiBasePath,
-    mode,
-    invalidateKey,
-    validationErrors,
-    clipboardToken,
-    setClipboardToken,
-    getTokenColor,
-  };
+  const value = useMemo(
+    () => ({
+      selectedCell,
+      setSelectedCell,
+      tokenMap,
+      setTokenMap,
+      sections,
+      setSections,
+      externalTokens,
+      setExternalTokens,
+      hiddenTokens,
+      invalidTokens,
+      tokenDisabledReasons,
+      getTokenDisabledReason,
+      tokenPoolOpen,
+      apiBasePath,
+      mode,
+      invalidateKey,
+      validationErrors,
+      clipboardToken,
+      setClipboardToken,
+      getTokenColor,
+    }),
+    [
+      selectedCell,
+      tokenMap,
+      setTokenMap,
+      sections,
+      setSections,
+      externalTokens,
+      setExternalTokens,
+      hiddenTokens,
+      invalidTokens,
+      tokenDisabledReasons,
+      getTokenDisabledReason,
+      tokenPoolOpen,
+      apiBasePath,
+      mode,
+      invalidateKey,
+      validationErrors,
+      clipboardToken,
+      getTokenColor,
+    ],
+  );
 
   return <BuilderContext.Provider value={value}>{children}</BuilderContext.Provider>;
 }

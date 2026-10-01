@@ -70,7 +70,7 @@ export function useTwoFactor() {
 
       // 2. Password is cryptographically verified. Proceed to method selection.
       setStep("method");
-    } catch (error) {
+    } catch (_error) {
       setIsLoading(false);
       toast.error("Verification failed due to a network error.");
     }

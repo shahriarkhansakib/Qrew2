@@ -1,4 +1,4 @@
-import { db, templateSections } from "@starter/db";
+import { db, templateSections, tokens } from "@starter/db";
 import { asc, eq } from "drizzle-orm";
 
 /** Convert zero-based index to number string: 0→1, 1→2 */
@@ -9,10 +9,11 @@ export function indexToNumberStr(index: number): string {
 /** Derive the next available section token for a template (returns SECTION_1, SECTION_2…). */
 export async function nextSectionToken(templateId: string): Promise<string> {
   const existing = await db
-    .select({ sectionToken: templateSections.sectionToken })
+    .select({ sectionToken: tokens.tokenKey })
     .from(templateSections)
+    .innerJoin(tokens, eq(tokens.id, templateSections.id))
     .where(eq(templateSections.templateId, templateId))
-    .orderBy(asc(templateSections.sortOrder));
+    .orderBy(asc(tokens.sortOrder));
 
   const usedTokens = new Set(existing.map((s) => s.sectionToken));
   let idx = 0;
@@ -29,8 +30,9 @@ export async function buildSectionIndex(templateId: string): Promise<{
   idToToken: Record<string, string>;
 }> {
   const sections = await db
-    .select({ id: templateSections.id, sectionToken: templateSections.sectionToken })
+    .select({ id: templateSections.id, sectionToken: tokens.tokenKey })
     .from(templateSections)
+    .innerJoin(tokens, eq(tokens.id, templateSections.id))
     .where(eq(templateSections.templateId, templateId));
 
   const tokenToId: Record<string, string> = {};

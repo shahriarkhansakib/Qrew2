@@ -15,7 +15,7 @@ export function validateFormulaStrict(
   validTokens: Set<string>,
   currentToken?: string,
 ): { valid: boolean; error?: string } {
-  if (!formula || !formula.trim()) {
+  if (!formula?.trim()) {
     return { valid: false, error: "Formula cannot be empty" };
   }
 
@@ -100,7 +100,7 @@ export function validateRateChargeFormula(
   formula: string | null | undefined,
   parentRowToken: string,
 ): { valid: boolean; error?: string } {
-  if (!formula || !formula.trim()) {
+  if (!formula?.trim()) {
     return { valid: false, error: "Rate charge formula cannot be empty" };
   }
 

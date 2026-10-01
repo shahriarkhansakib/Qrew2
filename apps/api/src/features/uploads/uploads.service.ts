@@ -3,7 +3,7 @@ import { getSignedUrl } from "@aws-sdk/s3-request-presigner";
 import { s3Client } from "../../infra/lib/storage";
 
 export const UploadsService = {
-  async generatePresignedPut(userId: string, contentType: string) {
+  async generatePresignedPut(userId: string, _contentType: string) {
     const bucket = process.env.R2_BUCKET_NAME!;
 
     const key = `avatars/${userId}.webp`;

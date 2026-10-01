@@ -1,4 +1,11 @@
-import { db, decodeFormula, invoiceTemplates, templateRowCharges, templateRows } from "@starter/db";
+import {
+  db,
+  decodeFormula,
+  invoiceTemplates,
+  templateRowCharges,
+  templateRows,
+  tokens,
+} from "@starter/db";
 import { and, asc, eq } from "drizzle-orm";
 import { Context } from "hono";
 import { buildConstantIndex } from "../../metadata/services/constant-index.service";
@@ -24,10 +31,21 @@ export async function listCharges(c: Context) {
   const { tplIdToToken } = await buildConstantIndex(templateId);
 
   const charges = await db
-    .select()
+    .select({
+      id: templateRowCharges.id,
+      rowId: templateRowCharges.rowId,
+      qualifier: templateRowCharges.qualifier,
+      tags: templateRowCharges.tags,
+      formula: templateRowCharges.formula,
+      chargeToken: tokens.tokenKey,
+      label: tokens.label,
+      subDescription: tokens.description,
+      sortOrder: tokens.sortOrder,
+    })
     .from(templateRowCharges)
+    .innerJoin(tokens, eq(tokens.id, templateRowCharges.id))
     .where(eq(templateRowCharges.rowId, rowId))
-    .orderBy(asc(templateRowCharges.sortOrder));
+    .orderBy(asc(tokens.sortOrder));
 
   const decoded = charges.map((ch) => ({
     ...ch,

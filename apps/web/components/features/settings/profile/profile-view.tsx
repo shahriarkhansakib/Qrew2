@@ -66,7 +66,7 @@ export function ProfileView() {
     const handleLinkClick = (e: MouseEvent) => {
       const target = (e.target as Element).closest("a");
       // If clicking a link that navigates away from the current page
-      if (target && target.href && !target.href.includes(window.location.pathname)) {
+      if (target?.href && !target.href.includes(window.location.pathname)) {
         e.preventDefault();
         e.stopPropagation();
         triggerShake();
@@ -81,7 +81,7 @@ export function ProfileView() {
       window.removeEventListener("beforeunload", handleBeforeUnload);
       document.removeEventListener("click", handleLinkClick, { capture: true });
     };
-  }, [isDirty]);
+  }, [isDirty, triggerShake]);
 
   const onSubmit = async (data: ProfileValues) => {
     setGlobalMsg(null);

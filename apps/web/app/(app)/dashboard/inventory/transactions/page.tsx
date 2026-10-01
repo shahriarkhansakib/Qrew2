@@ -214,7 +214,7 @@ export default function TransactionsPage() {
     if (saved) {
       try {
         setHiddenCols(JSON.parse(saved));
-      } catch (e) {}
+      } catch (_e) {}
     }
   }, []);
 
@@ -299,10 +299,10 @@ export default function TransactionsPage() {
       const q = searchQuery.toLowerCase().trim();
       list = list.filter(
         (tx: any) =>
-          (tx.product?.name && tx.product.name.toLowerCase().includes(q)) ||
-          (tx.partyName && tx.partyName.toLowerCase().includes(q)) ||
-          (tx.notes && tx.notes.toLowerCase().includes(q)) ||
-          (tx.referenceId && tx.referenceId.toLowerCase().includes(q)),
+          tx.product?.name?.toLowerCase().includes(q) ||
+          tx.partyName?.toLowerCase().includes(q) ||
+          tx.notes?.toLowerCase().includes(q) ||
+          tx.referenceId?.toLowerCase().includes(q),
       );
     }
     return filterRows(list, extractors);
@@ -574,7 +574,7 @@ export default function TransactionsPage() {
         toast.info("Invoice is available for Purchase, Sale, and Return transactions.");
       }
     } catch (err: any) {
-      toast.error("Could not load invoice details: " + err.message);
+      toast.error(`Could not load invoice details: ${err.message}`);
     }
   }
 
@@ -859,55 +859,55 @@ export default function TransactionsPage() {
                 </DropdownMenuTrigger>
                 <DropdownMenuContent align="end" className="w-[180px]">
                   <DropdownMenuCheckboxItem
-                    checked={!hiddenCols["date"]}
+                    checked={!hiddenCols.date}
                     onCheckedChange={(c) => toggleColumn("date", c)}
                   >
                     Date
                   </DropdownMenuCheckboxItem>
                   <DropdownMenuCheckboxItem
-                    checked={!hiddenCols["type"]}
+                    checked={!hiddenCols.type}
                     onCheckedChange={(c) => toggleColumn("type", c)}
                   >
                     Type
                   </DropdownMenuCheckboxItem>
                   <DropdownMenuCheckboxItem
-                    checked={!hiddenCols["product"]}
+                    checked={!hiddenCols.product}
                     onCheckedChange={(c) => toggleColumn("product", c)}
                   >
                     Product
                   </DropdownMenuCheckboxItem>
                   <DropdownMenuCheckboxItem
-                    checked={!hiddenCols["party"]}
+                    checked={!hiddenCols.party}
                     onCheckedChange={(c) => toggleColumn("party", c)}
                   >
                     Party Name
                   </DropdownMenuCheckboxItem>
                   <DropdownMenuCheckboxItem
-                    checked={!hiddenCols["quantity"]}
+                    checked={!hiddenCols.quantity}
                     onCheckedChange={(c) => toggleColumn("quantity", c)}
                   >
                     Qty
                   </DropdownMenuCheckboxItem>
                   <DropdownMenuCheckboxItem
-                    checked={!hiddenCols["unitRate"]}
+                    checked={!hiddenCols.unitRate}
                     onCheckedChange={(c) => toggleColumn("unitRate", c)}
                   >
                     Unit Rate
                   </DropdownMenuCheckboxItem>
                   <DropdownMenuCheckboxItem
-                    checked={!hiddenCols["totalPrice"]}
+                    checked={!hiddenCols.totalPrice}
                     onCheckedChange={(c) => toggleColumn("totalPrice", c)}
                   >
                     Total Price
                   </DropdownMenuCheckboxItem>
                   <DropdownMenuCheckboxItem
-                    checked={!hiddenCols["reference"]}
+                    checked={!hiddenCols.reference}
                     onCheckedChange={(c) => toggleColumn("reference", c)}
                   >
                     Reference
                   </DropdownMenuCheckboxItem>
                   <DropdownMenuCheckboxItem
-                    checked={!hiddenCols["notes"]}
+                    checked={!hiddenCols.notes}
                     onCheckedChange={(c) => toggleColumn("notes", c)}
                   >
                     Notes
@@ -924,119 +924,119 @@ export default function TransactionsPage() {
             <Table className="w-full table-fixed border-collapse">
               <TableHeader className="bg-muted/50 sticky top-0 z-10 border-b">
                 <TableRow>
-                  {!hiddenCols["date"] && (
+                  {!hiddenCols.date && (
                     <FilterableTableHeader
                       columnKey="date"
                       title="Date"
                       isFiltered={isColumnFiltered("date")}
-                      activeValue={filters["date"]}
+                      activeValue={filters.date}
                       onClear={() => clearColumnFilter("date")}
-                      width={columnWidths["date"]}
+                      width={columnWidths.date}
                       onResizeStart={handleResizeStart}
                       onResetWidth={resetColumnWidth}
                     />
                   )}
-                  {!hiddenCols["type"] && (
+                  {!hiddenCols.type && (
                     <FilterableTableHeader
                       columnKey="type"
                       title="Type"
                       isFiltered={isColumnFiltered("type")}
-                      activeValue={filters["type"]}
+                      activeValue={filters.type}
                       onClear={() => clearColumnFilter("type")}
                       options={typeOptions}
                       onSelectOption={(_, val) => toggleFilter("type", val)}
-                      width={columnWidths["type"]}
+                      width={columnWidths.type}
                       onResizeStart={handleResizeStart}
                       onResetWidth={resetColumnWidth}
                     />
                   )}
-                  {!hiddenCols["product"] && (
+                  {!hiddenCols.product && (
                     <FilterableTableHeader
                       columnKey="product"
                       title="Product"
                       isFiltered={isColumnFiltered("product")}
-                      activeValue={filters["product"]}
+                      activeValue={filters.product}
                       onClear={() => clearColumnFilter("product")}
                       options={productOptions}
                       onSelectOption={(_, val) => toggleFilter("product", val)}
-                      width={columnWidths["product"]}
+                      width={columnWidths.product}
                       onResizeStart={handleResizeStart}
                       onResetWidth={resetColumnWidth}
                     />
                   )}
-                  {!hiddenCols["party"] && (
+                  {!hiddenCols.party && (
                     <FilterableTableHeader
                       columnKey="party"
                       title="Party Name"
                       isFiltered={isColumnFiltered("party")}
-                      activeValue={filters["party"]}
+                      activeValue={filters.party}
                       onClear={() => clearColumnFilter("party")}
                       options={partyOptions}
                       onSelectOption={(_, val) => toggleFilter("party", val)}
-                      width={columnWidths["party"]}
+                      width={columnWidths.party}
                       onResizeStart={handleResizeStart}
                       onResetWidth={resetColumnWidth}
                     />
                   )}
-                  {!hiddenCols["quantity"] && (
+                  {!hiddenCols.quantity && (
                     <FilterableTableHeader
                       columnKey="quantity"
                       title="Qty"
                       isFiltered={isColumnFiltered("quantity")}
-                      activeValue={filters["quantity"]}
+                      activeValue={filters.quantity}
                       onClear={() => clearColumnFilter("quantity")}
-                      width={columnWidths["quantity"]}
+                      width={columnWidths.quantity}
                       onResizeStart={handleResizeStart}
                       onResetWidth={resetColumnWidth}
                       className="text-right"
                     />
                   )}
-                  {!hiddenCols["unitRate"] && (
+                  {!hiddenCols.unitRate && (
                     <FilterableTableHeader
                       columnKey="unitRate"
                       title="Unit Rate"
                       isFiltered={isColumnFiltered("unitRate")}
-                      activeValue={filters["unitRate"]}
+                      activeValue={filters.unitRate}
                       onClear={() => clearColumnFilter("unitRate")}
-                      width={columnWidths["unitRate"]}
+                      width={columnWidths.unitRate}
                       onResizeStart={handleResizeStart}
                       onResetWidth={resetColumnWidth}
                       className="text-right"
                     />
                   )}
-                  {!hiddenCols["totalPrice"] && (
+                  {!hiddenCols.totalPrice && (
                     <FilterableTableHeader
                       columnKey="totalPrice"
                       title="Total (৳)"
                       isFiltered={isColumnFiltered("totalPrice")}
-                      activeValue={filters["totalPrice"]}
+                      activeValue={filters.totalPrice}
                       onClear={() => clearColumnFilter("totalPrice")}
-                      width={columnWidths["totalPrice"]}
+                      width={columnWidths.totalPrice}
                       onResizeStart={handleResizeStart}
                       onResetWidth={resetColumnWidth}
                       className="text-right"
                     />
                   )}
-                  {!hiddenCols["reference"] && (
+                  {!hiddenCols.reference && (
                     <FilterableTableHeader
                       columnKey="reference"
                       title="Reference"
                       isFiltered={isColumnFiltered("reference")}
-                      activeValue={filters["reference"]}
+                      activeValue={filters.reference}
                       onClear={() => clearColumnFilter("reference")}
-                      width={columnWidths["reference"]}
+                      width={columnWidths.reference}
                       onResizeStart={handleResizeStart}
                       onResetWidth={resetColumnWidth}
                     />
                   )}
-                  {!hiddenCols["notes"] && (
+                  {!hiddenCols.notes && (
                     <FilterableTableHeader
                       columnKey="notes"
                       title="Notes"
                       isFiltered={isColumnFiltered("notes")}
-                      activeValue={filters["notes"]}
+                      activeValue={filters.notes}
                       onClear={() => clearColumnFilter("notes")}
-                      width={columnWidths["notes"]}
+                      width={columnWidths.notes}
                       onResizeStart={handleResizeStart}
                       onResetWidth={resetColumnWidth}
                     />
@@ -1100,70 +1100,71 @@ export default function TransactionsPage() {
                                 : "border-b last:border-b-0",
                             )}
                           >
-                            {!hiddenCols["date"] && (
+                            {!hiddenCols.date && (
                               <FilterableTableCell
                                 columnKey="date"
                                 value={format(new Date(tx.createdAt), "dd MMM yyyy HH:mm")}
                                 isFiltered={isColumnFiltered("date")}
                                 onToggleFilter={toggleFilter}
-                                width={columnWidths["date"]}
+                                width={columnWidths.date}
                               >
                                 <span className="text-muted-foreground text-xs">
                                   {format(new Date(tx.createdAt), "dd MMM yyyy HH:mm")}
                                 </span>
                               </FilterableTableCell>
                             )}
-                            {!hiddenCols["type"] && (
+                            {!hiddenCols.type && (
                               <FilterableTableCell
                                 columnKey="type"
                                 value={tx.transactionType.replace("_", " ")}
                                 isFiltered={isColumnFiltered("type")}
                                 onToggleFilter={toggleFilter}
-                                width={columnWidths["type"]}
+                                width={columnWidths.type}
                               >
                                 <span
                                   className={cn(
                                     "inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium border",
-                                    TX_COLORS[tx.transactionType] ?? "bg-muted text-muted-foreground",
+                                    TX_COLORS[tx.transactionType] ??
+                                      "bg-muted text-muted-foreground",
                                   )}
                                 >
                                   {tx.transactionType.replace("_", " ")}
                                 </span>
                               </FilterableTableCell>
                             )}
-                            {!hiddenCols["product"] && (
+                            {!hiddenCols.product && (
                               <FilterableTableCell
                                 columnKey="product"
                                 value={tx.product?.name ?? tx.productId}
                                 isFiltered={isColumnFiltered("product")}
                                 onToggleFilter={toggleFilter}
-                                width={columnWidths["product"]}
+                                width={columnWidths.product}
                               >
                                 <span className="font-medium">
                                   {tx.product?.name ?? tx.productId}
                                 </span>
                               </FilterableTableCell>
                             )}
-                            {!hiddenCols["party"] && (
+                            {!hiddenCols.party && (
                               <FilterableTableCell
                                 columnKey="party"
                                 value={tx.partyName ?? "—"}
                                 isFiltered={isColumnFiltered("party")}
                                 onToggleFilter={toggleFilter}
-                                width={columnWidths["party"]}
+                                width={columnWidths.party}
                               >
                                 <span className="font-medium text-xs text-muted-foreground">
                                   {tx.partyName ?? "—"}
                                 </span>
                               </FilterableTableCell>
                             )}
-                            {!hiddenCols["quantity"] && (
+                            {!hiddenCols.quantity && (
                               <FilterableTableCell
                                 columnKey="quantity"
                                 value={formatNumber(qty)}
                                 isFiltered={isColumnFiltered("quantity")}
                                 onToggleFilter={toggleFilter}
-                                width={columnWidths["quantity"]}
+                                width={columnWidths.quantity}
                                 className="text-right font-mono font-medium"
                               >
                                 <span className={isNeg ? "text-red-400" : "text-primary"}>
@@ -1172,57 +1173,57 @@ export default function TransactionsPage() {
                                 </span>
                               </FilterableTableCell>
                             )}
-                            {!hiddenCols["unitRate"] && (
+                            {!hiddenCols.unitRate && (
                               <FilterableTableCell
                                 columnKey="unitRate"
                                 value={
                                   tx.unitRate != null &&
                                   tx.unitRate !== "" &&
-                                  !isNaN(parseFloat(tx.unitRate))
+                                  !Number.isNaN(parseFloat(tx.unitRate))
                                     ? formatNumber(tx.unitRate, 2)
                                     : "—"
                                 }
                                 isFiltered={isColumnFiltered("unitRate")}
                                 onToggleFilter={toggleFilter}
-                                width={columnWidths["unitRate"]}
+                                width={columnWidths.unitRate}
                                 className="text-right font-mono text-xs"
                               >
                                 {tx.unitRate != null &&
                                 tx.unitRate !== "" &&
-                                !isNaN(parseFloat(tx.unitRate))
+                                !Number.isNaN(parseFloat(tx.unitRate))
                                   ? `৳${formatNumber(tx.unitRate, 2)}`
                                   : "—"}
                               </FilterableTableCell>
                             )}
-                            {!hiddenCols["totalPrice"] && (
+                            {!hiddenCols.totalPrice && (
                               <FilterableTableCell
                                 columnKey="totalPrice"
                                 value={
                                   tx.totalPrice != null &&
                                   tx.totalPrice !== "" &&
-                                  !isNaN(parseFloat(tx.totalPrice))
+                                  !Number.isNaN(parseFloat(tx.totalPrice))
                                     ? formatNumber(tx.totalPrice, 2)
                                     : "—"
                                 }
                                 isFiltered={isColumnFiltered("totalPrice")}
                                 onToggleFilter={toggleFilter}
-                                width={columnWidths["totalPrice"]}
+                                width={columnWidths.totalPrice}
                                 className="text-right font-mono font-medium text-xs"
                               >
                                 {tx.totalPrice != null &&
                                 tx.totalPrice !== "" &&
-                                !isNaN(parseFloat(tx.totalPrice))
+                                !Number.isNaN(parseFloat(tx.totalPrice))
                                   ? `৳${formatNumber(tx.totalPrice, 2)}`
                                   : "—"}
                               </FilterableTableCell>
                             )}
-                            {!hiddenCols["reference"] && (
+                            {!hiddenCols.reference && (
                               <FilterableTableCell
                                 columnKey="reference"
                                 value={`${tx.referenceType}/${tx.referenceId?.slice(0, 8)}`}
                                 isFiltered={isColumnFiltered("reference")}
                                 onToggleFilter={toggleFilter}
-                                width={columnWidths["reference"]}
+                                width={columnWidths.reference}
                               >
                                 <span className="text-muted-foreground text-xs font-mono">
                                   {tx.referenceType
@@ -1231,13 +1232,13 @@ export default function TransactionsPage() {
                                 </span>
                               </FilterableTableCell>
                             )}
-                            {!hiddenCols["notes"] && (
+                            {!hiddenCols.notes && (
                               <FilterableTableCell
                                 columnKey="notes"
                                 value={tx.notes ?? "—"}
                                 isFiltered={isColumnFiltered("notes")}
                                 onToggleFilter={toggleFilter}
-                                width={columnWidths["notes"]}
+                                width={columnWidths.notes}
                               >
                                 <span className="text-muted-foreground text-xs max-w-[200px] truncate">
                                   {tx.notes ?? "—"}
@@ -1498,14 +1499,14 @@ export default function TransactionsPage() {
                                                       <TableCell className="text-right font-mono">
                                                         {tx.unitRate != null &&
                                                         tx.unitRate !== "" &&
-                                                        !isNaN(parseFloat(tx.unitRate))
+                                                        !Number.isNaN(parseFloat(tx.unitRate))
                                                           ? `৳${formatNumber(tx.unitRate, 2)}`
                                                           : "—"}
                                                       </TableCell>
                                                       <TableCell className="text-right font-mono font-medium">
                                                         {tx.totalPrice != null &&
                                                         tx.totalPrice !== "" &&
-                                                        !isNaN(parseFloat(tx.totalPrice))
+                                                        !Number.isNaN(parseFloat(tx.totalPrice))
                                                           ? `৳${formatNumber(tx.totalPrice, 2)}`
                                                           : "—"}
                                                       </TableCell>
@@ -1935,7 +1936,8 @@ export default function TransactionsPage() {
                                 <span
                                   className={cn(
                                     "px-1.5 py-0.5 rounded text-[11px] font-medium border",
-                                    TX_COLORS[tx.transactionType] ?? "bg-muted text-muted-foreground",
+                                    TX_COLORS[tx.transactionType] ??
+                                      "bg-muted text-muted-foreground",
                                   )}
                                 >
                                   {tx.transactionType.replace("_", " ")}
@@ -1945,9 +1947,7 @@ export default function TransactionsPage() {
                               <TableCell className="text-right font-mono">
                                 <span
                                   className={
-                                    parseFloat(tx.quantity) < 0
-                                      ? "text-red-400"
-                                      : "text-primary"
+                                    parseFloat(tx.quantity) < 0 ? "text-red-400" : "text-primary"
                                   }
                                 >
                                   {parseFloat(tx.quantity) > 0
@@ -1958,14 +1958,14 @@ export default function TransactionsPage() {
                               <TableCell className="text-right font-mono">
                                 {tx.unitRate != null &&
                                 tx.unitRate !== "" &&
-                                !isNaN(parseFloat(tx.unitRate))
+                                !Number.isNaN(parseFloat(tx.unitRate))
                                   ? `৳${formatNumber(tx.unitRate, 2)}`
                                   : "—"}
                               </TableCell>
                               <TableCell className="text-right font-mono font-medium">
                                 {tx.totalPrice != null &&
                                 tx.totalPrice !== "" &&
-                                !isNaN(parseFloat(tx.totalPrice))
+                                !Number.isNaN(parseFloat(tx.totalPrice))
                                   ? `৳${formatNumber(tx.totalPrice, 2)}`
                                   : "—"}
                               </TableCell>

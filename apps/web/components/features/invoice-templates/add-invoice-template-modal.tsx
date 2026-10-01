@@ -1,7 +1,7 @@
 "use client";
 
 import { useMutation, useQueryClient } from "@tanstack/react-query";
-import { Check, Edit2, Loader2, Plus, X } from "lucide-react";
+import { Loader2, Plus, X } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { useEffect, useMemo, useState } from "react";
 import { toast } from "sonner";
@@ -212,7 +212,7 @@ export function AddEditInvoiceTemplateModal({
       }
     });
 
-    parts.push("1".padStart(parseInt(digits), "0"));
+    parts.push("1".padStart(parseInt(digits, 10), "0"));
     return parts.join("-");
   }, [prefix, dynamicBlocks, digits]);
 

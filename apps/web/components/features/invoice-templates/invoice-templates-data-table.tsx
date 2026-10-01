@@ -87,7 +87,7 @@ export function InvoiceTemplatesDataTable({
       documentIndexing: (t: any) => getIndexPreview(t),
       updatedAt: (t: any) => format(new Date(t.updatedAt), "MMM d, yyyy"),
     };
-  }, []);
+  }, [getIndexPreview]);
 
   const filteredTemplates = useMemo(() => {
     return filterRows(templates || [], extractors);
@@ -190,28 +190,28 @@ export function InvoiceTemplatesDataTable({
                 columnKey="name"
                 title="Template Name"
                 isFiltered={isColumnFiltered("name")}
-                activeValue={filters["name"]}
+                activeValue={filters.name}
                 onClear={() => clearColumnFilter("name")}
               />
               <FilterableTableHeader
                 columnKey="description"
                 title="Description"
                 isFiltered={isColumnFiltered("description")}
-                activeValue={filters["description"]}
+                activeValue={filters.description}
                 onClear={() => clearColumnFilter("description")}
               />
               <FilterableTableHeader
                 columnKey="documentIndexing"
                 title="Document Indexing"
                 isFiltered={isColumnFiltered("documentIndexing")}
-                activeValue={filters["documentIndexing"]}
+                activeValue={filters.documentIndexing}
                 onClear={() => clearColumnFilter("documentIndexing")}
               />
               <FilterableTableHeader
                 columnKey="updatedAt"
                 title="Last Updated"
                 isFiltered={isColumnFiltered("updatedAt")}
-                activeValue={filters["updatedAt"]}
+                activeValue={filters.updatedAt}
                 onClear={() => clearColumnFilter("updatedAt")}
               />
               <TableCell className="text-right font-medium text-muted-foreground">

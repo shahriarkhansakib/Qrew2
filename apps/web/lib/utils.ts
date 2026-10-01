@@ -21,13 +21,13 @@ export function formatNumber(val: number | string | null | undefined, maxDecimal
     if (trimmed === "" || trimmed === "—" || trimmed === "N/A" || trimmed === "-")
       return trimmed || "0";
     const num = parseFloat(trimmed);
-    if (isNaN(num)) return val;
+    if (Number.isNaN(num)) return val;
     const factor = 10 ** maxDecimals;
     const rounded = Math.round((num + Number.EPSILON) * factor) / factor;
     return rounded.toString();
   }
   if (typeof val === "number") {
-    if (isNaN(val)) return "0";
+    if (Number.isNaN(val)) return "0";
     const factor = 10 ** maxDecimals;
     const rounded = Math.round((val + Number.EPSILON) * factor) / factor;
     return rounded.toString();

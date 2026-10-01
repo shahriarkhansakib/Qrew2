@@ -9,7 +9,6 @@ import {
   PanelRightClose,
   PanelRightOpen,
   Pencil,
-  Save,
   X,
 } from "lucide-react";
 import Link from "next/link";
@@ -18,10 +17,7 @@ import { useCallback, useState } from "react";
 import { toast } from "sonner";
 // --- TEMPLATE BUILDER IMPORTS ---
 import { BuilderProvider } from "@/components/features/invoice-templates/builder/builder-context";
-import {
-  FileDetailsHeaderBox,
-  TemplateBuilderWorkspace,
-} from "@/components/features/invoice-templates/builder/template-builder-workspace";
+import { TemplateBuilderWorkspace } from "@/components/features/invoice-templates/builder/template-builder-workspace";
 import { TemplateTokenPool } from "@/components/features/invoice-templates/builder/token-pool";
 import {
   AlertDialog,
@@ -157,7 +153,7 @@ export default function DraftBuilderPage() {
     onError: (err: any) => toast.error(err.message),
   });
 
-  const handleOverrideChange = useCallback((rowToken: string, value: string) => {
+  const _handleOverrideChange = useCallback((rowToken: string, value: string) => {
     setOverrides((prev) => ({ ...prev, [rowToken]: value }));
   }, []);
 
@@ -197,8 +193,8 @@ export default function DraftBuilderPage() {
   }
 
   const tokens = preview?.resolvedScope?.tokens ?? {};
-  const sections: any[] = preview?.sections ?? [];
-  const grandTotal = Number(preview?.grandTotal ?? 0);
+  const _sections: any[] = preview?.sections ?? [];
+  const _grandTotal = Number(preview?.grandTotal ?? 0);
 
   // ── Build sidebar token groups from draftConstants + resolvedScope ────────
   const draftConstants = draft?.draftConstants ?? {};
@@ -232,7 +228,7 @@ export default function DraftBuilderPage() {
       if (!res.ok) throw new Error("Failed to update draft");
       queryClient.invalidateQueries({ queryKey: ["invoice-draft", draftId] });
       queryClient.invalidateQueries({ queryKey: ["drafts"] });
-    } catch (error) {
+    } catch (_error) {
       toast.error("Failed to update draft detail");
     }
   };

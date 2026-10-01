@@ -4,6 +4,7 @@ import {
   invoiceTemplates,
   templateSectionCharges,
   templateSections,
+  tokens,
 } from "@starter/db";
 import { and, asc, eq } from "drizzle-orm";
 import { Context } from "hono";
@@ -32,16 +33,30 @@ export async function listSectionCharges(c: Context) {
   const { tplIdToToken } = await buildConstantIndex(templateId);
 
   const charges = await db
-    .select({ charge: templateSectionCharges })
+    .select({
+      id: templateSectionCharges.id,
+      sectionId: templateSectionCharges.sectionId,
+      templateId: templateSectionCharges.templateId,
+      qualifier: templateSectionCharges.qualifier,
+      tags: templateSectionCharges.tags,
+      formula: templateSectionCharges.formula,
+      chargeToken: tokens.tokenKey,
+      label: tokens.label,
+      subDescription: tokens.description,
+      sortOrder: tokens.sortOrder,
+    })
     .from(templateSectionCharges)
-    .innerJoin(templateSections, eq(templateSectionCharges.sectionId, templateSections.id))
-    .where(eq(templateSections.id, sectionId))
-    .orderBy(asc(templateSectionCharges.sortOrder));
+    .innerJoin(tokens, eq(tokens.id, templateSectionCharges.id))
+    .where(eq(templateSectionCharges.sectionId, sectionId))
+    .orderBy(asc(tokens.sortOrder));
 
-  const decoded = charges.map((row) => ({
-    ...row.charge,
-    formula: decodeFormula(row.charge.formula, idToToken, secIdToToken, tplIdToToken),
-  }));
+  const decoded = charges.map((row) => {
+    const r = (row as any).charge ? { ...(row as any).charge, ...row } : row;
+    return {
+      ...r,
+      formula: decodeFormula(r.formula, idToToken, secIdToToken, tplIdToToken),
+    };
+  });
 
   return c.json(decoded);
 }

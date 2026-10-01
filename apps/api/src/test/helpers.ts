@@ -237,6 +237,20 @@ export function buildDbMock(): any {
       chargeToken: "chargeToken",
       sortOrder: "sortOrder",
     },
+    tokens: {
+      id: "id",
+      tokenKey: "tokenKey",
+      label: "label",
+      description: "description",
+      sortOrder: "sortOrder",
+      valueType: "valueType",
+      domain: "domain",
+      entityType: "entityType",
+      isSystem: "isSystem",
+      isInjectable: "isInjectable",
+      isVisible: "isVisible",
+      organizationId: "organizationId",
+    },
     templateConstants: { id: "id", templateId: "templateId", token: "token" },
     templateHeaderFields: {
       id: "id",
@@ -246,7 +260,7 @@ export function buildDbMock(): any {
     },
     invoiceTemplates: { id: "id", organizationId: "organizationId" },
     eq: vi.fn((_a: any, _b: any) => "eq-condition"),
-    and: vi.fn((...args: any[]) => "and-condition"),
-    asc: vi.fn((col: any) => "asc-" + col),
+    and: vi.fn((..._args: any[]) => "and-condition"),
+    asc: vi.fn((col: any) => `asc-${col}`),
   };
 }

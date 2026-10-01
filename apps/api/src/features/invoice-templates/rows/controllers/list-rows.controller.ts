@@ -1,11 +1,5 @@
-import {
-  db,
-  invoiceTemplates,
-  templateRowCharges,
-  templateRows,
-  templateSections,
-} from "@starter/db";
-import { and, asc, eq } from "drizzle-orm";
+import { db, invoiceTemplates, templateRows, templateSections } from "@starter/db";
+import { and, eq } from "drizzle-orm";
 import { Context } from "hono";
 import { getTemplateFormulaContext } from "../../services/template-formula-context.service";
 
@@ -30,19 +24,44 @@ export async function listRows(c: Context) {
 
   const rows = await db.query.templateRows.findMany({
     where: eq(templateRows.sectionId, sectionId),
-    orderBy: [asc(templateRows.sortOrder)],
     with: {
-      charges: { orderBy: [asc(templateRowCharges.sortOrder)] },
+      token: true,
+      charges: {
+        with: {
+          token: true,
+        },
+      },
     },
   });
 
-  // Decode formulas before sending to frontend
+  // Sort rows and charges by token.sortOrder
+  rows.sort((a, b) => (a.token?.sortOrder ?? 0) - (b.token?.sortOrder ?? 0));
+  for (const row of rows) {
+    row.charges.sort((a, b) => (a.token?.sortOrder ?? 0) - (b.token?.sortOrder ?? 0));
+  }
+
+  // Decode formulas before sending to frontend and flatten token fields
   const decoded = rows.map((row) => ({
-    ...row,
+    id: row.id,
+    templateId: row.templateId,
+    sectionId: row.sectionId,
+    valueType: row.valueType,
     formula: context.decode(row.formula),
+    initialValue: row.initialValue,
+    rowToken: row.token?.tokenKey,
+    label: row.token?.label,
+    description: row.token?.description,
+    sortOrder: row.token?.sortOrder ?? 0,
     charges: row.charges.map((ch) => ({
-      ...ch,
+      id: ch.id,
+      rowId: ch.rowId,
+      qualifier: ch.qualifier,
+      tags: ch.tags,
       formula: context.decode(ch.formula) ?? ch.formula,
+      chargeToken: ch.token?.tokenKey,
+      label: ch.token?.label,
+      subDescription: ch.token?.description,
+      sortOrder: ch.token?.sortOrder ?? 0,
     })),
   }));
 

@@ -10,11 +10,8 @@ import { deleteRow } from "./delete-row.controller";
 
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import {
-  CHARGE_ID,
   makeCtx,
   makeRow,
-  makeRowCharge,
-  makeSelectChain,
   ORG_ID,
   ROW_ID,
   SECTION_ID,
@@ -51,7 +48,10 @@ vi.mock("@starter/db", () => {
       returning: vi.fn().mockResolvedValue([]),
     })),
     delete: vi.fn(() => ({
-      where: vi.fn().mockResolvedValue(undefined),
+      where: vi.fn().mockReturnValue({
+        returning: vi.fn().mockResolvedValue([{ id: ROW_ID }]),
+      }),
+      returning: vi.fn().mockResolvedValue([{ id: ROW_ID }]),
     })),
     query: {
       templateSections: { findFirst: vi.fn(), findMany: vi.fn() },
@@ -67,6 +67,20 @@ vi.mock("@starter/db", () => {
     eq,
     and,
     asc,
+    tokens: {
+      id: "tokens-id",
+      tokenKey: "tokens-tokenKey",
+      label: "tokens-label",
+      description: "tokens-description",
+      sortOrder: "tokens-sortOrder",
+      valueType: "tokens-valueType",
+      domain: "tokens-domain",
+      entityType: "tokens-entityType",
+      isSystem: "tokens-isSystem",
+      isInjectable: "tokens-isInjectable",
+      isVisible: "tokens-isVisible",
+      organizationId: "tokens-organizationId",
+    },
     encodeFormula: vi.fn((f: any) => f),
     decodeFormula: vi.fn((f: any) => f),
     templateSections: { id: "sec-id", templateId: "sec-templateId" },
@@ -99,7 +113,7 @@ import { db } from "@starter/db";
 // ─── Mock helpers ─────────────────────────────────────────────────────────────
 
 /** Queue up all 4 selects for section-ownership flow (section check + 3 index builders) */
-function mockSectionOwned(templateId = TEMPLATE_ID) {
+function _mockSectionOwned(templateId = TEMPLATE_ID) {
   (db.select as any)
     .mockReturnValueOnce(
       hoistedChain([
@@ -114,12 +128,12 @@ function mockSectionOwned(templateId = TEMPLATE_ID) {
     .mockReturnValueOnce(hoistedChain([])); // buildConstantIndex
 }
 
-function mockSectionNotFound() {
+function _mockSectionNotFound() {
   (db.select as any).mockReturnValueOnce(hoistedChain([]));
 }
 
 /** Queue up all 4 selects for row-ownership flow (row+org check + 3 index builders) */
-function mockRowOwned(row = makeRow()) {
+function _mockRowOwned(row = makeRow()) {
   (db.select as any)
     .mockReturnValueOnce(hoistedChain([{ row, orgId: ORG_ID }]))
     .mockReturnValueOnce(hoistedChain([])) // buildRowIndex (collision check)
@@ -131,7 +145,7 @@ function mockRowNotFound() {
   (db.select as any).mockReturnValueOnce(hoistedChain([]));
 }
 
-function mockTransaction(result: any) {
+function _mockTransaction(result: any) {
   (db.transaction as any).mockImplementation(async (fn: any) => {
     const tx = {
       insert: vi.fn(() => ({

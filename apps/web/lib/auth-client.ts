@@ -9,6 +9,7 @@ import { createAuthClient } from "better-auth/react";
 import type { Auth } from "../../api/src/infra/lib/auth";
 
 export const authClient = createAuthClient({
+  baseURL: process.env.NEXT_PUBLIC_APP_URL as string,
   plugins: [
     adminClient(),
     magicLinkClient(),

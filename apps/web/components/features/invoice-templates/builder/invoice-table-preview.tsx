@@ -34,7 +34,8 @@ function UnresolvedNoticeButton({ notices }: { notices: any[] }) {
             </p>
             <p className="text-[11px] text-muted-foreground mb-2">
               The following tokens were not yet defined when this row was evaluated. They were
-              treated as <span className="font-mono text-accent-foreground">0</span> for the calculation.
+              treated as <span className="font-mono text-accent-foreground">0</span> for the
+              calculation.
             </p>
             <ul className="space-y-1">
               {notices.map((n: any, i: number) => (

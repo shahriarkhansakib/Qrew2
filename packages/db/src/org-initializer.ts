@@ -2,11 +2,11 @@ import { and, eq } from "drizzle-orm";
 import { v4 as uuidv4 } from "uuid";
 import {
   expenseCategories,
-  organizations,
   orgRolePermissions,
   orgRoles,
   projectStatuses,
   projectStatusTransitions,
+  tokens,
 } from "./schema";
 
 export async function seedOrganizationDefaults(db: any, orgId: string, userId: string) {
@@ -17,10 +17,65 @@ export async function seedOrganizationDefaults(db: any, orgId: string, userId: s
     .where(eq(expenseCategories.organizationId, orgId));
 
   if (existingCategories.length === 0) {
+    const totalId = uuidv4();
+    const transId = uuidv4();
+    const officeId = uuidv4();
+    const othersId = uuidv4();
+
+    await db.insert(tokens).values([
+      {
+        id: totalId,
+        tokenKey: "EXP_TOTAL",
+        label: "Total Expenses",
+        description:
+          "Sum of all expense categories recorded across all categories for this project",
+        domain: "expense_category",
+        organizationId: orgId,
+        isSystem: true,
+        isInjectable: true,
+        isVisible: true,
+        sortOrder: 0,
+      },
+      {
+        id: transId,
+        tokenKey: "TRANSPORTATION",
+        label: "Transportation",
+        domain: "expense_category",
+        organizationId: orgId,
+        isSystem: false,
+        isInjectable: true,
+        isVisible: true,
+        sortOrder: 1,
+      },
+      {
+        id: officeId,
+        tokenKey: "OFFICE",
+        label: "Office",
+        domain: "expense_category",
+        organizationId: orgId,
+        isSystem: false,
+        isInjectable: true,
+        isVisible: true,
+        sortOrder: 2,
+      },
+      {
+        id: othersId,
+        tokenKey: "OTHERS",
+        label: "Others",
+        domain: "expense_category",
+        organizationId: orgId,
+        isSystem: false,
+        isInjectable: true,
+        isVisible: true,
+        sortOrder: 3,
+      },
+    ]);
+
     await db.insert(expenseCategories).values([
-      { id: uuidv4(), organizationId: orgId, name: "Transportation", tokenKey: "TRANSPORTATION" },
-      { id: uuidv4(), organizationId: orgId, name: "Office", tokenKey: "OFFICE" },
-      { id: uuidv4(), organizationId: orgId, name: "Others", tokenKey: "OTHERS" },
+      { id: totalId, organizationId: orgId },
+      { id: transId, organizationId: orgId },
+      { id: officeId, organizationId: orgId },
+      { id: othersId, organizationId: orgId },
     ]);
   }
 
@@ -30,14 +85,14 @@ export async function seedOrganizationDefaults(db: any, orgId: string, userId: s
     .from(projectStatuses)
     .where(eq(projectStatuses.organizationId, orgId));
 
-  let createdStatusId: string | null = null;
-  let completedStatusId: string | null = null;
+  let _createdStatusId: string | null = null;
+  let _completedStatusId: string | null = null;
 
   if (existingStatuses.length === 0) {
     const createdId = uuidv4();
     const completedId = uuidv4();
-    createdStatusId = createdId;
-    completedStatusId = completedId;
+    _createdStatusId = createdId;
+    _completedStatusId = completedId;
 
     await db.insert(projectStatuses).values([
       {
@@ -280,7 +335,7 @@ export async function seedOrganizationDefaults(db: any, orgId: string, userId: s
 
     // Update Manager and Staff to be isSystem: false if they were previously created as true
     for (const role of [managerRole, staffRole].filter(Boolean)) {
-      if (role && role.isSystem) {
+      if (role?.isSystem) {
         await db.update(orgRoles).set({ isSystem: false }).where(eq(orgRoles.id, role.id));
       }
     }

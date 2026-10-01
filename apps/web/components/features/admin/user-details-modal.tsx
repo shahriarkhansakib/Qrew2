@@ -2,15 +2,7 @@
 
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { format } from "date-fns";
-import {
-  Calendar,
-  Fingerprint,
-  KeyRound,
-  Loader2,
-  MonitorSmartphone,
-  ShieldAlert,
-  X,
-} from "lucide-react";
+import { Calendar, Fingerprint, Loader2, MonitorSmartphone, ShieldAlert, X } from "lucide-react";
 import { useState } from "react";
 import { toast } from "sonner";
 import { Badge } from "@/components/ui/badge";

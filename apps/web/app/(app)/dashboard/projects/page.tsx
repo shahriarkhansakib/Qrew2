@@ -47,7 +47,7 @@ export default function ProjectsPage() {
     if (saved) {
       try {
         setHiddenCols(JSON.parse(saved));
-      } catch (e) {}
+      } catch (_e) {}
     }
   }, []);
 
@@ -308,21 +308,21 @@ export default function ProjectsPage() {
                 </DropdownMenuCheckboxItem>
                 <Can I="finance:view_expenses">
                   <DropdownMenuCheckboxItem
-                    checked={!hiddenCols["total_expenses"]}
+                    checked={!hiddenCols.total_expenses}
                     onCheckedChange={(c) => toggleColumn("total_expenses", c)}
                   >
                     Total Expenses
                   </DropdownMenuCheckboxItem>
                 </Can>
                 <DropdownMenuCheckboxItem
-                  checked={!hiddenCols["createdAt"]}
+                  checked={!hiddenCols.createdAt}
                   onCheckedChange={(c) => toggleColumn("createdAt", c)}
                 >
                   Created At
                 </DropdownMenuCheckboxItem>
                 {activeTab === "archived" && (
                   <DropdownMenuCheckboxItem
-                    checked={!hiddenCols["archivedAt"]}
+                    checked={!hiddenCols.archivedAt}
                     onCheckedChange={(c) => toggleColumn("archivedAt", c)}
                   >
                     Archived At

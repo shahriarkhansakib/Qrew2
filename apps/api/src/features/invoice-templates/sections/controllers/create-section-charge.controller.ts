@@ -1,15 +1,9 @@
-import {
-  db,
-  decodeFormula,
-  encodeFormula,
-  invoiceTemplates,
-  templateSectionCharges,
-  templateSections,
-} from "@starter/db";
+import { db, decodeFormula, invoiceTemplates, templateSections, tokens } from "@starter/db";
 import { and, eq } from "drizzle-orm";
 import { Context } from "hono";
 import * as math from "mathjs";
 import { z } from "zod";
+import { TokenService } from "../../../tokens/token.service";
 import { getTemplateFormulaContext } from "../../services/template-formula-context.service";
 import { validateFormulaChars } from "../../validation/formula-validator";
 
@@ -49,8 +43,9 @@ export async function createSectionCharge(c: Context) {
   if (!organizationId) return c.json({ error: "Unauthorized" }, 401);
 
   const secResult = await db
-    .select({ section: templateSections })
+    .select({ section: templateSections, sectionToken: tokens.tokenKey })
     .from(templateSections)
+    .innerJoin(tokens, eq(tokens.id, templateSections.id))
     .innerJoin(invoiceTemplates, eq(templateSections.templateId, invoiceTemplates.id))
     .where(
       and(eq(templateSections.id, sectionId), eq(invoiceTemplates.organizationId, organizationId)),
@@ -58,7 +53,7 @@ export async function createSectionCharge(c: Context) {
     .limit(1);
   if (secResult.length === 0) return c.json({ error: "Section not found" }, 404);
 
-  const sectionToken = secResult[0].section.sectionToken;
+  const sectionToken = secResult[0].sectionToken;
 
   const body = await c.req.json();
   const parsed = createSectionChargeSchema.safeParse(body);
@@ -75,11 +70,8 @@ export async function createSectionCharge(c: Context) {
     return c.json({ error: charVal.error }, 422);
   }
 
-  const dup = await db.query.templateSectionCharges.findFirst({
-    where: and(
-      eq(templateSectionCharges.sectionId, sectionId),
-      eq(templateSectionCharges.chargeToken, chargeToken),
-    ),
+  const dup = await db.query.tokens?.findFirst({
+    where: and(eq(tokens.templateId, templateId), eq(tokens.tokenKey, chargeToken)),
   });
   if (dup) {
     return c.json(
@@ -90,26 +82,27 @@ export async function createSectionCharge(c: Context) {
 
   const context = await getTemplateFormulaContext(templateId, organizationId);
 
-  const [newCharge] = await db
-    .insert(templateSectionCharges)
-    .values({
-      id: crypto.randomUUID(),
-      sectionId,
-      templateId,
-      label: parsed.data.label,
-      subDescription: parsed.data.subDescription ?? null,
-      qualifier: parsed.data.qualifier ?? null,
-      tags: parsed.data.tags ?? [],
-      chargeToken,
-      formula: context.encode(parsed.data.formula) ?? parsed.data.formula,
-      sortOrder: parsed.data.orderIndex,
-    })
-    .returning();
+  const newCharge = await TokenService.createSectionChargeToken({
+    id: crypto.randomUUID(),
+    sectionId,
+    templateId,
+    chargeToken,
+    label: parsed.data.label,
+    subDescription: parsed.data.subDescription ?? null,
+    qualifier: parsed.data.qualifier ?? null,
+    tags: parsed.data.tags ?? [],
+    formula: context.encode(parsed.data.formula) ?? parsed.data.formula,
+    organizationId,
+    sortOrder: parsed.data.orderIndex,
+  });
 
   return c.json(
     {
       ...newCharge,
-      formula: context.decode(newCharge.formula) ?? newCharge.formula,
+      formula:
+        decodeFormula(newCharge.formula, context.idToToken) ??
+        context.decode(newCharge.formula) ??
+        newCharge.formula,
     },
     201,
   );

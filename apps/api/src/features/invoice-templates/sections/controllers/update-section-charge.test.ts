@@ -1,8 +1,10 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import {
   CHARGE_ID,
+  makeChargeToken,
   makeCtx,
   makeSectionCharge,
+  SECTION_TOKEN,
   TEMPLATE_ID,
 } from "../../invoice-templates.fixtures";
 
@@ -31,6 +33,10 @@ vi.mock("@starter/db", () => {
       returning: vi.fn().mockResolvedValue([]),
     })),
     transaction: vi.fn(),
+    query: {
+      templateSectionCharges: { findFirst: vi.fn() },
+      tokens: { findFirst: vi.fn(), findMany: vi.fn() },
+    },
   };
 
   return {
@@ -51,6 +57,21 @@ vi.mock("@starter/db", () => {
     invoiceTemplates: { id: "id", organizationId: "organizationId" },
     encodeFormula: vi.fn((f: string) => f),
     decodeFormula: vi.fn((f: string) => f ?? ""),
+    tokens: {
+      id: "id",
+      tokenKey: "tokenKey",
+      label: "label",
+      description: "description",
+      sortOrder: "sortOrder",
+      valueType: "valueType",
+      domain: "domain",
+      entityType: "entityType",
+      isSystem: "isSystem",
+      isInjectable: "isInjectable",
+      isVisible: "isVisible",
+      organizationId: "organizationId",
+      templateId: "templateId",
+    },
   };
 });
 
@@ -58,8 +79,12 @@ import { db } from "@starter/db";
 import { updateSectionCharge } from "./update-section-charge.controller";
 
 function mockChargeOwned(charge = makeSectionCharge(), withFormulaIndexes = false) {
+  const token = makeChargeToken({
+    tokenKey: charge.chargeToken ?? `SEC_${SECTION_TOKEN}_PORT_LEVY`,
+    label: charge.label ?? "Port Levy",
+  });
   const mock = (db.select as any).mockReturnValueOnce(
-    hoistedChain([{ charge, section: { templateId: TEMPLATE_ID } }]),
+    hoistedChain([{ charge, token, section: { templateId: TEMPLATE_ID } }]),
   );
   if (withFormulaIndexes) {
     mock

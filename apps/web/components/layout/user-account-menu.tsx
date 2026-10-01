@@ -1,7 +1,6 @@
 "use client";
 
 import { LogOut, Settings, Zap } from "lucide-react";
-import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { Can } from "@/components/features/auth/can";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";

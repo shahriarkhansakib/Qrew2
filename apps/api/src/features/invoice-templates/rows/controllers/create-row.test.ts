@@ -10,13 +10,11 @@ import { createRow } from "./create-row.controller";
 
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import {
-  CHARGE_ID,
   makeCtx,
   makeRow,
   makeRowCharge,
-  makeSelectChain,
+  makeToken,
   ORG_ID,
-  ROW_ID,
   SECTION_ID,
   TEMPLATE_ID,
 } from "../../invoice-templates.fixtures";
@@ -54,6 +52,7 @@ vi.mock("@starter/db", () => {
       where: vi.fn().mockResolvedValue(undefined),
     })),
     query: {
+      tokens: { findFirst: vi.fn(), findMany: vi.fn() },
       templateSections: { findFirst: vi.fn(), findMany: vi.fn() },
       templateRows: { findFirst: vi.fn(), findMany: vi.fn() },
       templateRowCharges: { findFirst: vi.fn(), findMany: vi.fn() },
@@ -67,6 +66,20 @@ vi.mock("@starter/db", () => {
     eq,
     and,
     asc,
+    tokens: {
+      id: "tokens-id",
+      tokenKey: "tokens-tokenKey",
+      label: "tokens-label",
+      description: "tokens-description",
+      sortOrder: "tokens-sortOrder",
+      valueType: "tokens-valueType",
+      domain: "tokens-domain",
+      entityType: "tokens-entityType",
+      isSystem: "tokens-isSystem",
+      isInjectable: "tokens-isInjectable",
+      isVisible: "tokens-isVisible",
+      organizationId: "tokens-organizationId",
+    },
     encodeFormula: vi.fn((f: any) => f),
     decodeFormula: vi.fn((f: any) => f),
     templateSections: { id: "sec-id", templateId: "sec-templateId" },
@@ -119,7 +132,7 @@ function mockSectionNotFound() {
 }
 
 /** Queue up all 4 selects for row-ownership flow (row+org check + 3 index builders) */
-function mockRowOwned(row = makeRow()) {
+function _mockRowOwned(row = makeRow()) {
   (db.select as any)
     .mockReturnValueOnce(hoistedChain([{ row, orgId: ORG_ID }]))
     .mockReturnValueOnce(hoistedChain([])) // buildRowIndex (collision check)
@@ -127,7 +140,7 @@ function mockRowOwned(row = makeRow()) {
     .mockReturnValueOnce(hoistedChain([])); // buildConstantIndex
 }
 
-function mockRowNotFound() {
+function _mockRowNotFound() {
   (db.select as any).mockReturnValueOnce(hoistedChain([]));
 }
 
@@ -189,7 +202,7 @@ describe("TemplateRowsController - createRow", () => {
 
     it("returns 409 when rowToken already exists in template", async () => {
       mockSectionOwned();
-      (db.query.templateRows.findFirst as any).mockResolvedValue(makeRow()); // collision
+      (db.query.tokens.findFirst as any).mockResolvedValue(makeToken()); // collision
       const ctx = makeCtx({
         params: { sectionId: SECTION_ID },
         body: { label: "Port Dues", rowToken: "PORT_DUES" },
@@ -200,7 +213,7 @@ describe("TemplateRowsController - createRow", () => {
 
     it("creates row with charges successfully", async () => {
       mockSectionOwned();
-      (db.query.templateRows.findFirst as any).mockResolvedValue(null);
+      (db.query.tokens.findFirst as any).mockResolvedValue(null);
       const row = makeRow();
       mockTransaction({ ...row, charges: [makeRowCharge()] });
       const ctx = makeCtx({

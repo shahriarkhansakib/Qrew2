@@ -22,7 +22,7 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { Skeleton } from "@/components/ui/skeleton";
 
-const apiUrl = process.env.NEXT_PUBLIC_API_URL || "http://localhost:3000";
+const apiUrl = process.env.NEXT_PUBLIC_API_URL || "http://localhost:5002";
 
 export default function RolesPage() {
   const router = useRouter();

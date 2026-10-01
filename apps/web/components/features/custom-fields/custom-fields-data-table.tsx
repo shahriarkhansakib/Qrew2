@@ -109,28 +109,28 @@ export function CustomFieldsDataTable({
               columnKey="name"
               title="Field Name"
               isFiltered={isColumnFiltered("name")}
-              activeValue={filters["name"]}
+              activeValue={filters.name}
               onClear={() => clearColumnFilter("name")}
             />
             <FilterableTableHeader
               columnKey="entity"
               title="Entity"
               isFiltered={isColumnFiltered("entity")}
-              activeValue={filters["entity"]}
+              activeValue={filters.entity}
               onClear={() => clearColumnFilter("entity")}
             />
             <FilterableTableHeader
               columnKey="type"
               title="Type"
               isFiltered={isColumnFiltered("type")}
-              activeValue={filters["type"]}
+              activeValue={filters.type}
               onClear={() => clearColumnFilter("type")}
             />
             <FilterableTableHeader
               columnKey="required"
               title="Required"
               isFiltered={isColumnFiltered("required")}
-              activeValue={filters["required"]}
+              activeValue={filters.required}
               onClear={() => clearColumnFilter("required")}
             />
             <TableCell className="font-medium text-[15px] text-muted-foreground">

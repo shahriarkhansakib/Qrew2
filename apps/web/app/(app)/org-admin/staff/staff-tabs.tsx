@@ -12,7 +12,7 @@ export function StaffTabs() {
   const searchParams = useSearchParams();
   const currentTab = searchParams.get("tab") || "active";
 
-  const apiUrl = process.env.NEXT_PUBLIC_API_URL || "http://localhost:3000";
+  const apiUrl = process.env.NEXT_PUBLIC_API_URL || "http://localhost:5002";
 
   // Fetch pending invites just for the badge count (React Query automatically dedupes this!)
   const { data: invitations = [] } = useQuery({

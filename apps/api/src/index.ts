@@ -1,10 +1,6 @@
-import { serve } from "@hono/node-server";
 import { Hono } from "hono";
-import { cors } from "hono/cors";
 import { adminRouter } from "./features/admin/admin.route";
-// --- Feature Routes ---
 import { authRouter } from "./features/auth/auth.route";
-// --- Inventory Module Routes ---
 import { brandsRouter } from "./features/brands/brands.route";
 import { customersRouter } from "./features/customers/customers.route";
 import { expenseCategoriesRouter } from "./features/expense-categories/expense-categories.route";
@@ -26,13 +22,8 @@ import { walletRouter } from "./features/wallet/wallet.route";
 import { warehousesRouter } from "./features/warehouses/warehouses.route";
 import { workspacesRouter } from "./features/workspaces/workspaces.route";
 import { logger as apiLogger } from "./infra/lib/logger";
-// --- Core Middleware ---
 import type { AuthVariables } from "./infra/middleware/auth";
 import { rateLimit } from "./infra/middleware/rate-limit";
-
-if (!process.env.NEXT_PUBLIC_APP_URL) {
-  throw new Error("NEXT_PUBLIC_APP_URL is not set.");
-}
 
 const app = new Hono<{ Variables: AuthVariables }>();
 
@@ -50,17 +41,8 @@ app.use("*", async (c, next) => {
     `${c.req.method} ${c.req.path} ${c.res.status} ${ms}ms`,
   );
 });
-app.use("*", rateLimit(200, 60)); // 200 reqs per minute
 
-app.use(
-  "*",
-  cors({
-    origin: process.env.NEXT_PUBLIC_APP_URL,
-    allowHeaders: ["Content-Type", "Authorization"],
-    allowMethods: ["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
-    credentials: true,
-  }),
-);
+app.use("*", rateLimit(200, 60)); // 200 reqs per minute
 
 // ---------------------------------------------------------------
 // Feature Modules (Vertical Slices)
@@ -80,7 +62,7 @@ app.route("/api/invoice-templates", invoiceTemplatesRouter);
 app.route("/api/admin", adminRouter);
 app.route("/api/super-admin", superAdminRouter);
 
-// Inventory Module — all routes require inventory:view_products as a base PBAC gate.
+// Inventory Module
 app.route("/api/inventory/product-categories", productCategoriesRouter);
 app.route("/api/inventory/products", productsRouter);
 app.route("/api/inventory/customers", customersRouter);
@@ -116,21 +98,4 @@ app.onError((err, c) => {
   );
 });
 
-// ---------------------------------------------------------------
-// Server Initialization
-// ---------------------------------------------------------------
-const PORT = Number(process.env.PORT ?? 3002);
-
-serve(
-  {
-    fetch: app.fetch,
-    port: PORT,
-  },
-  (info) => {
-    apiLogger.info({ module: "api", port: info.port }, `running on http://localhost:${info.port}`);
-    apiLogger.info(
-      { module: "api", port: info.port },
-      `health → http://localhost:${info.port}/api/system/health`,
-    );
-  },
-);
+export default app;

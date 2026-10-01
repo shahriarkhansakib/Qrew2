@@ -47,7 +47,7 @@ export function OrgConfigsDataTable({
       token: (c: any) => c.displayKey || c.configKey.replace(/^(GBL_|ORG_)/, ""),
       type: (c: any) => c.valueType.replace("_", " "),
       value: (c: any) =>
-        c.valueType === "percentage" && !isNaN(parseFloat(c.configValue))
+        c.valueType === "percentage" && !Number.isNaN(parseFloat(c.configValue))
           ? `${parseFloat(c.configValue) * 100}%`
           : c.configValue,
       injectable: (c: any) => (c.isFormulaInjectable ? "Formula Injectable" : "No"),
@@ -142,7 +142,7 @@ export function OrgConfigsDataTable({
                 {config.valueType.replace("_", " ")}
               </Badge>
               <Badge variant="secondary" className="text-sm font-semibold px-3 py-1">
-                {config.valueType === "percentage" && !isNaN(parseFloat(config.configValue))
+                {config.valueType === "percentage" && !Number.isNaN(parseFloat(config.configValue))
                   ? `${parseFloat(config.configValue) * 100}%`
                   : config.configValue}
               </Badge>
@@ -159,35 +159,35 @@ export function OrgConfigsDataTable({
                 columnKey="label"
                 title="Label"
                 isFiltered={isColumnFiltered("label")}
-                activeValue={filters["label"]}
+                activeValue={filters.label}
                 onClear={() => clearColumnFilter("label")}
               />
               <FilterableTableHeader
                 columnKey="token"
                 title="Token (Key)"
                 isFiltered={isColumnFiltered("token")}
-                activeValue={filters["token"]}
+                activeValue={filters.token}
                 onClear={() => clearColumnFilter("token")}
               />
               <FilterableTableHeader
                 columnKey="type"
                 title="Type"
                 isFiltered={isColumnFiltered("type")}
-                activeValue={filters["type"]}
+                activeValue={filters.type}
                 onClear={() => clearColumnFilter("type")}
               />
               <FilterableTableHeader
                 columnKey="value"
                 title="Value"
                 isFiltered={isColumnFiltered("value")}
-                activeValue={filters["value"]}
+                activeValue={filters.value}
                 onClear={() => clearColumnFilter("value")}
               />
               <FilterableTableHeader
                 columnKey="injectable"
                 title="Formula Injectable"
                 isFiltered={isColumnFiltered("injectable")}
-                activeValue={filters["injectable"]}
+                activeValue={filters.injectable}
                 onClear={() => clearColumnFilter("injectable")}
               />
               <TableCell className="text-right font-medium text-muted-foreground">
@@ -236,14 +236,16 @@ export function OrgConfigsDataTable({
                   <FilterableTableCell
                     columnKey="value"
                     value={
-                      config.valueType === "percentage" && !isNaN(parseFloat(config.configValue))
+                      config.valueType === "percentage" &&
+                      !Number.isNaN(parseFloat(config.configValue))
                         ? `${parseFloat(config.configValue) * 100}%`
                         : config.configValue
                     }
                     isFiltered={isColumnFiltered("value")}
                     onToggleFilter={toggleFilter}
                   >
-                    {config.valueType === "percentage" && !isNaN(parseFloat(config.configValue))
+                    {config.valueType === "percentage" &&
+                    !Number.isNaN(parseFloat(config.configValue))
                       ? `${parseFloat(config.configValue) * 100}%`
                       : config.configValue}
                   </FilterableTableCell>

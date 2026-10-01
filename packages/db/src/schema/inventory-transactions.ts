@@ -21,8 +21,6 @@ import {
   stockStateEnum,
 } from "./inventory-enums";
 import { products } from "./products";
-import { purchases } from "./purchases";
-import { sales } from "./sales";
 import { warehouses } from "./warehouses";
 
 export const inventoryTransactions = pgTable(

@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { CONSTANT_ID, makeConstant, makeCtx, TEMPLATE_ID } from "../../invoice-templates.fixtures";
+import { makeConstant, makeCtx, TEMPLATE_ID } from "../../invoice-templates.fixtures";
 
 const { hoistedChain } = vi.hoisted(() => ({
   hoistedChain: (result: any[] = []) => {
@@ -33,6 +33,9 @@ vi.mock("@starter/db", () => {
       returning: vi.fn().mockResolvedValue([]),
     })),
     transaction: vi.fn(),
+    query: {
+      invoiceTemplates: { findFirst: vi.fn() },
+    },
   };
   db.transaction = vi.fn(async (fn: any) => fn(db));
 
@@ -41,12 +44,24 @@ vi.mock("@starter/db", () => {
     eq,
     and,
     encodeFormula: vi.fn((f: any) => f),
+    tokens: {
+      id: "id",
+      tokenKey: "tokenKey",
+      label: "label",
+      description: "description",
+      sortOrder: "sortOrder",
+      valueType: "valueType",
+      domain: "domain",
+      entityType: "entityType",
+      isSystem: "isSystem",
+      isInjectable: "isInjectable",
+      isVisible: "isVisible",
+      organizationId: "organizationId",
+    },
     templateConstants: {
       id: "id",
       templateId: "templateId",
-      token: "token",
       defaultValue: "defaultValue",
-      name: "name",
     },
     templateRows: { id: "id", templateId: "templateId", rowToken: "rowToken", formula: "formula" },
     templateSections: { id: "id", templateId: "templateId", sectionToken: "sectionToken" },
@@ -69,6 +84,31 @@ describe("createConstant", () => {
   beforeEach(() => {
     vi.resetAllMocks();
     (db.transaction as any).mockImplementation(async (fn: any) => fn(db));
+    (db.query.invoiceTemplates.findFirst as any).mockResolvedValue({
+      id: TEMPLATE_ID,
+      organizationId: "org-001",
+    });
+  });
+
+  it("returns 401 when unauthenticated", async () => {
+    const ctx = makeCtx({
+      orgId: null,
+      params: { templateId: TEMPLATE_ID },
+      body: { key: "FUEL_RATE", valueType: "number" },
+    });
+    const res = await createConstant(ctx);
+    expect(res.status).toBe(401);
+  });
+
+  it("returns 404 when template belongs to a foreign organization", async () => {
+    (db.query.invoiceTemplates.findFirst as any).mockResolvedValue(null);
+    const ctx = makeCtx({
+      orgId: "foreign-org-999",
+      params: { templateId: TEMPLATE_ID },
+      body: { key: "FUEL_RATE", valueType: "number", value: "3.5" },
+    });
+    const res = await createConstant(ctx);
+    expect(res.status).toBe(404);
   });
 
   it("creates constant with 201 on happy path", async () => {
@@ -110,11 +150,11 @@ describe("createConstant", () => {
   });
 
   describe("Field mapping contract", () => {
-    it("maps 'key' → 'token' in DB insert", async () => {
+    it("maps 'key' → 'tokenKey' in DB insert", async () => {
       let insertedValues: any;
       (db.insert as any).mockReturnValue({
         values: vi.fn((v: any) => {
-          insertedValues = v;
+          if (v.tokenKey) insertedValues = v;
           return { returning: vi.fn().mockResolvedValue([makeConstant()]) };
         }),
       });
@@ -123,7 +163,7 @@ describe("createConstant", () => {
         body: { key: "FUEL_RATE", valueType: "number", value: "3.5", description: "Fuel price" },
       });
       await createConstant(ctx);
-      expect(insertedValues.token).toBe("FUEL_RATE");
+      expect(insertedValues.tokenKey).toBe("FUEL_RATE");
       expect(insertedValues.key).toBeUndefined();
     });
 
@@ -131,7 +171,7 @@ describe("createConstant", () => {
       let insertedValues: any;
       (db.insert as any).mockReturnValue({
         values: vi.fn((v: any) => {
-          insertedValues = v;
+          if (v.defaultValue !== undefined) insertedValues = v;
           return { returning: vi.fn().mockResolvedValue([makeConstant()]) };
         }),
       });
@@ -144,11 +184,11 @@ describe("createConstant", () => {
       expect(insertedValues.value).toBeUndefined();
     });
 
-    it("maps 'description' → 'name' in DB insert", async () => {
+    it("maps 'description' → 'label' in DB insert", async () => {
       let insertedValues: any;
       (db.insert as any).mockReturnValue({
         values: vi.fn((v: any) => {
-          insertedValues = v;
+          if (v.label) insertedValues = v;
           return { returning: vi.fn().mockResolvedValue([makeConstant()]) };
         }),
       });
@@ -157,8 +197,7 @@ describe("createConstant", () => {
         body: { key: "FUEL_RATE", valueType: "number", description: "Fuel price" },
       });
       await createConstant(ctx);
-      expect(insertedValues.name).toBe("Fuel price");
-      expect(insertedValues.description).toBeUndefined();
+      expect(insertedValues.label).toBe("Fuel price");
     });
   });
 });

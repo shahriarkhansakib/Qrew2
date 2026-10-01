@@ -14,11 +14,8 @@
  */
 
 import {
-  clients,
-  customers,
   db,
   inventoryTransactions,
-  products,
   purchaseItems,
   purchaseReturnItems,
   purchaseReturns,
@@ -43,7 +40,10 @@ const createSaleReturnItemSchema = z.object({
   quantity: z
     .union([z.string(), z.number()])
     .transform((val) => String(val))
-    .refine((val) => !isNaN(parseFloat(val)) && parseFloat(val) > 0, "Return quantity must be > 0"),
+    .refine(
+      (val) => !Number.isNaN(parseFloat(val)) && parseFloat(val) > 0,
+      "Return quantity must be > 0",
+    ),
   unitPrice: z
     .union([z.string(), z.number()])
     .transform((val) => String(val))
@@ -65,7 +65,10 @@ const createPurchaseReturnItemSchema = z.object({
   quantity: z
     .union([z.string(), z.number()])
     .transform((val) => String(val))
-    .refine((val) => !isNaN(parseFloat(val)) && parseFloat(val) > 0, "Return quantity must be > 0"),
+    .refine(
+      (val) => !Number.isNaN(parseFloat(val)) && parseFloat(val) > 0,
+      "Return quantity must be > 0",
+    ),
   unitCost: z
     .union([z.string(), z.number()])
     .transform((val) => String(val))

@@ -27,7 +27,7 @@ async function apiFetch<T>(path: string, options?: RequestInit): Promise<T> {
         if (detailStr.length < 200) {
           errMsg += `: ${detailStr}`;
         }
-      } catch (e) {}
+      } catch (_e) {}
     }
     throw new Error(errMsg);
   }

@@ -34,6 +34,7 @@ export async function middleware(request: NextRequest) {
     pathname.startsWith("/dashboard") ||
     pathname.startsWith("/admin") ||
     pathname.startsWith("/super-admin") ||
+    pathname.startsWith("/org-admin") ||
     pathname.startsWith("/onboarding");
 
   if (!isAuthRoute && !isProtectedRoute) {
@@ -41,9 +42,9 @@ export async function middleware(request: NextRequest) {
   }
 
   // Robust Fetch Logic
-  const rawApiUrl = process.env.NEXT_PUBLIC_API_URL || "http://localhost:3002"; // backend
+  const rawApiUrl = process.env.NEXT_PUBLIC_API_URL as string; // backend
   const apiUrl = rawApiUrl.endsWith("/") ? rawApiUrl.slice(0, -1) : rawApiUrl;
-  const appUrl = process.env.NEXT_PUBLIC_APP_URL || "http://localhost:5002"; // frontend
+  const appUrl = process.env.NEXT_PUBLIC_APP_URL as string; // frontend
   const cookieHeader = request.headers.get("cookie") || "";
 
   let sessionData = null;
@@ -70,7 +71,7 @@ export async function middleware(request: NextRequest) {
     } else {
       console.error(`[Middleware] Auth Rejected: ${res.status}`);
     }
-  } catch (err) {
+  } catch (_err) {
     console.warn("[Middleware] Auth check bypassed (network error or timeout)");
   }
 
@@ -125,7 +126,9 @@ export async function middleware(request: NextRequest) {
   // We only run this if they are trying to access the tenant dashboard or onboarding
   if (
     globalLevel === ROLE_HIERARCHY.user &&
-    (pathname.startsWith("/dashboard") || pathname.startsWith("/onboarding"))
+    (pathname.startsWith("/dashboard") ||
+      pathname.startsWith("/onboarding") ||
+      pathname.startsWith("/org-admin"))
   ) {
     const activeOrgId = sessionData?.session?.activeOrganizationId;
     const isOnboarding = pathname.startsWith("/onboarding/organization");

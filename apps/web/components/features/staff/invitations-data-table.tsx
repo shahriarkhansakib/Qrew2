@@ -16,7 +16,6 @@ import {
   AlertDialogFooter,
   AlertDialogHeader,
   AlertDialogTitle,
-  AlertDialogTrigger,
 } from "@/components/ui/alert-dialog";
 import { Button } from "@/components/ui/button";
 import {
@@ -37,8 +36,8 @@ interface Invitation {
 }
 
 export function InvitationsDataTable() {
-  const apiUrl = process.env.NEXT_PUBLIC_API_URL || "http://localhost:3000";
-  const router = useRouter();
+  const apiUrl = process.env.NEXT_PUBLIC_API_URL || "http://localhost:5002";
+  const _router = useRouter();
 
   const [revokingInvite, setRevokingInvite] = useState<Invitation | null>(null);
 

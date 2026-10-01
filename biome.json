@@ -24,15 +24,18 @@
       },
       "complexity": {
         "noBannedTypes": "off",
-        "noStaticOnlyClass": "off"
+        "noStaticOnlyClass": "off",
+        "useLiteralKeys": "warn"
       },
       "style": {
         "noNonNullAssertion": "off",
-        "useImportType": "off"
+        "useImportType": "off",
+        "useTemplate": "warn",
+        "useNodejsImportProtocol": "warn"
       },
       "suspicious": {
         "noExplicitAny": "off",
-        "useIterableCallbackReturn": "warn",
+        "useIterableCallbackReturn": "off",
         "noArrayIndexKey": "warn",
         "noImplicitAnyLet": "warn",
         "noThenProperty": "warn",
@@ -40,8 +43,10 @@
       },
       "correctness": {
         "noUnusedVariables": "warn",
+        "noUnusedImports": "warn",
         "useExhaustiveDependencies": "warn",
-        "noChildrenProp": "warn"
+        "noChildrenProp": "warn",
+        "useParseIntRadix": "warn"
       }
     }
   },

@@ -238,14 +238,14 @@ export function useFormulaKeyDown({
 
         if (!currentLastWord || before.endsWith("_")) return;
 
-        const candidate = currentLastWord + "_";
+        const candidate = `${currentLastWord}_`;
         const hasMatches = allTokens.some(
-          (t) => t.startsWith(candidate) || t.includes("_" + candidate),
+          (t) => t.startsWith(candidate) || t.includes(`_${candidate}`),
         );
 
         if (hasMatches) {
           const selEnd = target.selectionEnd ?? inputValue.length;
-          const newVal = before + "_" + inputValue.slice(selEnd);
+          const newVal = `${before}_${inputValue.slice(selEnd)}`;
           setInputValue(newVal);
           isDirty.current = true;
           setTimeout(() => inputRef.current?.setSelectionRange(selStart + 1, selStart + 1), 0);
@@ -263,14 +263,14 @@ export function useFormulaKeyDown({
 
         if (!currentLastWord || before.endsWith("_")) return;
 
-        const candidate = currentLastWord + "_";
+        const candidate = `${currentLastWord}_`;
         const hasMatches = allTokens.some(
-          (t) => t.startsWith(candidate) || t.includes("_" + candidate),
+          (t) => t.startsWith(candidate) || t.includes(`_${candidate}`),
         );
 
         if (hasMatches) {
           const selEnd = target.selectionEnd ?? inputValue.length;
-          const newVal = before + "_" + inputValue.slice(selEnd);
+          const newVal = `${before}_${inputValue.slice(selEnd)}`;
           setInputValue(newVal);
           isDirty.current = true;
           setTimeout(() => inputRef.current?.setSelectionRange(selStart + 1, selStart + 1), 0);
@@ -367,7 +367,7 @@ export function useFormulaKeyDown({
           ) {
             const beforeSlash = before.replace(/\s*\/\s*$/, "").trimEnd();
             const cleanAfter = after.trimStart();
-            const newVal = beforeSlash + " // " + cleanAfter;
+            const newVal = `${beforeSlash} // ${cleanAfter}`;
             setInputValue(newVal);
             isDirty.current = true;
             const newPos = beforeSlash.length + 4;
@@ -385,7 +385,7 @@ export function useFormulaKeyDown({
           // Strictly enforce single spaces on both sides of binary operators
           const cleanBefore = before.trimEnd();
           const cleanAfter = after.trimStart();
-          const newVal = cleanBefore + " " + e.key + " " + cleanAfter;
+          const newVal = `${cleanBefore} ${e.key} ${cleanAfter}`;
           setInputValue(newVal);
           isDirty.current = true;
 
@@ -438,7 +438,7 @@ export function useFormulaKeyDown({
           }
 
           const prefix = before.endsWith(" ") || before === "" ? "" : " ";
-          const newVal = before + prefix + "(" + after;
+          const newVal = `${before + prefix}(${after}`;
           setInputValue(newVal);
           isDirty.current = true;
           setTimeout(() => {
@@ -539,6 +539,13 @@ export function useFormulaKeyDown({
       setSelectedCell,
       inputValue,
       allTokens,
+      setInputValue,
+      onRedo,
+      inputRef.current?.setSelectionRange,
+      onUndo,
+      isDirty,
+      invalidTokens.has,
+      currentToken,
     ],
   );
 }

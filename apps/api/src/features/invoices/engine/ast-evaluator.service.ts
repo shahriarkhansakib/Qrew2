@@ -108,11 +108,21 @@ function evalFormula(
   try {
     const result = math.evaluate(resolvedFormula, scope);
     if (result == null) throw new Error("Null result");
-    return math.bignumber(result.toString());
+    const bn = math.bignumber(result.toString());
+    if (!math.isFinite(bn)) {
+      throw new Error("Division by zero");
+    }
+    return bn;
   } catch (err: any) {
+    const isDivZero =
+      err?.message?.includes("Division by zero") ||
+      err?.message?.includes("Infinity") ||
+      err?.code === "DIVISION_BY_ZERO";
     throw {
-      code: "EVALUATION_FAILED",
-      message: `Failed to evaluate formula in ${contextLabel}: "${formula}". Error: ${err?.message ?? String(err)}`,
+      code: isDivZero ? "DIVISION_BY_ZERO" : "EVALUATION_FAILED",
+      message: isDivZero
+        ? `Division by zero in ${contextLabel}: "${formula}".`
+        : `Failed to evaluate formula in ${contextLabel}: "${formula}". Error: ${err?.message ?? String(err)}`,
       formula,
     } as EngineError;
   }
@@ -430,7 +440,7 @@ export class AstEvaluatorService {
       grandTotal = math.add(grandTotal, safeBN(scope[`SEC_${sectionToken}`])) as BigNumber;
     }
 
-    scope["INVOICE_TOTAL"] = toFixed(grandTotal);
+    scope.INVOICE_TOTAL = toFixed(grandTotal);
 
     return {
       evaluatedSections,

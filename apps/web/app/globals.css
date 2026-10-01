@@ -159,22 +159,22 @@ body {
    Radix hides scrollbars via negative-margin clipping, but during layout
    recalculation (ResizeObserver) the native scrollbar can flash for 1 frame. */
 [data-radix-scroll-area-viewport] {
-  scrollbar-width: none !important;
-  -ms-overflow-style: none !important;
+  scrollbar-width: none;
+  -ms-overflow-style: none;
 }
 [data-radix-scroll-area-viewport]::-webkit-scrollbar {
-  display: none !important;
+  display: none;
 }
 
 /* Utility to completely hide scrollbars across all browsers while retaining scroll functionality */
 .no-scrollbar {
-  -ms-overflow-style: none !important;
-  scrollbar-width: none !important;
+  -ms-overflow-style: none;
+  scrollbar-width: none;
 }
 .no-scrollbar::-webkit-scrollbar {
-  display: none !important;
-  width: 0 !important;
-  height: 0 !important;
+  display: none;
+  width: 0;
+  height: 0;
 }
 
 @keyframes shake {

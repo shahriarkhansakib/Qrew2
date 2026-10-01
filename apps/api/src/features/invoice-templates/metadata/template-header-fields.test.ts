@@ -27,6 +27,8 @@ const { hoistedChain } = vi.hoisted(() => ({
   hoistedChain: (result: any[] = []) => {
     const p = Promise.resolve(result) as any;
     p.from = vi.fn().mockReturnValue(p);
+    p.innerJoin = vi.fn().mockReturnValue(p);
+    p.leftJoin = vi.fn().mockReturnValue(p);
     p.where = vi.fn().mockReturnValue(p);
     p.orderBy = vi.fn().mockReturnValue(p);
     p.limit = vi.fn().mockReturnValue(p);
@@ -37,6 +39,7 @@ const { hoistedChain } = vi.hoisted(() => ({
 vi.mock("@starter/db", () => {
   const eq = vi.fn();
   const and = vi.fn();
+  const asc = vi.fn();
 
   const db: any = {
     select: vi.fn(() => hoistedChain()),
@@ -54,6 +57,9 @@ vi.mock("@starter/db", () => {
       returning: vi.fn().mockResolvedValue([]),
     })),
     transaction: vi.fn(),
+    query: {
+      invoiceTemplates: { findFirst: vi.fn() },
+    },
   };
   db.transaction = vi.fn(async (fn: any) => fn(db));
 
@@ -61,6 +67,21 @@ vi.mock("@starter/db", () => {
     db,
     eq,
     and,
+    asc,
+    tokens: {
+      id: "id",
+      tokenKey: "tokenKey",
+      label: "label",
+      description: "description",
+      sortOrder: "sortOrder",
+      valueType: "valueType",
+      domain: "domain",
+      entityType: "entityType",
+      isSystem: "isSystem",
+      isInjectable: "isInjectable",
+      isVisible: "isVisible",
+      organizationId: "organizationId",
+    },
     templateHeaderFields: {
       id: "id",
       templateId: "templateId",
@@ -100,6 +121,10 @@ describe("TemplateHeaderFieldsController", () => {
   beforeEach(() => {
     vi.resetAllMocks();
     (db.transaction as any).mockImplementation(async (fn: any) => fn(db));
+    (db.query.invoiceTemplates.findFirst as any).mockResolvedValue({
+      id: TEMPLATE_ID,
+      organizationId: ORG_ID,
+    });
   });
 
   // ── listHeaderFields ──────────────────────────────────────────────────────
@@ -109,6 +134,16 @@ describe("TemplateHeaderFieldsController", () => {
       const ctx = makeCtx({ orgId: null, params: { templateId: TEMPLATE_ID } });
       const res = await TemplateHeaderFieldsController.listHeaderFields(ctx);
       expect(res.status).toBe(401);
+    });
+
+    it("returns 404 when template belongs to a foreign organization", async () => {
+      (db.query.invoiceTemplates.findFirst as any).mockResolvedValue(null);
+      const ctx = makeCtx({
+        orgId: "foreign-org-999",
+        params: { templateId: TEMPLATE_ID },
+      });
+      const res = await TemplateHeaderFieldsController.listHeaderFields(ctx);
+      expect(res.status).toBe(404);
     });
 
     it("returns fields ordered by sortOrder on happy path", async () => {
@@ -143,6 +178,17 @@ describe("TemplateHeaderFieldsController", () => {
       });
       const res = await TemplateHeaderFieldsController.createHeaderField(ctx);
       expect(res.status).toBe(401);
+    });
+
+    it("returns 404 when template belongs to a foreign organization", async () => {
+      (db.query.invoiceTemplates.findFirst as any).mockResolvedValue(null);
+      const ctx = makeCtx({
+        orgId: "foreign-org-999",
+        params: { templateId: TEMPLATE_ID },
+        body: { label: "Client", fieldType: "file_field" },
+      });
+      const res = await TemplateHeaderFieldsController.createHeaderField(ctx);
+      expect(res.status).toBe(404);
     });
 
     it("returns 400 when label is empty string", async () => {
@@ -237,6 +283,16 @@ describe("TemplateHeaderFieldsController", () => {
       expect(res.status).toBe(401);
     });
 
+    it("returns 404 when template belongs to a foreign organization", async () => {
+      (db.query.invoiceTemplates.findFirst as any).mockResolvedValue(null);
+      const ctx = makeCtx({
+        orgId: "foreign-org-999",
+        params: { templateId: TEMPLATE_ID, fieldId: HEADER_FIELD_ID },
+      });
+      const res = await TemplateHeaderFieldsController.deleteHeaderField(ctx);
+      expect(res.status).toBe(404);
+    });
+
     it("returns 404 when field not found or belongs to a different template", async () => {
       mockDeleteReturns(null);
       const ctx = makeCtx({ params: { templateId: TEMPLATE_ID, fieldId: HEADER_FIELD_ID } });
@@ -280,6 +336,17 @@ describe("TemplateHeaderFieldsController", () => {
       });
       const res = await TemplateHeaderFieldsController.reorderHeaderFields(ctx);
       expect(res.status).toBe(401);
+    });
+
+    it("returns 404 when template belongs to a foreign organization", async () => {
+      (db.query.invoiceTemplates.findFirst as any).mockResolvedValue(null);
+      const ctx = makeCtx({
+        orgId: "foreign-org-999",
+        params: { templateId: TEMPLATE_ID },
+        body: { updates: [] },
+      });
+      const res = await TemplateHeaderFieldsController.reorderHeaderFields(ctx);
+      expect(res.status).toBe(404);
     });
 
     it("returns 400 when updates array has malformed entries (missing sortOrder)", async () => {

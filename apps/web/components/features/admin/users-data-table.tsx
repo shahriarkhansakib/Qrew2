@@ -2,7 +2,7 @@
 
 import { useQuery } from "@tanstack/react-query";
 import { format } from "date-fns";
-import { ChevronLeft, ChevronRight, Loader2, MoreHorizontal, Search, Users } from "lucide-react";
+import { ChevronLeft, ChevronRight, Loader2, Search, Users } from "lucide-react";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { useEffect, useMemo, useState } from "react";
 import { Badge } from "@/components/ui/badge";
@@ -301,7 +301,7 @@ export function UsersDataTable() {
                 columnKey="name"
                 title="Name"
                 isFiltered={isColumnFiltered("name")}
-                activeValue={filters["name"]}
+                activeValue={filters.name}
                 onClear={() => clearColumnFilter("name")}
                 className="w-[220px]"
               />
@@ -309,7 +309,7 @@ export function UsersDataTable() {
                 columnKey="email"
                 title="Email"
                 isFiltered={isColumnFiltered("email")}
-                activeValue={filters["email"]}
+                activeValue={filters.email}
                 onClear={() => clearColumnFilter("email")}
                 className="w-[250px]"
               />
@@ -317,7 +317,7 @@ export function UsersDataTable() {
                 columnKey="workspace"
                 title="Workspace(s)"
                 isFiltered={isColumnFiltered("workspace")}
-                activeValue={filters["workspace"]}
+                activeValue={filters.workspace}
                 onClear={() => clearColumnFilter("workspace")}
                 className="w-[200px]"
               />
@@ -325,7 +325,7 @@ export function UsersDataTable() {
                 columnKey="role"
                 title="System Role"
                 isFiltered={isColumnFiltered("role")}
-                activeValue={filters["role"]}
+                activeValue={filters.role}
                 onClear={() => clearColumnFilter("role")}
                 className="w-[140px]"
               />
@@ -333,7 +333,7 @@ export function UsersDataTable() {
                 columnKey="joined"
                 title="Joined"
                 isFiltered={isColumnFiltered("joined")}
-                activeValue={filters["joined"]}
+                activeValue={filters.joined}
                 onClear={() => clearColumnFilter("joined")}
                 className="w-[150px]"
               />

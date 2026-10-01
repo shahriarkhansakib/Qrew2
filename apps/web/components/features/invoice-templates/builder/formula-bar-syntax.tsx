@@ -1,7 +1,5 @@
 "use client";
 
-import { cn } from "@/lib/utils";
-
 // ─── Parenthesis depth colors (Wavelength Distribution) ─────────────────────────
 
 /**

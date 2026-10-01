@@ -15,14 +15,11 @@ import { createCharge } from "./create-row-charge.controller";
 
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import {
-  CHARGE_ID,
   makeCtx,
   makeRow,
   makeRowCharge,
-  ORG_ID,
+  makeToken,
   ROW_ID,
-  SECTION_ID,
-  TEMPLATE_ID,
 } from "../../invoice-templates.fixtures";
 
 const { hoistedChain } = vi.hoisted(() => ({
@@ -58,6 +55,7 @@ vi.mock("@starter/db", () => {
     })),
     transaction: vi.fn(),
     query: {
+      tokens: { findFirst: vi.fn(), findMany: vi.fn() },
       templateRowCharges: { findFirst: vi.fn(), findMany: vi.fn() },
       templateRows: { findFirst: vi.fn(), findMany: vi.fn() },
     },
@@ -69,6 +67,20 @@ vi.mock("@starter/db", () => {
     eq,
     and,
     asc,
+    tokens: {
+      id: "tokens-id",
+      tokenKey: "tokens-tokenKey",
+      label: "tokens-label",
+      description: "tokens-description",
+      sortOrder: "tokens-sortOrder",
+      valueType: "tokens-valueType",
+      domain: "tokens-domain",
+      entityType: "tokens-entityType",
+      isSystem: "tokens-isSystem",
+      isInjectable: "tokens-isInjectable",
+      isVisible: "tokens-isVisible",
+      organizationId: "tokens-organizationId",
+    },
     encodeFormula: vi.fn((f: any) => f),
     decodeFormula: vi.fn((f: any) => f),
     templateRows: {
@@ -103,7 +115,7 @@ import { db } from "@starter/db";
 const ROW_FIXTURE = makeRow();
 
 /** Queue row-ownership check: [0] row+org check, [1-3] index builders for decode */
-function mockRowOwned(row = ROW_FIXTURE) {
+function _mockRowOwned(row = ROW_FIXTURE) {
   (db.select as any)
     .mockReturnValueOnce(hoistedChain([{ row }]))
     .mockReturnValueOnce(hoistedChain([])) // buildRowIndex
@@ -128,7 +140,7 @@ function mockRowNotFound() {
 }
 
 /** Queue charge-ownership for updateCharge without formula: [0] charge check, [1-3] decode only */
-function mockChargeOwned(charge = makeRowCharge(), withEncodeIndexes = false) {
+function _mockChargeOwned(charge = makeRowCharge(), withEncodeIndexes = false) {
   const mock = (db.select as any).mockReturnValueOnce(hoistedChain([{ charge, row: ROW_FIXTURE }]));
   if (withEncodeIndexes) {
     mock
@@ -143,7 +155,7 @@ function mockChargeOwned(charge = makeRowCharge(), withEncodeIndexes = false) {
     .mockReturnValueOnce(hoistedChain([])); // buildConstantIndex (decode)
 }
 
-function mockChargeNotFound() {
+function _mockChargeNotFound() {
   (db.select as any).mockReturnValueOnce(hoistedChain([]));
 }
 
@@ -154,7 +166,7 @@ function mockInsertReturns(charge: any) {
   });
 }
 
-function mockUpdateReturns(charge: any) {
+function _mockUpdateReturns(charge: any) {
   (db.update as any).mockReturnValue({
     set: vi.fn().mockReturnThis(),
     where: vi.fn().mockReturnThis(),
@@ -220,7 +232,9 @@ describe("TemplateRowChargesController - createCharge", () => {
 
     it("returns 409 when chargeToken already exists on this row", async () => {
       (db.select as any).mockReturnValueOnce(hoistedChain([{ row: ROW_FIXTURE }]));
-      (db.query.templateRowCharges.findFirst as any).mockResolvedValue(makeRowCharge()); // collision
+      (db.query.tokens.findFirst as any).mockResolvedValue(
+        makeToken({ tokenKey: "PORT_DUES_VAT" }),
+      ); // collision
       const ctx = makeCtx({
         params: { rowId: ROW_ID },
         body: { label: "VAT", formula: "PORT_DUES_BASE * 15%" },
@@ -231,7 +245,7 @@ describe("TemplateRowChargesController - createCharge", () => {
 
     it("creates charge with auto-derived chargeToken from rowToken + label", async () => {
       mockRowOwnedForCreate();
-      (db.query.templateRowCharges.findFirst as any).mockResolvedValue(null);
+      (db.query.tokens.findFirst as any).mockResolvedValue(null);
       const newCharge = makeRowCharge({
         chargeToken: "PORT_DUES_VAT",
         formula: "PORT_DUES_BASE * 15%",
@@ -247,7 +261,7 @@ describe("TemplateRowChargesController - createCharge", () => {
 
     it("creates charge with explicit chargeToken overriding auto-derivation", async () => {
       mockRowOwnedForCreate();
-      (db.query.templateRowCharges.findFirst as any).mockResolvedValue(null);
+      (db.query.tokens.findFirst as any).mockResolvedValue(null);
       const newCharge = makeRowCharge({
         chargeToken: "MY_CUSTOM_TOKEN",
         formula: "PORT_DUES_BASE * 15%",
@@ -273,7 +287,7 @@ describe("TemplateRowChargesController - createCharge", () => {
 
     it("stores tags and qualifier correctly", async () => {
       mockRowOwnedForCreate();
-      (db.query.templateRowCharges.findFirst as any).mockResolvedValue(null);
+      (db.query.tokens.findFirst as any).mockResolvedValue(null);
       const newCharge = makeRowCharge({ tags: ["port", "dues"], qualifier: "if applicable" });
       mockInsertReturns(newCharge);
       const ctx = makeCtx({

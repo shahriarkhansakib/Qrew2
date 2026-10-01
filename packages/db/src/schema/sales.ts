@@ -9,7 +9,7 @@
  */
 
 import { relations } from "drizzle-orm";
-import { boolean, decimal, index, pgTable, text, timestamp, unique } from "drizzle-orm/pg-core";
+import { decimal, index, pgTable, text, timestamp, unique } from "drizzle-orm/pg-core";
 import { organizations, users } from "./auth";
 import { customers } from "./customers";
 import { documentStatusEnum, stockStateEnum } from "./inventory-enums";

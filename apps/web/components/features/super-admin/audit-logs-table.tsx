@@ -103,7 +103,8 @@ export function AuditLogsTable() {
   const getActionColor = (action: string) => {
     if (action.includes("BAN") || action.includes("NUKE"))
       return "bg-destructive/10 text-destructive border-destructive/20";
-    if (action.includes("IMPERSONATE")) return "bg-accent/10 text-accent-foreground border-amber-500/20";
+    if (action.includes("IMPERSONATE"))
+      return "bg-accent/10 text-accent-foreground border-amber-500/20";
     if (action.includes("ELEVATE")) return "bg-indigo-500/10 text-indigo-500 border-indigo-500/20";
     return "bg-muted text-muted-foreground border-border";
   };
@@ -162,7 +163,7 @@ export function AuditLogsTable() {
                 columnKey="timestamp"
                 title="Timestamp"
                 isFiltered={isColumnFiltered("timestamp")}
-                activeValue={filters["timestamp"]}
+                activeValue={filters.timestamp}
                 onClear={() => clearColumnFilter("timestamp")}
                 className="w-[180px]"
               />
@@ -170,7 +171,7 @@ export function AuditLogsTable() {
                 columnKey="action"
                 title="Action"
                 isFiltered={isColumnFiltered("action")}
-                activeValue={filters["action"]}
+                activeValue={filters.action}
                 onClear={() => clearColumnFilter("action")}
                 className="w-[150px]"
               />
@@ -178,7 +179,7 @@ export function AuditLogsTable() {
                 columnKey="actor"
                 title="Actor (Admin)"
                 isFiltered={isColumnFiltered("actor")}
-                activeValue={filters["actor"]}
+                activeValue={filters.actor}
                 onClear={() => clearColumnFilter("actor")}
                 className="w-[200px]"
               />
@@ -186,7 +187,7 @@ export function AuditLogsTable() {
                 columnKey="target"
                 title="Target User"
                 isFiltered={isColumnFiltered("target")}
-                activeValue={filters["target"]}
+                activeValue={filters.target}
                 onClear={() => clearColumnFilter("target")}
                 className="w-[200px]"
               />
@@ -194,7 +195,7 @@ export function AuditLogsTable() {
                 columnKey="reason"
                 title="SOC2 Reason"
                 isFiltered={isColumnFiltered("reason")}
-                activeValue={filters["reason"]}
+                activeValue={filters.reason}
                 onClear={() => clearColumnFilter("reason")}
                 className="w-[300px]"
               />

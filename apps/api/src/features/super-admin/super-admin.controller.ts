@@ -1,8 +1,7 @@
 import { auditLogs, db, members, organizations, permissions, sessions, users } from "@starter/db";
-import { and, count, desc, eq, ilike, ne, or } from "drizzle-orm";
+import { and, count, desc, eq, ilike, ne } from "drizzle-orm";
 import { Context } from "hono";
 import { z } from "zod";
-import { auth } from "../../infra/lib/auth";
 import { logger } from "../../infra/lib/logger";
 
 const superAdminControllerLog = logger.child({ module: "super-admin-controller" });
@@ -155,7 +154,7 @@ export class SuperAdminController {
 
       try {
         c.executionCtx.waitUntil(auditPromise);
-      } catch (e) {
+      } catch (_e) {
         Promise.resolve(auditPromise);
       }
 
@@ -191,7 +190,7 @@ export class SuperAdminController {
 
       try {
         c.executionCtx.waitUntil(auditPromise);
-      } catch (e) {
+      } catch (_e) {
         Promise.resolve(auditPromise);
       }
 
@@ -305,7 +304,7 @@ export class SuperAdminController {
         await db.update(members).set({ role }).where(eq(members.id, existing.id));
       } else {
         // Create new member
-        const { randomUUID } = require("crypto");
+        const { randomUUID } = require("node:crypto");
         await db.insert(members).values({
           id: randomUUID(),
           organizationId: workspaceId,
@@ -328,7 +327,7 @@ export class SuperAdminController {
 
       try {
         c.executionCtx.waitUntil(auditPromise);
-      } catch (e) {
+      } catch (_e) {
         Promise.resolve(auditPromise);
       }
 
@@ -376,7 +375,7 @@ export class SuperAdminController {
 
       try {
         c.executionCtx.waitUntil(auditPromise);
-      } catch (e) {
+      } catch (_e) {
         Promise.resolve(auditPromise);
       }
 

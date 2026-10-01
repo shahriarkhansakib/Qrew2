@@ -36,7 +36,54 @@ export function decodeFormula(
   if (!formula) return "";
   let decoded = formula;
 
-  // 1. Replace row UUIDs
+  // 0. Replace unified {{$tok:UUID}}
+  decoded = decoded.replace(/\{\{\$tok:([0-9a-fA-F-]+)\}\}_BASE/g, (match, id) => {
+    for (const sec of sections || []) {
+      if (sec.id === id && sec.sectionToken) return `SEC_${sec.sectionToken}_BASE`;
+      const row = sec.rows?.find((r: any) => r.id === id);
+      if (row?.rowToken) return `${row.rowToken}_BASE`;
+    }
+    return match;
+  });
+  decoded = decoded.replace(/\{\{\$tok:([0-9a-fA-F-]+)\}\}_CHARGES/g, (match, id) => {
+    for (const sec of sections || []) {
+      if (sec.id === id && sec.sectionToken) return `SEC_${sec.sectionToken}_CHARGES`;
+      const row = sec.rows?.find((r: any) => r.id === id);
+      if (row?.rowToken) return `${row.rowToken}_CHARGES`;
+    }
+    return match;
+  });
+  decoded = decoded.replace(/\{\{\$tok:([0-9a-fA-F-]+)\}\}_TOTAL/g, (match, id) => {
+    for (const sec of sections || []) {
+      if (sec.id === id && sec.sectionToken) return `SEC_${sec.sectionToken}`;
+      const row = sec.rows?.find((r: any) => r.id === id);
+      if (row?.rowToken) return row.rowToken;
+    }
+    return match;
+  });
+  decoded = decoded.replace(/\{\{\$tok:([0-9a-fA-F-]+)\}\}/g, (match, id) => {
+    for (const sec of sections || []) {
+      if (sec.id === id && sec.sectionToken) return `SEC_${sec.sectionToken}`;
+      const sc = sec.sectionCharges?.find((c: any) => c.id === id);
+      if (sc?.chargeToken) return sc.chargeToken;
+      const row = sec.rows?.find((r: any) => r.id === id);
+      if (row?.rowToken) return row.rowToken;
+      for (const r of sec.rows || []) {
+        const rc = r.charges?.find((c: any) => c.id === id);
+        if (rc?.chargeToken) return rc.chargeToken;
+      }
+    }
+    if (templateConstants) {
+      const arr = Array.isArray(templateConstants)
+        ? templateConstants
+        : Object.values(templateConstants);
+      const constant = arr.find((c: any) => c.id === id);
+      if (constant?.token) return constant.token;
+    }
+    return match;
+  });
+
+  // 1. Replace row UUIDs (legacy)
   decoded = decoded.replace(/\{\{\$row:([0-9a-fA-F-]+)\}\}_BASE/g, (match, id) => {
     for (const sec of sections || []) {
       const row = sec.rows?.find((r: any) => r.id === id);
@@ -66,7 +113,7 @@ export function decodeFormula(
     return match;
   });
 
-  // 1.5 Replace sec UUIDs
+  // 1.5 Replace sec UUIDs (legacy)
   decoded = decoded.replace(/\{\{\$sec:([0-9a-fA-F-]+)\}\}_BASE/g, (match, id) => {
     const sec = (sections || []).find((s: any) => s.id === id);
     if (sec?.sectionToken) return `SEC_${sec.sectionToken}_BASE`;
@@ -88,7 +135,7 @@ export function decodeFormula(
     return match;
   });
 
-  // 1.7 Replace tpl UUIDs
+  // 1.7 Replace tpl UUIDs (legacy)
   const tplRegex = /\{\{\$tpl:([0-9a-fA-F-]+)\}\}/g;
   decoded = decoded.replace(tplRegex, (match, id) => {
     if (!templateConstants) return match;
@@ -103,9 +150,10 @@ export function decodeFormula(
   // 2. Strip {{ and }} from other tokens
   decoded = decoded.replace(/\{\{([A-Z0-9_]+)\}\}/g, "$1");
 
-  // 3. Strip FILE_ and GBL_/ORG_ prefixes to bare tokens for UI display
+  // 3. Strip FILE_, GBL_/ORG_, and EXP_ (except EXP_TOTAL) prefixes to bare tokens for UI display
   decoded = decoded.replace(/\bFILE_([A-Z0-9_]+)\b/g, "$1");
   decoded = decoded.replace(/\b(?:GBL_|ORG_)([A-Z0-9_]+)\b/g, "$1");
+  decoded = decoded.replace(/\bEXP_(?!TOTAL\b)([A-Z0-9_]+)\b/g, "$1");
 
   return decoded;
 }
@@ -122,7 +170,7 @@ function safeEval(expr: string): number | null {
     if (!/^[\d\s+\-*/.()]+$/.test(expr.trim())) return null;
     // eslint-disable-next-line no-new-func
     const result = new Function(`"use strict"; return (${expr})`)() as number;
-    return typeof result === "number" && isFinite(result) ? result : null;
+    return typeof result === "number" && Number.isFinite(result) ? result : null;
   } catch {
     return null;
   }
@@ -468,7 +516,7 @@ export function getCircularDependencyTokens(
   for (const token of initialInvalidList) {
     // Row expansion
     const row = tokenToRowMap.get(token);
-    if (row && row.rowToken) {
+    if (row?.rowToken) {
       const rowVariants = [
         row.rowToken,
         `${row.rowToken}_BASE`,
@@ -490,7 +538,7 @@ export function getCircularDependencyTokens(
 
     // Section expansion
     const sec = tokenToSectionMap.get(token);
-    if (sec && sec.sectionToken) {
+    if (sec?.sectionToken) {
       const secVariants = [
         `SEC_${sec.sectionToken}`,
         `SEC_${sec.sectionToken}_BASE`,
@@ -540,6 +588,7 @@ export function buildTokenMap(
   orgConfigs?: any[],
   templateConstants?: any[],
   fileFields?: any[],
+  categoriesData?: any[],
 ): TokenMap {
   const tokens: TokenMap = {};
 
@@ -548,7 +597,7 @@ export function buildTokenMap(
     for (const config of orgConfigs) {
       if (config.isFormulaInjectable && config.configKey) {
         const parsedVal = parseFloat(config.configValue);
-        const val = isNaN(parsedVal) ? 0 : parsedVal;
+        const val = Number.isNaN(parsedVal) ? 0 : parsedVal;
         const numVal = config.valueType === "percentage" ? val / 100 : val;
         const baseKey = config.configKey.replace(/^(ORG_|GBL_)/, "");
         tokens[baseKey] = numVal;
@@ -563,7 +612,7 @@ export function buildTokenMap(
       : Object.values(templateConstants);
     for (const constant of constantsArray) {
       const parsedVal = parseFloat(constant.value ?? constant.defaultValue);
-      const val = isNaN(parsedVal) ? 0 : parsedVal;
+      const val = Number.isNaN(parsedVal) ? 0 : parsedVal;
       const key = constant.key ?? constant.token;
       if (key) {
         tokens[key] = val;
@@ -585,6 +634,18 @@ export function buildTokenMap(
           bareToken = field.orgConfigKey.toUpperCase().replace(/^(GBL_|ORG_)/, "");
         }
         tokens[bareToken] = 0;
+      }
+    }
+  }
+
+  // Inject expense categories (bare canonical key and EXP_TOTAL)
+  tokens.EXP_TOTAL = 0;
+  if (categoriesData) {
+    for (const cat of categoriesData) {
+      const key = cat.tokenKey;
+      if (key && key !== "EXP_TOTAL") {
+        const bare = key.replace(/^EXP_/, "");
+        tokens[bare] = 0;
       }
     }
   }
@@ -635,7 +696,7 @@ export function buildTokenMap(
           }
         } else if (row.valueType !== "formula" && row.initialValue != null) {
           const val = parseFloat(String(row.initialValue));
-          if (!isNaN(val)) {
+          if (!Number.isNaN(val)) {
             rowBase = val;
           }
         }
@@ -716,6 +777,6 @@ export function buildTokenMap(
 
 /** Round a number to 2 decimal places for display. */
 export function fmt(val: number | null | undefined): string {
-  if (val == null || !isFinite(val)) return "—";
+  if (val == null || !Number.isFinite(val)) return "—";
   return val % 1 === 0 ? String(val) : val.toFixed(2);
 }

@@ -1,5 +1,6 @@
 import { relations } from "drizzle-orm";
 import {
+  AnyPgColumn,
   boolean,
   integer,
   jsonb,
@@ -7,23 +8,21 @@ import {
   text,
   timestamp,
   unique,
-  uniqueIndex,
 } from "drizzle-orm/pg-core";
 import { organizations, users } from "./auth";
-import { configValueTypeEnum } from "./invoice-enums";
+import { tokens } from "./tokens";
 
 export const organizationConfigs = pgTable(
   "organization_configs",
   {
-    id: text("id").primaryKey(),
+    id: text("id")
+      .primaryKey()
+      .references((): AnyPgColumn => tokens.id, { onDelete: "cascade" }),
     organizationId: text("organization_id")
       .notNull()
       .references(() => organizations.id, { onDelete: "cascade" }),
     configKey: text("config_key").notNull(),
     configValue: text("config_value").notNull(),
-    displayLabel: text("display_label").notNull(),
-    valueType: configValueTypeEnum("value_type").notNull(),
-    isFormulaInjectable: boolean("is_formula_injectable").default(false).notNull(),
     updatedByUserId: text("updated_by_user_id").references(() => users.id, {
       onDelete: "set null",
     }),
@@ -33,10 +32,7 @@ export const organizationConfigs = pgTable(
       .notNull()
       .$onUpdate(() => new Date()),
   },
-  (table) => [
-    unique("org_config_key_unique").on(table.organizationId, table.configKey),
-    unique("org_config_label_unique").on(table.organizationId, table.displayLabel),
-  ],
+  (table) => [unique("org_config_key_unique").on(table.organizationId, table.configKey)],
 );
 
 export const invoicePdfLayouts = pgTable("invoice_pdf_layouts", {
@@ -81,6 +77,10 @@ export const invoiceDocumentSequences = pgTable("invoice_document_sequences", {
 });
 
 export const organizationConfigsRelations = relations(organizationConfigs, ({ one }) => ({
+  token: one(tokens, {
+    fields: [organizationConfigs.id],
+    references: [tokens.id],
+  }),
   organization: one(organizations, {
     fields: [organizationConfigs.organizationId],
     references: [organizations.id],

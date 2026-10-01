@@ -1,5 +1,4 @@
 import { db, invoiceDrafts, invoiceTemplates, organizations, projects, users } from "@starter/db";
-import { eq } from "drizzle-orm";
 
 async function main() {
   try {

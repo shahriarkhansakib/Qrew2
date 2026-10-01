@@ -407,7 +407,7 @@ export function AddPurchaseModal({ isOpen, onClose, editPurchase, initialProduct
                 </thead>
                 <tbody>
                   {fields.map((field, idx) => {
-                    const item = watchedItems[idx];
+                    const _item = watchedItems[idx];
                     return (
                       <tr key={field.id} className="border-t">
                         <td className="px-2 py-1.5">

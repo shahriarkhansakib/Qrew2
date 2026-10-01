@@ -8,17 +8,7 @@
  */
 
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import {
-  CHARGE_ID,
-  makeCtx,
-  makeRow,
-  makeRowCharge,
-  makeSelectChain,
-  ORG_ID,
-  ROW_ID,
-  SECTION_ID,
-  TEMPLATE_ID,
-} from "../../invoice-templates.fixtures";
+import { makeRow, ORG_ID, SECTION_ID, TEMPLATE_ID } from "../../invoice-templates.fixtures";
 
 // ─── hoisted chain builder used inside the vi.mock factory ────────────────────
 const { hoistedChain } = vi.hoisted(() => ({
@@ -98,7 +88,7 @@ import { db } from "@starter/db";
 // ─── Mock helpers ─────────────────────────────────────────────────────────────
 
 /** Queue up all 4 selects for section-ownership flow (section check + 3 index builders) */
-function mockSectionOwned(templateId = TEMPLATE_ID) {
+function _mockSectionOwned(templateId = TEMPLATE_ID) {
   (db.select as any)
     .mockReturnValueOnce(
       hoistedChain([
@@ -113,12 +103,12 @@ function mockSectionOwned(templateId = TEMPLATE_ID) {
     .mockReturnValueOnce(hoistedChain([])); // buildConstantIndex
 }
 
-function mockSectionNotFound() {
+function _mockSectionNotFound() {
   (db.select as any).mockReturnValueOnce(hoistedChain([]));
 }
 
 /** Queue up all 4 selects for row-ownership flow (row+org check + 3 index builders) */
-function mockRowOwned(row = makeRow()) {
+function _mockRowOwned(row = makeRow()) {
   (db.select as any)
     .mockReturnValueOnce(hoistedChain([{ row, orgId: ORG_ID }]))
     .mockReturnValueOnce(hoistedChain([])) // buildRowIndex (collision check)
@@ -126,11 +116,11 @@ function mockRowOwned(row = makeRow()) {
     .mockReturnValueOnce(hoistedChain([])); // buildConstantIndex
 }
 
-function mockRowNotFound() {
+function _mockRowNotFound() {
   (db.select as any).mockReturnValueOnce(hoistedChain([]));
 }
 
-function mockTransaction(result: any) {
+function _mockTransaction(result: any) {
   (db.transaction as any).mockImplementation(async (fn: any) => {
     const tx = {
       insert: vi.fn(() => ({

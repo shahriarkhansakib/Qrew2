@@ -1,9 +1,8 @@
 "use client";
 
 import { format } from "date-fns";
-import { Lock } from "lucide-react";
 import Link from "next/link";
-import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
+import { TooltipProvider } from "@/components/ui/tooltip";
 
 interface ProjectDataDisplayProps {
   project: any;
@@ -26,7 +25,7 @@ export function ProjectDataDisplay({ project, customFields, status }: ProjectDat
     if (field.fieldType === "date") {
       try {
         return format(new Date(val), "MMM d, yyyy");
-      } catch (e) {
+      } catch (_e) {
         return val;
       }
     }

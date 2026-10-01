@@ -2,7 +2,7 @@
 
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { format } from "date-fns";
-import { Check, Loader2, Plus, X } from "lucide-react";
+import { Plus } from "lucide-react";
 import { useState } from "react";
 import { toast } from "sonner";
 import { AddExpenseModal } from "@/components/features/financials/add-expense-modal";

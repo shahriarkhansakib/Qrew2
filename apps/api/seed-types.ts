@@ -17,9 +17,9 @@ async function seed() {
     const existing = await db.select().from(invoiceTypes).where(eq(invoiceTypes.name, t.name));
     if (!existing.length) {
       await db.insert(invoiceTypes).values(t);
-      console.log("Inserted " + t.name);
+      console.log(`Inserted ${t.name}`);
     } else {
-      console.log("Skipped " + t.name);
+      console.log(`Skipped ${t.name}`);
     }
   }
   console.log("Seeded invoice types!");

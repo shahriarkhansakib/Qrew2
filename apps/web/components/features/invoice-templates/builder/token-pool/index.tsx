@@ -20,6 +20,7 @@ import { buildTokenMap, fmt } from "@/lib/formula-evaluator";
 import { cn } from "@/lib/utils";
 import { AddEditTemplateConstantModal } from "../add-edit-template-constant-modal";
 import { useBuilderContext } from "../builder-context";
+import { ExpenseCategoriesSection } from "./components/expense-categories-section";
 import { FileDetailsSection } from "./components/file-details-section";
 import { GlobalConstantsSection } from "./components/global-constants-section";
 import { SectionsTree } from "./components/sections-tree";
@@ -117,7 +118,7 @@ const TOKEN_TYPE_CONFIG: Record<
   },
 };
 
-const CONSTANT_LEGEND = [
+const _CONSTANT_LEGEND = [
   {
     dot: "bg-indigo-400",
     label: "Global Constant",
@@ -545,6 +546,15 @@ export function TemplateTokenPool({
     enabled: !!templateId,
   });
 
+  const { data: expenseCategories } = useQuery({
+    queryKey: ["expense-categories"],
+    queryFn: async () => {
+      const res = await fetch(`${apiUrl}/api/expense-categories`, { credentials: "include" });
+      if (!res.ok) return [];
+      return res.json();
+    },
+  });
+
   if (sectionsLoading) {
     return (
       <div className="p-4 space-y-3">
@@ -561,6 +571,7 @@ export function TemplateTokenPool({
     orgConfigs,
     templateConstants,
     templateHeaderFields,
+    expenseCategories,
   );
   const grandTotal = sortedSections.reduce(
     (sum: number, sec: any) =>
@@ -688,6 +699,12 @@ export function TemplateTokenPool({
                     className="text-xs px-2.5 py-1.5 data-[state=active]:bg-background shadow-none shrink-0"
                   >
                     Section Tokens
+                  </TabsTrigger>
+                  <TabsTrigger
+                    value="expense"
+                    className="text-xs px-2.5 py-1.5 data-[state=active]:bg-background shadow-none shrink-0"
+                  >
+                    Expense Categories
                   </TabsTrigger>
                 </TabsList>
               </div>
@@ -1119,6 +1136,62 @@ export function TemplateTokenPool({
                     </div>
                   </div>
                 </TabsContent>
+
+                {/* ── Tab: Expense Categories ── */}
+                <TabsContent value="expense" className="mt-0 space-y-4">
+                  <div className="space-y-3">
+                    <div className="flex items-center gap-2 border-b border-border/40 pb-2">
+                      <span className="w-3 h-3 rounded-full bg-rose-500" />
+                      <h4 className="text-xs font-bold text-foreground uppercase tracking-wide">
+                        Expense Category Tokens
+                      </h4>
+                    </div>
+                    <p className="text-xs text-foreground/80 px-1 leading-relaxed">
+                      Represent project expenses dynamically recorded across categories.
+                    </p>
+
+                    <div className="flex items-start gap-3 p-3 rounded-lg border border-border/40 bg-muted/10">
+                      <span className="w-2.5 h-2.5 rounded-full shrink-0 mt-1 bg-rose-500" />
+                      <div className="min-w-0 flex-1">
+                        <div className="flex items-center gap-2 flex-wrap">
+                          <span className="text-xs font-bold text-rose-500">EXP_TOTAL</span>
+                          <span className="font-mono text-[11px] px-1.5 py-0.5 rounded border bg-rose-500/15 text-rose-500 font-bold border-rose-500/30">
+                            EXP_TOTAL
+                          </span>
+                        </div>
+                        <p className="text-xs text-muted-foreground/80 mt-1 leading-relaxed">
+                          Grand total of all recorded expenses across every category for the
+                          project.
+                        </p>
+                      </div>
+                    </div>
+
+                    <div className="flex items-start gap-3 p-3 rounded-lg border border-border/40 bg-muted/10">
+                      <span className="w-2.5 h-2.5 rounded-full shrink-0 mt-1 bg-rose-400" />
+                      <div className="min-w-0 flex-1">
+                        <div className="flex items-center gap-2 flex-wrap">
+                          <span className="text-xs font-bold text-rose-400">Category Sum</span>
+                          <span className="font-mono text-[11px] px-1.5 py-0.5 rounded border bg-rose-500/10 text-rose-400 font-medium border-rose-500/20">
+                            &lt;CATEGORY&gt;
+                          </span>
+                        </div>
+                        <p className="text-xs text-muted-foreground/80 mt-1 leading-relaxed">
+                          Sum of expenses in a specific category (e.g. TRANSPORTATION, OFFICE).
+                        </p>
+                      </div>
+                    </div>
+
+                    <div className="p-3 rounded-lg bg-muted/20 border border-border/30 text-[11px] text-muted-foreground/80 space-y-1.5 mt-2">
+                      <p>
+                        • In the template builder, all expense category tokens evaluate to{" "}
+                        <code>0</code>.
+                      </p>
+                      <p>
+                        • At invoice generation time, they resolve to the live project expense sums.
+                      </p>
+                    </div>
+                  </div>
+                </TabsContent>
               </div>
             </Tabs>
           </DialogContent>
@@ -1146,6 +1219,12 @@ export function TemplateTokenPool({
           <FileDetailsSection
             allFileFields={allFileFields}
             getFileToken={getFileToken}
+            tokenZoomLevel={tokenZoomLevel}
+            handleTokenClick={handleTokenClick}
+            setShowLegend={setShowLegend}
+          />
+          <ExpenseCategoriesSection
+            categories={expenseCategories || []}
             tokenZoomLevel={tokenZoomLevel}
             handleTokenClick={handleTokenClick}
             setShowLegend={setShowLegend}

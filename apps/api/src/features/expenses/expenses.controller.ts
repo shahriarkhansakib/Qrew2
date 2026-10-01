@@ -1,4 +1,12 @@
-import { db, expenseCategories, expenses, projects, users, walletTransactions } from "@starter/db";
+import {
+  db,
+  expenseCategories,
+  expenses,
+  projects,
+  tokens,
+  users,
+  walletTransactions,
+} from "@starter/db";
 import { and, desc, eq } from "drizzle-orm";
 import { type Context } from "hono";
 import { v4 as uuidv4 } from "uuid";
@@ -74,33 +82,10 @@ export async function listExpenses(c: Context) {
 
   const projectId = c.req.query("projectId");
 
-  const query = db
-    .select({
-      id: expenses.id,
-      amount: expenses.amount,
-      description: expenses.description,
-      createdAt: expenses.createdAt,
-      categoryName: expenseCategories.name,
-      spentBy: users.name,
-      projectName: projects.name,
-    })
-    .from(expenses)
-    .where(eq(expenses.organizationId, organizationId))
-    .leftJoin(expenseCategories, eq(expenses.categoryId, expenseCategories.id))
-    .leftJoin(users, eq(expenses.memberId, users.id))
-    .leftJoin(projects, eq(expenses.projectId, projects.id));
-
-  // Note: if projectId is passed, we would filter by it, but drizzle eq needs a condition
-  // We will do it properly:
-
   const conditions: any[] = [eq(expenses.organizationId, organizationId)];
   if (projectId) {
     conditions.push(eq(expenses.projectId, projectId));
   }
-
-  // Re-build query with exact conditions
-  // We can't spread directly in where if it's dynamic easily without `and`
-  // Actually, drizzle has `and(...conditions)`
 
   const allExpenses = await db
     .select({
@@ -108,13 +93,14 @@ export async function listExpenses(c: Context) {
       amount: expenses.amount,
       description: expenses.description,
       createdAt: expenses.createdAt,
-      categoryName: expenseCategories.name,
+      categoryName: tokens.label,
       spentBy: users.name,
       projectName: projects.name,
     })
     .from(expenses)
     .where(and(...conditions))
     .leftJoin(expenseCategories, eq(expenses.categoryId, expenseCategories.id))
+    .leftJoin(tokens, eq(expenseCategories.id, tokens.id))
     .leftJoin(users, eq(expenses.memberId, users.id))
     .leftJoin(projects, eq(expenses.projectId, projects.id))
     .orderBy(desc(expenses.createdAt));

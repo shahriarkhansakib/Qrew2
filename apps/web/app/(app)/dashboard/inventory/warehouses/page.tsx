@@ -141,7 +141,7 @@ export default function WarehousesPage() {
     if (saved) {
       try {
         setHiddenCols(JSON.parse(saved));
-      } catch (e) {}
+      } catch (_e) {}
     }
   }, []);
 
@@ -233,13 +233,13 @@ export default function WarehousesPage() {
           </DropdownMenuTrigger>
           <DropdownMenuContent align="end" className="w-[180px]">
             <DropdownMenuCheckboxItem
-              checked={!hiddenCols["name"]}
+              checked={!hiddenCols.name}
               onCheckedChange={(c) => toggleColumn("name", c)}
             >
               Name
             </DropdownMenuCheckboxItem>
             <DropdownMenuCheckboxItem
-              checked={!hiddenCols["location"]}
+              checked={!hiddenCols.location}
               onCheckedChange={(c) => toggleColumn("location", c)}
             >
               Location
@@ -252,26 +252,26 @@ export default function WarehousesPage() {
         <Table>
           <TableHeader>
             <TableRow className="bg-muted/50">
-              {!hiddenCols["name"] && (
+              {!hiddenCols.name && (
                 <FilterableTableHeader
                   columnKey="name"
                   title="Name"
                   isFiltered={isColumnFiltered("name")}
-                  activeValue={filters["name"]}
+                  activeValue={filters.name}
                   onClear={() => clearColumnFilter("name")}
-                  width={columnWidths["name"]}
+                  width={columnWidths.name}
                   onResizeStart={handleResizeStart}
                   onResetWidth={resetColumnWidth}
                 />
               )}
-              {!hiddenCols["location"] && (
+              {!hiddenCols.location && (
                 <FilterableTableHeader
                   columnKey="location"
                   title="Location"
                   isFiltered={isColumnFiltered("location")}
-                  activeValue={filters["location"]}
+                  activeValue={filters.location}
                   onClear={() => clearColumnFilter("location")}
-                  width={columnWidths["location"]}
+                  width={columnWidths.location}
                   onResizeStart={handleResizeStart}
                   onResetWidth={resetColumnWidth}
                 />
@@ -297,7 +297,7 @@ export default function WarehousesPage() {
             ) : (
               filteredWarehouses.map((w: any) => (
                 <TableRow key={w.id} className="hover:bg-muted/30 transition-colors">
-                  {!hiddenCols["name"] && (
+                  {!hiddenCols.name && (
                     <FilterableTableCell
                       columnKey="name"
                       value={w.name}
@@ -307,18 +307,18 @@ export default function WarehousesPage() {
                         setEditWarehouse(w);
                         setIsModalOpen(true);
                       }}
-                      width={columnWidths["name"]}
+                      width={columnWidths.name}
                     >
                       <span className="font-medium">{w.name}</span>
                     </FilterableTableCell>
                   )}
-                  {!hiddenCols["location"] && (
+                  {!hiddenCols.location && (
                     <FilterableTableCell
                       columnKey="location"
                       value={w.location ?? w.address ?? "—"}
                       isFiltered={isColumnFiltered("location")}
                       onToggleFilter={toggleFilter}
-                      width={columnWidths["location"]}
+                      width={columnWidths.location}
                     >
                       <span className="text-muted-foreground">
                         {w.location ?? w.address ?? "—"}

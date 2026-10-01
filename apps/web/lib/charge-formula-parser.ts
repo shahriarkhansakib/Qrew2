@@ -14,7 +14,7 @@ export type SimpleChargeFormula = {
  * @returns SimpleChargeFormula with the rate percentage, or null
  */
 export function parseChargeFormula(formula: string, baseToken: string): SimpleChargeFormula | null {
-  if (!formula || !formula.trim()) return null;
+  if (!formula?.trim()) return null;
 
   const raw = formula.trim();
   const cleanBase = baseToken.replace(/_BASE$/, "");
@@ -27,7 +27,7 @@ export function parseChargeFormula(formula: string, baseToken: string): SimpleCh
   );
   if (percentMatch) {
     const val = parseFloat(percentMatch[1]);
-    if (!isNaN(val)) return { operator: "*", value: val, unit: "percent" };
+    if (!Number.isNaN(val)) return { operator: "*", value: val, unit: "percent" };
   }
 
   // 2. Fraction syntax: BASE * (15/100)
@@ -36,7 +36,7 @@ export function parseChargeFormula(formula: string, baseToken: string): SimpleCh
   );
   if (fractionMatch) {
     const val = parseFloat(fractionMatch[1]);
-    if (!isNaN(val)) return { operator: "*", value: val, unit: "percent" };
+    if (!Number.isNaN(val)) return { operator: "*", value: val, unit: "percent" };
   }
 
   // 3. Decimal syntax: BASE * 0.15
@@ -45,7 +45,7 @@ export function parseChargeFormula(formula: string, baseToken: string): SimpleCh
   );
   if (decimalMatch) {
     const numValue = parseFloat(decimalMatch[1]);
-    if (!isNaN(numValue)) {
+    if (!Number.isNaN(numValue)) {
       const percentValue = Math.round(numValue * 100 * 10000) / 10000;
       return { operator: "*", value: percentValue, unit: "percent" };
     }

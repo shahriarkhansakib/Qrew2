@@ -5,13 +5,7 @@ import { AlertTriangle, Loader2, Plus, Trash2 } from "lucide-react";
 import { useEffect, useState } from "react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
-import {
-  Dialog,
-  DialogContent,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-} from "@/components/ui/dialog";
+import { Dialog, DialogContent, DialogFooter, DialogTitle } from "@/components/ui/dialog";
 import { apiUrl } from "@/lib/constants";
 import { WorkflowGraph } from "./workflow-graph";
 import { WorkflowNodeModal } from "./workflow-node-modal";
@@ -220,7 +214,7 @@ export function WorkflowBuilder({
       })
       .catch(() => {});
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  }, [queryClient.invalidateQueries]);
 
   // ── Move and Swap ──────────────────────────────────────────────────────────
 
@@ -300,7 +294,7 @@ export function WorkflowBuilder({
         targetId: swapRequest.targetId,
       });
       toast.success("Nodes swapped successfully");
-    } catch (e) {
+    } catch (_e) {
       // toast error is handled by onError in mutation
     } finally {
       setSwapRequest(null);
@@ -410,7 +404,7 @@ export function WorkflowBuilder({
       toast.error("A stage cannot connect to itself.");
       return;
     }
-    const fromStatus = statuses.find((s) => s.id === fromId);
+    const _fromStatus = statuses.find((s) => s.id === fromId);
     const toStatus = statuses.find((s) => s.id === toId);
     if (toStatus?.isInitial) {
       toast.error("Nothing can connect back to the starting stage.");

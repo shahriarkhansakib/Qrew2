@@ -40,7 +40,7 @@ describe("Formula Codec Unit Tests (Frontend-Bare <-> Backend-Prefixed)", () => 
     );
 
     expect(encoded).toBe(
-      "{{$row:row-uuid-1}}_BASE * GBL_VAT_RATE + FILE_CUSTOM1 * 2 + {{$tpl:tpl-uuid-1}} + {{$sec:sec-uuid-1}}_BASE",
+      "{{$tok:row-uuid-1}}_BASE * GBL_VAT_RATE + FILE_CUSTOM1 * 2 + {{$tok:tpl-uuid-1}} + {{$tok:sec-uuid-1}}_BASE",
     );
   });
 
