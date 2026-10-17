@@ -110,6 +110,33 @@ stateDiagram-v2
 - **Disputed Status**: Halts automated collections without destroying sequence or legal audit trail.
 - **Revert to Draft (Correct)**: Permitted from `frozen`, `issued`, and `disputed` (never `paid` or `void`). Restores constants, draft rows, draft headers, sets draft name to `Correction: <DocNum>`, logs to audit history, and cleans up the previous invoice record to release sequence/doc number.
 
+## 13. Canonical Domain Tokens & Zero-Float Arithmetic (`token-resolver.service.ts`)
+- **Canonical Namespace**:
+  - `FILE_<KEY_UPPER>`: Dynamic project custom fields (`customFields`).
+  - `EXP_<KEY_UPPER>`: Real-time expense category aggregations.
+  - `EXP_TOTAL`: Total recorded project expenses.
+  - `PERIOD_START` / `PERIOD_END`: Invoicing billing scope boundaries.
+- **Maritime Legacy Purge**: All legacy maritime-specific aliases (`pda`, `fda`) are permanently purged from database schemas, validation schemas, controllers, and formula contexts.
+- **Arbitrary Precision (BigNumber)**: All monetary evaluations use `mathjs` BigNumber configured at **20 decimal digits of precision**, eliminating floating-point rounding errors (`0.1 + 0.2 === 0.300000`).
+
+## 14. AST Math Functions & Keystroke Gating (`ast-evaluator.service.ts`, `use-formula-keydown.ts`)
+- **Supported AST Functions**: `CLAMP(x, min, max)`, `MIN(...)`, `MAX(...)`, `ROUND(x, decimals)`, `FLOOR(x)`, `CEIL(x)`, `ABS(x)`.
+- **Gating Exception for Function Invocations**:
+  - Formulas allow a function token name to be followed immediately by `(` without an operator (e.g. `CLAMP(`, `MIN(`).
+  - Outside of function invocations, binary operators (`+`, `-`, `*`, `/`, `//`, `%`) strictly require enclosing spaces.
+- **Formula Bar Function Tray**: The formula bar provides a collapsible "Show more / less" function tray exposing all available AST math functions.
+
+## 15. Optional Period Billing & Live Dynamic Sync (`generate-invoice-modal.tsx`, `token-resolver.service.ts`)
+- **Default Scope (Full Project Lifetime)**:
+  - Period-based billing is strictly **optional**. The default mode is **"Full Project Timeline (Dynamic Live Sync)"** with `periodStart = null` and `periodEnd = null`.
+  - In dynamic mode, drafts never bake in static expense sums; reopening or previewing drafts evaluates current live expenses dynamically.
+- **Specific Billing Period**: When toggled, date pickers define `periodStart` and `periodEnd`, scoping `EXP_*` tokens to expenses within the range `[periodStart, periodEnd]`.
+- **Duplicate Expense Guard**: Org settings define `allowDuplicateExpenseBilling` (defaults to false), blocking or warning against re-billing expenses already frozen in prior invoices.
+
+## 16. Backend Math Engine Isolation
+- `mathjs` is strictly isolated on the backend Node.js server (`@starter/api`) and is never imported into `@starter/web`. The frontend bundle size impact is strictly **0 KB**.
+
+
 
 
 

@@ -32,6 +32,11 @@
 4. **PBAC**: Access requires `finance:manage_invoices` for creation, upsert, and deletion; `finance:view_invoices` for listing and retrieval.
 5. **API Error Hygiene**: All draft controllers catch errors cleanly and return sanitized `{ error: string }` payloads without leaking server stack traces (`err.stack`).
 
+### 2.3 Optional Period Billing & Atomic Freeze Targeting
+1. **Custom Draft Naming**: Drafts carry a user-configurable `draftName` (defaulting to the template name or "Correction: <DocNum>").
+2. **Optional Period Billing**: Drafts store `periodStart` and `periodEnd` (ISO strings or null). When null, the draft operates in **Full Project Timeline (Live Sync)** mode, dynamically computing newly added project expenses.
+3. **Atomic Draft Finalization (`freezeParams.draftId`)**: Finalizing an invoice accepts an optional `draftId`. When provided, the finalization transaction targets that specific draft, computes its snapshot, generates the invoice record, and deletes that exact draft record atomically upon successful commit.
+
 ## 3. Draft Lifecycle & Correction State Machine
 
 ```mermaid

@@ -47,7 +47,7 @@ components/features/invoice-templates/
 ### A. Layout & Placement
 - The formula bar is rendered sticky at the top of the table builder (`sticky top-0 z-30`).
 - Consists of:
-  1. **Quick Operator Bar** (`+`, `-`, `*`, `/`, `(`, `)`, `%`, `//`) rendered directly above the formula row.
+  1. **Quick Operator Bar** (`+`, `-`, `*`, `/`, `(`, `)`, `%`, `//`) rendered directly above the formula row, plus a collapsible "Functions" drawer exposing AST math helpers (`CLAMP`, `MIN`, `MAX`, `ROUND`, `FLOOR`, `CEIL`, `ABS`).
   2. **fx Breadcrumb**: Shows the currently selected cell hierarchy (e.g. `Section > Row > Base`).
   3. **Monospace Input with Overlay**: Monospace transparent input placed over an aligned `SyntaxOverlay`.
 
@@ -56,7 +56,8 @@ components/features/invoice-templates/
 - **Allowed Keystrokes**:
   - Operators: `+`, `-`, `*`, `/`, `%`, `//`, `(`, `)`.
   - Digits & Decimals: `0-9`, `.`.
-  - Tokens: Letters and underscores matching active token prefixes.
+  - Tokens & Functions: Letters and underscores matching active token prefixes or supported AST functions (`CLAMP`, `MIN`, `MAX`, `ROUND`, `FLOOR`, `CEIL`, `ABS`).
+  - Function Invocations: Typing `(` directly following a recognized function name is permitted without requiring an operator (e.g. `CLAMP(`).
   - All letters are automatically capitalized (`UPPER_SNAKE_CASE`).
 - **Strict Spacing Rules**:
   - Literal spaces CANNOT be manually typed or deleted.

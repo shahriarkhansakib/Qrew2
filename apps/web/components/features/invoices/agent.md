@@ -793,3 +793,14 @@ stateDiagram-v2
    - `paid`: Primary badge with `CheckCircle2` icon. Actions: *View*, *Void Invoice*.
    - `void`: Red badge with `AlertCircle` icon. Read-only terminal state.
 
+### 12.3 Optional Period Billing & Project Hub Resumption
+1. **Billing Scope Toggle (`generate-invoice-modal.tsx`)**:
+   - Explicit radio choice:
+     - **Full Project Timeline (Dynamic Live Sync)** (Default): `periodStart = null`, `periodEnd = null`. Live token resolution updates draft computations dynamically as new expenses are logged.
+     - **Specific Billing Period**: Exposes start and end date pickers, establishing bounded `PERIOD_START` and `PERIOD_END`.
+2. **Collaborative Draft Resumption from Project Hub**:
+   - Both `projects/[id]/page.tsx` and `project-details-modal.tsx` feature a dedicated **Collaborative Invoicing Drafts** card listing all active drafts, creator attribution (`Created by <Name>`), expense scope badges, and 1-click **Resume Draft** buttons.
+3. **Revert to Draft Safety Dialog**:
+   - In `invoices/page.tsx`, reverting an invoice to draft launches an `AlertDialog` warning users that sequence numbers will be released, before routing them directly to the restored draft editor.
+
+
