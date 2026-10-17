@@ -2,15 +2,7 @@
 
 import { useQuery } from "@tanstack/react-query";
 import { format } from "date-fns";
-import {
-  ArrowLeft,
-  Clock,
-  Eye,
-  FileStack,
-  Pencil,
-  Plus,
-  Receipt,
-} from "lucide-react";
+import { ArrowLeft, Clock, Eye, FileStack, Pencil, Plus, Receipt } from "lucide-react";
 import Link from "next/link";
 import { use, useState } from "react";
 import { GenerateInvoiceModal } from "@/components/features/invoices/generate-invoice-modal";
