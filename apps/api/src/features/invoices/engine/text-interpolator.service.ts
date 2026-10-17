@@ -29,16 +29,14 @@ const KEY_TOKEN_REGEX = /\{\{([A-Z_][A-Z0-9_]*)\}\}/g;
  * level, the scope value is returned as-is, formatted cleanly.
  */
 function formatScopeValue(_tokenName: string, rawValue: string): string {
-  // Try to parse as a number and format cleanly
-  const num = parseFloat(rawValue);
-  if (Number.isNaN(num)) return rawValue; // keep as-is for text values
-
-  // Format: remove unnecessary trailing zeros
-  // e.g. "20151.000000" → "20151", "0.150000" → "0.15"
-  return num.toLocaleString("en-US", {
-    maximumFractionDigits: 6,
-    useGrouping: false,
-  });
+  // Format: remove unnecessary trailing zeros without floating-point conversion
+  // e.g. "20151.000000" → "20151", "0.150000" → "0.15", "0.000000" → "0"
+  if (/^[+-]?\d+(\.\d+)?$/.test(rawValue)) {
+    if (!rawValue.includes(".")) return rawValue;
+    const stripped = rawValue.replace(/\.?0+$/, "");
+    return stripped === "" || stripped === "-" || stripped === "+" ? "0" : stripped;
+  }
+  return rawValue;
 }
 
 /**

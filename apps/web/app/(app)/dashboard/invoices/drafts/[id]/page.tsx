@@ -1,10 +1,12 @@
 "use client";
 
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { format } from "date-fns";
 import {
   AlertTriangle,
   ArrowLeft,
   CheckCircle,
+  History,
   Loader2,
   PanelRightClose,
   PanelRightOpen,
@@ -33,6 +35,11 @@ import {
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import {
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from "@/components/ui/popover";
 import { apiUrl } from "@/lib/constants";
 import { cn } from "@/lib/utils";
 
@@ -268,25 +275,103 @@ export default function DraftBuilderPage() {
             </div>
 
             {isEditMode ? (
-              <Input
-                className="h-5 text-xs text-muted-foreground px-1 py-0 w-96 border-transparent bg-muted/30 hover:bg-muted/50 focus-visible:ring-1 focus-visible:ring-offset-0 mt-0.5"
-                defaultValue={
-                  draft?.description ||
-                  `${draft?.project?.name ?? "-"} - Changes apply only to this draft`
-                }
-                onBlur={(e) => updateDraftDetails("description", e.target.value)}
-                placeholder="Draft Description"
-              />
+              <div className="flex items-center gap-2 mt-0.5">
+                <Input
+                  className="h-5 text-xs text-muted-foreground px-1 py-0 w-80 border-transparent bg-muted/30 hover:bg-muted/50 focus-visible:ring-1 focus-visible:ring-offset-0"
+                  defaultValue={
+                    draft?.description ||
+                    `${draft?.project?.name ?? "-"} - Changes apply only to this draft`
+                  }
+                  onBlur={(e) => updateDraftDetails("description", e.target.value)}
+                  placeholder="Draft Description"
+                />
+                <span className="text-[11px] text-muted-foreground/50">•</span>
+                <span className="text-[11px] text-muted-foreground">
+                  Created by{" "}
+                  <strong className="font-medium text-foreground">
+                    {draft.user?.name || draft.user?.email || "Team Member"}
+                  </strong>
+                </span>
+              </div>
             ) : (
-              <p className="text-xs text-muted-foreground mt-0.5">
-                {draft?.description ||
-                  `${draft?.project?.name ?? "-"} - Read-only preview. Click Edit Draft to make changes.`}
-              </p>
+              <div className="flex items-center gap-2 mt-0.5">
+                <p className="text-xs text-muted-foreground">
+                  {draft?.description ||
+                    `${draft?.project?.name ?? "-"} - Read-only preview. Click Edit Draft to make changes.`}
+                </p>
+                <span className="text-[11px] text-muted-foreground/50">•</span>
+                <span className="text-[11px] text-muted-foreground">
+                  Created by{" "}
+                  <strong className="font-medium text-foreground">
+                    {draft.user?.name || draft.user?.email || "Team Member"}
+                  </strong>
+                </span>
+              </div>
             )}
           </div>
         </div>
 
         <div className="flex items-center gap-2">
+          {/* Audit History Popover */}
+          <Popover>
+            <PopoverTrigger asChild>
+              <Button
+                variant="outline"
+                size="sm"
+                className="h-8 gap-1.5 text-xs text-muted-foreground hover:text-foreground"
+              >
+                <History className="h-3.5 w-3.5" />
+                <span>
+                  {Array.isArray(draft?.editHistory) && draft.editHistory.length > 0
+                    ? `${draft.editHistory.length} edit${draft.editHistory.length === 1 ? "" : "s"}`
+                    : "History"}
+                </span>
+              </Button>
+            </PopoverTrigger>
+            <PopoverContent align="end" className="w-80 p-3">
+              <div className="flex items-center justify-between pb-2 mb-2 border-b">
+                <div className="flex flex-col">
+                  <span className="font-semibold text-xs text-foreground">Draft Audit Trail</span>
+                  <span className="text-[10px] text-muted-foreground">
+                    Created by {draft.user?.name || draft.user?.email || "Team Member"}
+                    {draft.createdAt && ` on ${format(new Date(draft.createdAt), "MMM d, yyyy")}`}
+                  </span>
+                </div>
+                <Badge variant="secondary" className="text-[10px] font-mono">
+                  {Array.isArray(draft?.editHistory) ? draft.editHistory.length : 1}
+                </Badge>
+              </div>
+              <div className="max-h-64 overflow-y-auto flex flex-col gap-2.5 pr-1 divide-y divide-border/40">
+                {!Array.isArray(draft?.editHistory) || draft.editHistory.length === 0 ? (
+                  <div className="text-xs text-muted-foreground py-2 text-center">
+                    Created by {draft.user?.name || draft.user?.email || "Team Member"}.
+                  </div>
+                ) : (
+                  draft.editHistory
+                    .slice()
+                    .reverse()
+                    .map((entry: any, idx: number) => (
+                      <div key={idx} className="flex flex-col gap-0.5 text-xs pt-2 first:pt-0">
+                        <div className="flex items-center justify-between gap-1">
+                          <span className="font-medium text-foreground truncate max-w-[160px]">
+                            {entry.userName || entry.userEmail || "Team Member"}
+                          </span>
+                          <span className="text-[10px] text-muted-foreground font-mono shrink-0">
+                            {entry.editedAt
+                              ? format(new Date(entry.editedAt), "MMM d, h:mm a")
+                              : "—"}
+                          </span>
+                        </div>
+                        <span className="text-[11px] text-muted-foreground">
+                          {entry.action || "Updated draft"}
+                        </span>
+                      </div>
+                    ))
+                )}
+              </div>
+            </PopoverContent>
+          </Popover>
+
           {/* Workspace Zoom Controls */}
           <div className="flex items-center gap-1 border border-border rounded-md px-1 h-8 shrink-0 mr-2">
             <Button

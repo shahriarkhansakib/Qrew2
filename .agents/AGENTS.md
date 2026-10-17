@@ -78,6 +78,39 @@ When implementing new features, tables, or data fields across this platform, you
 - **Leftward Overlap Expansion**: When hovered, if a formula is truncated in its allocated space (`max-w-[12rem]`), the badge expands **towards the left** (`absolute right-0 top-1`), overlaying table cells (USD2, USD1, label).
 - **Multiline Downward Overflow**: If the formula exceeds the expanded max width (`max-w-xl`), it wraps to multiple lines and extends downward over the next row with `z-50`, shadow elevation, and backdrop blur. Non-truncated formulas do not expand into the table on hover.
 
+## 11. Multi-Draft Collaboration & Edit Audit Trail (`invoice-instances.ts`, `drafts.controller.ts`)
+- **Unlimited Project Drafts**: Projects can have any number of drafts created by any authorized team member (`finance:manage_invoices`). Drafts are never restricted to 1-per-user-per-project.
+- **Organization-Wide Shared Editing**: All members with `finance:manage_invoices` can collaborate on and edit any draft in the organization.
+- **Creator Attribution**: Creator user identity is preserved on draft creation and displayed across all views.
+- **Lightweight Audit Trail (`editHistory`)**: Every draft logs revisions in `editHistory` with user metadata, action description, and timestamp. Consecutive edits by the same user within 2 minutes coalesce into a single entry; capped at 50 entries.
+
+## 12. Invoice Lifecycle State Machine & Correction Workflow (`invoices.controller.ts`)
+```mermaid
+stateDiagram-v2
+    direction LR
+    [*] --> Draft: Created by team member
+    Draft --> Frozen: Finalize draft (Ready to Bill)
+    Frozen --> Draft: Revert to draft (Correct)
+    Frozen --> Issued: Send / Mark as Issued
+    Frozen --> Void: Void
+    
+    Issued --> Paid: Client pays
+    Issued --> Disputed: Client contests line items
+    Issued --> Draft: Revert to draft (Correct)
+    Issued --> Void: Void
+
+    Disputed --> Issued: Resolve dispute (Re-issue)
+    Disputed --> Paid: Settled & paid
+    Disputed --> Draft: Revert to draft (Correct)
+    Disputed --> Void: Void
+
+    Paid --> Void: Void
+    Void --> [*]
+```
+- **Disputed Status**: Halts automated collections without destroying sequence or legal audit trail.
+- **Revert to Draft (Correct)**: Permitted from `frozen`, `issued`, and `disputed` (never `paid` or `void`). Restores constants, draft rows, draft headers, sets draft name to `Correction: <DocNum>`, logs to audit history, and cleans up the previous invoice record to release sequence/doc number.
+
+
 
 
 

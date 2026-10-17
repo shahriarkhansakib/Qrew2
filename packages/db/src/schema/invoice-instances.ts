@@ -1,10 +1,18 @@
 import { relations } from "drizzle-orm";
-import { boolean, integer, jsonb, pgTable, text, timestamp, unique } from "drizzle-orm/pg-core";
+import { boolean, index, integer, jsonb, pgTable, text, timestamp, unique } from "drizzle-orm/pg-core";
 import { organizations, users } from "./auth";
 import { documentTypeEnum } from "./invoice-enums";
 import { invoiceTemplates } from "./invoice-templates";
 import { invoices } from "./invoices";
 import { projects } from "./projects";
+
+export interface DraftEditAuditEntry {
+  userId: string;
+  userName: string;
+  userEmail?: string;
+  editedAt: string;
+  action?: string;
+}
 
 export const invoiceDrafts = pgTable(
   "invoice_drafts",
@@ -29,6 +37,7 @@ export const invoiceDrafts = pgTable(
     draftHeaderValues: jsonb("draft_header_values").$type<any>().default({}).notNull(),
     draftConstants: jsonb("draft_constants").$type<any>().default({}).notNull(),
     draftSections: jsonb("draft_sections").$type<any>().default([]).notNull(),
+    editHistory: jsonb("edit_history").$type<DraftEditAuditEntry[]>().default([]).notNull(),
     lastAutoSavedAt: timestamp("last_auto_saved_at", { mode: "date" }).defaultNow().notNull(),
     createdAt: timestamp("created_at", { mode: "date" }).defaultNow().notNull(),
     updatedAt: timestamp("updated_at", { mode: "date" })
@@ -36,7 +45,11 @@ export const invoiceDrafts = pgTable(
       .notNull()
       .$onUpdate(() => new Date()),
   },
-  (table) => [unique("invoice_drafts_project_user_unique").on(table.projectId, table.userId)],
+  (table) => [
+    index("invoice_drafts_org_idx").on(table.organizationId),
+    index("invoice_drafts_project_idx").on(table.projectId),
+    index("invoice_drafts_user_idx").on(table.userId),
+  ],
 );
 
 export const invoiceReservedNumbers = pgTable(

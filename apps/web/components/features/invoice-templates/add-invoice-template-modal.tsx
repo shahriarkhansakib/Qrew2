@@ -326,7 +326,7 @@ export function AddEditInvoiceTemplateModal({
               value={name}
               onChange={(e) => handleNameChange(e.target.value)}
               required
-              placeholder="e.g. Standard PDA Template"
+              placeholder="e.g. Standard Agency Invoice Template"
             />
           </div>
 

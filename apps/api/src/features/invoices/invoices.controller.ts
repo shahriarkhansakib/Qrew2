@@ -1,7 +1,8 @@
-import { db, invoiceDrafts, invoiceLineItems, invoices, tokens } from "@starter/db";
+import { db, invoiceDrafts, invoiceLineItems, invoices, templateConstants, tokens } from "@starter/db";
 import { and, desc, eq, isNull, or } from "drizzle-orm";
 import { Context } from "hono";
 import { z } from "zod";
+import { appendAuditEntry } from "./drafts/draft-audit";
 import { freezeInvoice } from "./engine/invoice-freeze";
 
 const generateSchema = z.object({
@@ -204,24 +205,67 @@ export class InvoicesController {
       const id = c.req.param("id");
       const organizationId = c.get("organizationId");
 
-      const [invoice] = await db
+      const invoice = await db.query.invoices.findFirst({
+        where: and(eq(invoices.id, id!), eq(invoices.organizationId, organizationId!)),
+      });
+
+      if (!invoice) return c.json({ error: "Invoice not found" }, 404);
+      if (invoice.status === "issued") return c.json({ error: "Invoice is already issued" }, 409);
+      if (invoice.status === "paid") return c.json({ error: "Invoice is already marked as paid" }, 409);
+      if (invoice.status === "void") return c.json({ error: "Cannot issue a voided invoice" }, 422);
+      if (invoice.status !== "frozen" && invoice.status !== "disputed") {
+        return c.json({ error: `Cannot issue invoice from current status '${invoice.status}'` }, 422);
+      }
+
+      const [updated] = await db
         .update(invoices)
         .set({ status: "issued", issuedAt: new Date() })
-        .where(
-          and(
-            eq(invoices.id, id!),
-            eq(invoices.organizationId, organizationId!),
-            eq(invoices.status, "frozen"),
-          ),
-        )
+        .where(and(eq(invoices.id, id!), eq(invoices.organizationId, organizationId!)))
         .returning();
 
-      if (!invoice) return c.json({ error: "Invoice not found or not in frozen state" }, 404);
-
-      return c.json(invoice);
+      return c.json(updated);
     } catch (err: any) {
       console.error("[InvoicesController.issueInvoice]", err);
       return c.json({ error: "Failed to issue invoice" }, 500);
+    }
+  }
+
+  static async disputeInvoice(c: Context) {
+    try {
+      const id = c.req.param("id");
+      const organizationId = c.get("organizationId");
+      let body: any = {};
+      try {
+        body = await c.req.json();
+      } catch {
+        // body is optional
+      }
+
+      const invoice = await db.query.invoices.findFirst({
+        where: and(eq(invoices.id, id!), eq(invoices.organizationId, organizationId!)),
+      });
+
+      if (!invoice) return c.json({ error: "Invoice not found" }, 404);
+      if (invoice.status === "disputed") return c.json({ error: "Invoice is already marked as disputed" }, 409);
+      if (invoice.status === "paid") return c.json({ error: "Cannot dispute a paid invoice" }, 409);
+      if (invoice.status === "void") return c.json({ error: "Cannot dispute a voided invoice" }, 422);
+      if (invoice.status !== "issued") {
+        return c.json({ error: "Only issued invoices can be marked as disputed" }, 422);
+      }
+
+      const [updated] = await db
+        .update(invoices)
+        .set({
+          status: "disputed",
+          notes: body.disputeReason ? `Dispute: ${body.disputeReason}` : invoice.notes,
+        })
+        .where(and(eq(invoices.id, id!), eq(invoices.organizationId, organizationId!)))
+        .returning();
+
+      return c.json(updated);
+    } catch (err: any) {
+      console.error("[InvoicesController.disputeInvoice]", err);
+      return c.json({ error: "Failed to mark invoice as disputed" }, 500);
     }
   }
 
@@ -229,17 +273,28 @@ export class InvoicesController {
     try {
       const id = c.req.param("id");
       const organizationId = c.get("organizationId");
-      const body = await c.req.json();
+      const body = await c.req.json().catch(() => ({}));
 
-      const [invoice] = await db
+      const invoice = await db.query.invoices.findFirst({
+        where: and(eq(invoices.id, id!), eq(invoices.organizationId, organizationId!)),
+      });
+
+      if (!invoice) return c.json({ error: "Invoice not found" }, 404);
+      if (invoice.status === "void") return c.json({ error: "Invoice is already voided" }, 409);
+      if (invoice.status === "paid") {
+        return c.json(
+          { error: "Cannot void a paid invoice. Please record a credit note or refund." },
+          422,
+        );
+      }
+
+      const [updated] = await db
         .update(invoices)
         .set({ status: "void", voidedAt: new Date(), voidReason: body.voidReason || null })
         .where(and(eq(invoices.id, id!), eq(invoices.organizationId, organizationId!)))
         .returning();
 
-      if (!invoice) return c.json({ error: "Invoice not found" }, 404);
-
-      return c.json(invoice);
+      return c.json(updated);
     } catch (err: any) {
       console.error("[InvoicesController.voidInvoice]", err);
       return c.json({ error: "Failed to void invoice" }, 500);
@@ -251,84 +306,129 @@ export class InvoicesController {
       const id = c.req.param("id");
       const organizationId = c.get("organizationId");
 
-      const [invoice] = await db
+      const invoice = await db.query.invoices.findFirst({
+        where: and(eq(invoices.id, id!), eq(invoices.organizationId, organizationId!)),
+      });
+
+      if (!invoice) return c.json({ error: "Invoice not found" }, 404);
+      if (invoice.status === "paid") return c.json({ error: "Invoice is already marked as paid" }, 409);
+      if (invoice.status === "void") return c.json({ error: "Cannot mark a voided invoice as paid" }, 422);
+      if (invoice.status === "draft") {
+        return c.json({ error: "Cannot mark a draft invoice as paid without finalizing it" }, 422);
+      }
+
+      const [updated] = await db
         .update(invoices)
         .set({ status: "paid", paidAt: new Date() })
         .where(and(eq(invoices.id, id!), eq(invoices.organizationId, organizationId!)))
         .returning();
 
-      if (!invoice) return c.json({ error: "Invoice not found" }, 404);
-
-      return c.json(invoice);
+      return c.json(updated);
     } catch (err: any) {
       console.error("[InvoicesController.markPaid]", err);
       return c.json({ error: "Failed to mark invoice as paid" }, 500);
     }
   }
 
+  /**
+   * Revert invoice to draft state (for corrections requested by clients or pre-issue adjustments).
+   * Supports invoices in 'frozen', 'issued', or 'disputed' status.
+   */
   static async unfreezeInvoice(c: Context) {
     try {
       const id = c.req.param("id");
       const organizationId = c.get("organizationId");
-      const userId = (c.get("user") as any).id;
+      const user = c.get("user") as any;
 
-      // Find the frozen invoice
+      // Find the invoice
       const invoice = await db.query.invoices.findFirst({
         where: and(
           eq(invoices.id, id!),
           eq(invoices.organizationId, organizationId!),
-          eq(invoices.status, "frozen"),
         ),
       });
 
-      if (!invoice) return c.json({ error: "Frozen invoice not found" }, 404);
+      if (!invoice) return c.json({ error: "Invoice not found" }, 404);
 
-      await db.transaction(async (tx) => {
+      if (invoice.status === "paid") {
+        return c.json(
+          { error: "Cannot revert a paid invoice to draft. Void or refund the invoice first." },
+          422,
+        );
+      }
+      if (invoice.status === "void") {
+        return c.json({ error: "Cannot revert a voided invoice to draft." }, 422);
+      }
+      if (!["frozen", "issued", "disputed"].includes(invoice.status)) {
+        return c.json(
+          { error: `Cannot revert invoice with status '${invoice.status}' to draft` },
+          422,
+        );
+      }
+
+      const resultDraftId = await db.transaction(async (tx) => {
         // Create draft from the historical snapshot
         const { historicalFormat, resolvedHeaderValues } = invoice;
 
-        // Check if draft exists
-        const [existingDraft] = await tx
-          .select()
-          .from(invoiceDrafts)
-          .where(
-            and(eq(invoiceDrafts.projectId, invoice.projectId), eq(invoiceDrafts.userId, userId)),
-          )
-          .limit(1);
-
-        if (existingDraft) {
-          await tx
-            .update(invoiceDrafts)
-            .set({
-              sourceTemplateId: invoice.sourceTemplateId,
-              draftHeaderValues: resolvedHeaderValues || {},
-              draftSections: historicalFormat?.sections || [],
-              draftConstants: {},
-              lastAutoSavedAt: new Date(),
-            })
-            .where(eq(invoiceDrafts.id, existingDraft.id));
-        } else {
-          await tx.insert(invoiceDrafts).values({
-            id: crypto.randomUUID(),
-            organizationId: invoice.organizationId,
-            projectId: invoice.projectId,
-            userId: userId,
-            sourceTemplateId: invoice.sourceTemplateId,
-            draftHeaderValues: resolvedHeaderValues || {},
-            draftConstants: {},
-            draftSections: historicalFormat?.sections || [],
-            lastAutoSavedAt: new Date(),
+        // Restore template constants if available
+        const restoredConstants: Record<string, any> = {};
+        if (invoice.sourceTemplateId) {
+          const tplConstants = await tx.query.templateConstants.findMany({
+            where: eq(templateConstants.templateId, invoice.sourceTemplateId),
+            with: { token: true },
           });
+          for (const tc of tplConstants) {
+            if (tc.token?.tokenKey) {
+              restoredConstants[tc.token.tokenKey] = {
+                id: tc.id,
+                key: tc.token.tokenKey,
+                value: tc.defaultValue || "0",
+                description: tc.token.label,
+              };
+            }
+          }
         }
 
-        // Delete the frozen invoice (which also deletes line items due to cascade)
+        const draftName = invoice.documentNumber
+          ? `Correction: ${invoice.documentNumber}`
+          : "Draft";
+
+        const auditHistory = appendAuditEntry(
+          [],
+          user,
+          `Reverted from ${invoice.status} invoice (${invoice.documentNumber || "Draft"}) for correction`,
+        );
+
+        const newDraftId = crypto.randomUUID();
+        await tx.insert(invoiceDrafts).values({
+          id: newDraftId,
+          organizationId: invoice.organizationId,
+          projectId: invoice.projectId,
+          userId: user.id,
+          sourceTemplateId: invoice.sourceTemplateId,
+          sourceTemplateVersion: invoice.sourceTemplateVersion,
+          name: draftName,
+          draftHeaderValues: resolvedHeaderValues || {},
+          draftConstants: restoredConstants,
+          draftSections: historicalFormat?.sections || [],
+          editHistory: auditHistory,
+          lastAutoSavedAt: new Date(),
+        });
+
+        // Delete the frozen/issued/disputed invoice record (which cascades to line items)
         await tx.delete(invoices).where(eq(invoices.id, id!));
+
+        return newDraftId;
       });
 
-      return c.json({ success: true, message: "Reverted to draft" });
+      return c.json({
+        success: true,
+        message: "Invoice successfully reverted to editable draft for correction",
+        draftId: resultDraftId,
+      });
     } catch (err: any) {
       console.error("[InvoicesController.unfreezeInvoice]", err);
-      return c.json({ error: "Failed to unfreeze invoice" }, 500);
+      return c.json({ error: "Failed to revert invoice to draft" }, 500);
     }
   }
 }

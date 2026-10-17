@@ -64,6 +64,11 @@ const STATUS_META: Record<string, { label: string; color: string; icon: React.El
     color: "bg-indigo-500/10 text-indigo-400 border-indigo-500/20",
     icon: Receipt,
   },
+  disputed: {
+    label: "Disputed",
+    color: "bg-amber-500/10 text-amber-500 border-amber-500/20",
+    icon: AlertCircle,
+  },
   paid: {
     label: "Paid",
     color: "bg-primary/10 text-primary border-primary/20",
@@ -138,18 +143,31 @@ export default function InvoicesPage() {
 
   const queryClient = useQueryClient();
 
-  const handleAction = async (invoiceId: string, action: "unfreeze" | "mark-paid" | "issue") => {
+  const handleAction = async (
+    invoiceId: string,
+    action: "unfreeze" | "mark-paid" | "issue" | "dispute" | "void",
+  ) => {
     try {
       const res = await fetch(`${apiUrl}/api/invoices/${invoiceId}/${action}`, {
         method: "POST",
         credentials: "include",
       });
-      if (!res.ok) throw new Error("Action failed");
-      toast.success("Invoice updated successfully");
+      if (!res.ok) {
+        const data = await res.json().catch(() => ({}));
+        throw new Error(data.error || "Action failed");
+      }
+      const actionMessages: Record<string, string> = {
+        unfreeze: "Invoice reverted to draft for corrections",
+        dispute: "Invoice marked as disputed",
+        void: "Invoice marked as void",
+        issue: "Invoice marked as issued",
+        "mark-paid": "Invoice marked as paid",
+      };
+      toast.success(actionMessages[action] || "Invoice updated successfully");
       queryClient.invalidateQueries({ queryKey: ["invoices"] });
       queryClient.invalidateQueries({ queryKey: ["invoice-drafts"] });
-    } catch (_err) {
-      toast.error("Failed to update invoice");
+    } catch (err: any) {
+      toast.error(err.message || "Failed to update invoice");
     }
   };
 
@@ -224,7 +242,8 @@ export default function InvoicesPage() {
             <Table>
               <TableHeader>
                 <TableRow className="bg-muted/40 hover:bg-muted/40">
-                  <TableHead className="w-[50%]">Invoice / File</TableHead>
+                  <TableHead className="w-[38%]">Invoice / File</TableHead>
+                  <TableHead>Created By</TableHead>
                   <TableHead>Last Saved</TableHead>
                   <TableHead className="text-right">Actions</TableHead>
                 </TableRow>
@@ -232,13 +251,13 @@ export default function InvoicesPage() {
               <TableBody>
                 {draftsLoading ? (
                   <TableRow>
-                    <TableCell colSpan={3} className="text-center h-24 text-muted-foreground">
+                    <TableCell colSpan={4} className="text-center h-24 text-muted-foreground">
                       Loading drafts…
                     </TableCell>
                   </TableRow>
                 ) : (drafts ?? []).length === 0 ? (
                   <EmptyRow
-                    colSpan={3}
+                    colSpan={4}
                     message="No drafts found. Generate an invoice from a file to create a draft."
                   />
                 ) : (
@@ -256,13 +275,35 @@ export default function InvoicesPage() {
                           </span>
                         </div>
                       </TableCell>
+                      {/* Created By */}
+                      <TableCell className="text-sm">
+                        <div className="flex flex-col">
+                          <span className="font-medium text-xs">
+                            {draft.user?.name || draft.user?.email || "Team Member"}
+                          </span>
+                          {draft.createdAt && (
+                            <span className="text-[11px] text-muted-foreground">
+                              {format(new Date(draft.createdAt), "MMM d, yyyy")}
+                            </span>
+                          )}
+                        </div>
+                      </TableCell>
                       {/* Last saved */}
                       <TableCell className="text-sm text-muted-foreground">
-                        {draft.lastAutoSavedAt
-                          ? format(new Date(draft.lastAutoSavedAt), "MMM d, yyyy h:mm a")
-                          : draft.updatedAt
-                            ? format(new Date(draft.updatedAt), "MMM d, yyyy h:mm a")
-                            : "—"}
+                        <div className="flex flex-col">
+                          <span>
+                            {draft.lastAutoSavedAt
+                              ? format(new Date(draft.lastAutoSavedAt), "MMM d, yyyy h:mm a")
+                              : draft.updatedAt
+                                ? format(new Date(draft.updatedAt), "MMM d, yyyy h:mm a")
+                                : "—"}
+                          </span>
+                          {Array.isArray(draft.editHistory) && draft.editHistory.length > 1 && (
+                            <span className="text-[10px] text-muted-foreground font-mono">
+                              {draft.editHistory.length} revisions
+                            </span>
+                          )}
+                        </div>
                       </TableCell>
                       {/* Actions */}
                       <TableCell className="text-right">
@@ -457,6 +498,14 @@ export default function InvoicesPage() {
                                 <CornerUpLeft className="w-4 h-4 mr-2" />
                                 Revert to Draft
                               </DropdownMenuItem>
+                              <DropdownMenuSeparator />
+                              <DropdownMenuItem
+                                onClick={() => handleAction(inv.id, "void")}
+                                className="text-red-600 focus:text-red-600"
+                              >
+                                <AlertCircle className="w-4 h-4 mr-2" />
+                                Void Invoice
+                              </DropdownMenuItem>
                             </DropdownMenuContent>
                           </DropdownMenu>
                         </div>
@@ -475,28 +524,29 @@ export default function InvoicesPage() {
             <Table>
               <TableHeader>
                 <TableRow className="bg-muted/40 hover:bg-muted/40">
-                  <TableHead className="w-[30%]">Invoice</TableHead>
+                  <TableHead className="w-[28%]">Invoice</TableHead>
                   <TableHead>File</TableHead>
                   <TableHead>Client</TableHead>
                   <TableHead>Status</TableHead>
                   <TableHead>Issued</TableHead>
-                  <TableHead className="text-right">Total Amount</TableHead>
+                  <TableHead>Total Amount</TableHead>
+                  <TableHead className="text-right">Actions</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
                 {allLoading ? (
                   <TableRow>
-                    <TableCell colSpan={6} className="text-center h-24 text-muted-foreground">
+                    <TableCell colSpan={7} className="text-center h-24 text-muted-foreground">
                       Loading…
                     </TableCell>
                   </TableRow>
                 ) : billedInvoices.length === 0 ? (
-                  <EmptyRow colSpan={6} message="No completed invoices yet." />
+                  <EmptyRow colSpan={7} message="No completed invoices yet." />
                 ) : (
                   billedInvoices.map((inv: any) => (
                     <TableRow
                       key={inv.id}
-                      className="hover:bg-muted/30 transition-colors cursor-pointer group"
+                      className="hover:bg-muted/30 transition-colors group"
                     >
                       {/* Invoice */}
                       <TableCell>
@@ -550,12 +600,99 @@ export default function InvoicesPage() {
                         {inv.issuedAt ? format(new Date(inv.issuedAt), "MMM d, yyyy") : "—"}
                       </TableCell>
                       {/* Amount */}
-                      <TableCell className="text-right font-bold tabular-nums text-sm">
+                      <TableCell className="font-bold tabular-nums text-sm">
                         $
                         {Number(inv.grandTotalAmount ?? inv.totalAmount ?? 0).toLocaleString(
                           undefined,
                           { minimumFractionDigits: 2, maximumFractionDigits: 2 },
                         )}
+                      </TableCell>
+                      {/* Actions */}
+                      <TableCell className="text-right">
+                        <div className="flex justify-end items-center gap-2">
+                          <Button variant="outline" size="sm" className="gap-1.5" asChild>
+                            <Link href={`/dashboard/invoices/${inv.id}`}>
+                              <Eye className="h-3.5 w-3.5" />
+                              View
+                            </Link>
+                          </Button>
+                          {inv.status !== "void" && (
+                            <DropdownMenu>
+                              <DropdownMenuTrigger asChild>
+                                <Button variant="ghost" size="icon" className="h-8 w-8">
+                                  <MoreHorizontal className="h-4 w-4" />
+                                </Button>
+                              </DropdownMenuTrigger>
+                              <DropdownMenuContent align="end">
+                                {inv.status === "issued" && (
+                                  <>
+                                    <DropdownMenuItem onClick={() => handleAction(inv.id, "mark-paid")}>
+                                      <CheckCircle2 className="w-4 h-4 mr-2" />
+                                      Mark as Paid
+                                    </DropdownMenuItem>
+                                    <DropdownMenuItem onClick={() => handleAction(inv.id, "dispute")}>
+                                      <AlertCircle className="w-4 h-4 mr-2 text-amber-500" />
+                                      Mark as Disputed
+                                    </DropdownMenuItem>
+                                    <DropdownMenuSeparator />
+                                    <DropdownMenuItem
+                                      onClick={() => handleAction(inv.id, "unfreeze")}
+                                      className="text-accent-foreground focus:text-accent-foreground"
+                                    >
+                                      <CornerUpLeft className="w-4 h-4 mr-2" />
+                                      Revert to Draft (Correct)
+                                    </DropdownMenuItem>
+                                    <DropdownMenuSeparator />
+                                    <DropdownMenuItem
+                                      onClick={() => handleAction(inv.id, "void")}
+                                      className="text-red-600 focus:text-red-600"
+                                    >
+                                      <AlertCircle className="w-4 h-4 mr-2" />
+                                      Void Invoice
+                                    </DropdownMenuItem>
+                                  </>
+                                )}
+                                {inv.status === "disputed" && (
+                                  <>
+                                    <DropdownMenuItem onClick={() => handleAction(inv.id, "issue")}>
+                                      <Send className="w-4 h-4 mr-2" />
+                                      Resolve Dispute (Re-Issue)
+                                    </DropdownMenuItem>
+                                    <DropdownMenuItem onClick={() => handleAction(inv.id, "mark-paid")}>
+                                      <CheckCircle2 className="w-4 h-4 mr-2" />
+                                      Mark as Paid
+                                    </DropdownMenuItem>
+                                    <DropdownMenuSeparator />
+                                    <DropdownMenuItem
+                                      onClick={() => handleAction(inv.id, "unfreeze")}
+                                      className="text-accent-foreground focus:text-accent-foreground"
+                                    >
+                                      <CornerUpLeft className="w-4 h-4 mr-2" />
+                                      Revert to Draft (Correct)
+                                    </DropdownMenuItem>
+                                    <DropdownMenuSeparator />
+                                    <DropdownMenuItem
+                                      onClick={() => handleAction(inv.id, "void")}
+                                      className="text-red-600 focus:text-red-600"
+                                    >
+                                      <AlertCircle className="w-4 h-4 mr-2" />
+                                      Void Invoice
+                                    </DropdownMenuItem>
+                                  </>
+                                )}
+                                {inv.status === "paid" && (
+                                  <DropdownMenuItem
+                                    onClick={() => handleAction(inv.id, "void")}
+                                    className="text-red-600 focus:text-red-600"
+                                  >
+                                    <AlertCircle className="w-4 h-4 mr-2" />
+                                    Void Invoice
+                                  </DropdownMenuItem>
+                                )}
+                              </DropdownMenuContent>
+                            </DropdownMenu>
+                          )}
+                        </div>
                       </TableCell>
                     </TableRow>
                   ))

@@ -1,6 +1,7 @@
 import { db, decodeFormula, encodeFormula, invoiceDrafts } from "@starter/db";
 import { and, eq } from "drizzle-orm";
 import { Context } from "hono";
+import { appendAuditEntry } from "./draft-audit";
 
 async function getDraft(c: Context) {
   const draftId = c.req.param("id") as string;
@@ -13,11 +14,33 @@ async function getDraft(c: Context) {
   return draft;
 }
 
-async function updateDraft(id: string, updates: any) {
+async function updateDraft(
+  draftId: string,
+  updates: any,
+  c?: Context,
+  action: string = "Edited draft",
+) {
+  let updatedHistory = undefined;
+  if (c) {
+    const user = c.get("user") as any;
+    const organizationId = c.get("organizationId");
+    if (user && organizationId) {
+      const current = await db.query.invoiceDrafts.findFirst({
+        where: and(eq(invoiceDrafts.id, draftId), eq(invoiceDrafts.organizationId, organizationId)),
+        columns: { editHistory: true },
+      });
+      updatedHistory = appendAuditEntry(current?.editHistory, user, action);
+    }
+  }
+
   const [updated] = await db
     .update(invoiceDrafts)
-    .set(updates)
-    .where(eq(invoiceDrafts.id, id))
+    .set({
+      ...updates,
+      ...(updatedHistory ? { editHistory: updatedHistory } : {}),
+      lastAutoSavedAt: new Date(),
+    })
+    .where(eq(invoiceDrafts.id, draftId))
     .returning();
   return updated;
 }
@@ -117,10 +140,14 @@ export class DraftBuilderController {
       description: body.description,
     };
 
-    await updateDraft(draft.id, {
-      draftConstants: constants,
-      lastAutoSavedAt: new Date(),
-    });
+    await updateDraft(
+      draft.id,
+      {
+        draftConstants: constants,
+      },
+      c,
+      "Created template constant",
+    );
     return c.json(constants[body.key]);
   }
 
@@ -135,10 +162,14 @@ export class DraftBuilderController {
     if (!key) return c.json({ error: "Constant not found" }, 404);
 
     constants[key] = { ...constants[key], ...body };
-    await updateDraft(draft.id, {
-      draftConstants: constants,
-      lastAutoSavedAt: new Date(),
-    });
+    await updateDraft(
+      draft.id,
+      {
+        draftConstants: constants,
+      },
+      c,
+      "Updated template constant",
+    );
     return c.json(constants[key]);
   }
 
@@ -151,10 +182,14 @@ export class DraftBuilderController {
     const key = Object.keys(constants).find((k) => constants[k].id === constantId);
     if (key) {
       delete constants[key];
-      await updateDraft(draft.id, {
-        draftConstants: constants,
-        lastAutoSavedAt: new Date(),
-      });
+      await updateDraft(
+        draft.id,
+        {
+          draftConstants: constants,
+        },
+        c,
+        "Deleted template constant",
+      );
     }
     return c.json({ success: true });
   }
@@ -179,10 +214,14 @@ export class DraftBuilderController {
     };
 
     sections.push(newSection);
-    await updateDraft(draft.id, {
-      draftSections: sections,
-      lastAutoSavedAt: new Date(),
-    });
+    await updateDraft(
+      draft.id,
+      {
+        draftSections: sections,
+      },
+      c,
+      "Created section",
+    );
     return c.json(newSection, 201);
   }
 
@@ -197,10 +236,14 @@ export class DraftBuilderController {
     if (idx === -1) return c.json({ error: "Section not found" }, 404);
 
     sections[idx] = { ...sections[idx], ...body };
-    await updateDraft(draft.id, {
-      draftSections: sections,
-      lastAutoSavedAt: new Date(),
-    });
+    await updateDraft(
+      draft.id,
+      {
+        draftSections: sections,
+      },
+      c,
+      "Updated section",
+    );
     return c.json(sections[idx]);
   }
 
@@ -211,10 +254,14 @@ export class DraftBuilderController {
 
     let sections = draft.draftSections || [];
     sections = sections.filter((s: any) => s.id !== sectionId);
-    await updateDraft(draft.id, {
-      draftSections: sections,
-      lastAutoSavedAt: new Date(),
-    });
+    await updateDraft(
+      draft.id,
+      {
+        draftSections: sections,
+      },
+      c,
+      "Deleted section",
+    );
     return c.json({ success: true });
   }
 
@@ -231,10 +278,14 @@ export class DraftBuilderController {
     }
     sections.sort((a: any, b: any) => (a.displayOrder || 0) - (b.displayOrder || 0));
 
-    await updateDraft(draft.id, {
-      draftSections: sections,
-      lastAutoSavedAt: new Date(),
-    });
+    await updateDraft(
+      draft.id,
+      {
+        draftSections: sections,
+      },
+      c,
+      "Reordered sections",
+    );
     return c.json({ success: true });
   }
 
@@ -276,10 +327,14 @@ export class DraftBuilderController {
     };
     s.rows.push(newRow);
 
-    await updateDraft(draft.id, {
-      draftSections: sections,
-      lastAutoSavedAt: new Date(),
-    });
+    await updateDraft(
+      draft.id,
+      {
+        draftSections: sections,
+      },
+      c,
+      "Created row",
+    );
 
     return c.json(
       {
@@ -330,10 +385,14 @@ export class DraftBuilderController {
 
     s.rows[rIdx] = { ...s.rows[rIdx], ...updateFields };
 
-    await updateDraft(draft.id, {
-      draftSections: sections,
-      lastAutoSavedAt: new Date(),
-    });
+    await updateDraft(
+      draft.id,
+      {
+        draftSections: sections,
+      },
+      c,
+      "Updated row",
+    );
 
     return c.json({
       ...s.rows[rIdx],
@@ -351,10 +410,14 @@ export class DraftBuilderController {
     const s = sections.find((s: any) => s.id === sectionId);
     if (s) {
       s.rows = s.rows.filter((r: any) => r.id !== rowId);
-      await updateDraft(draft.id, {
-        draftSections: sections,
-        lastAutoSavedAt: new Date(),
-      });
+      await updateDraft(
+        draft.id,
+        {
+          draftSections: sections,
+        },
+        c,
+        "Deleted row",
+      );
     }
     return c.json({ success: true });
   }
@@ -374,10 +437,14 @@ export class DraftBuilderController {
         if (match) r.displayOrder = match.displayOrder;
       }
       s.rows.sort((a: any, b: any) => (a.displayOrder || 0) - (b.displayOrder || 0));
-      await updateDraft(draft.id, {
-        draftSections: sections,
-        lastAutoSavedAt: new Date(),
-      });
+      await updateDraft(
+        draft.id,
+        {
+          draftSections: sections,
+        },
+        c,
+        "Reordered rows",
+      );
     }
     return c.json({ success: true });
   }
@@ -441,10 +508,14 @@ export class DraftBuilderController {
     if (!r.charges) r.charges = [];
     r.charges.push(newCharge);
 
-    await updateDraft(draft.id, {
-      draftSections: sections,
-      lastAutoSavedAt: new Date(),
-    });
+    await updateDraft(
+      draft.id,
+      {
+        draftSections: sections,
+      },
+      c,
+      "Created row charge",
+    );
 
     return c.json(
       {
@@ -486,10 +557,14 @@ export class DraftBuilderController {
 
     r.charges[cIdx] = { ...r.charges[cIdx], ...updateData };
 
-    await updateDraft(draft.id, {
-      draftSections: sections,
-      lastAutoSavedAt: new Date(),
-    });
+    await updateDraft(
+      draft.id,
+      {
+        draftSections: sections,
+      },
+      c,
+      "Updated row charge",
+    );
 
     return c.json({
       ...r.charges[cIdx],
@@ -512,10 +587,14 @@ export class DraftBuilderController {
     const r = s.rows.find((r: any) => r.id === rowId);
     if (r?.charges) {
       r.charges = r.charges.filter((ch: any) => ch.id !== chargeId);
-      await updateDraft(draft.id, {
-        draftSections: sections,
-        lastAutoSavedAt: new Date(),
-      });
+      await updateDraft(
+        draft.id,
+        {
+          draftSections: sections,
+        },
+        c,
+        "Deleted row charge",
+      );
     }
     return c.json({ success: true });
   }
@@ -551,10 +630,14 @@ export class DraftBuilderController {
     }
     r.charges = reordered;
 
-    await updateDraft(draft.id, {
-      draftSections: sections,
-      lastAutoSavedAt: new Date(),
-    });
+    await updateDraft(
+      draft.id,
+      {
+        draftSections: sections,
+      },
+      c,
+      "Reordered row charges",
+    );
     return c.json({ success: true });
   }
 
@@ -588,10 +671,14 @@ export class DraftBuilderController {
     if (!s.sectionCharges) s.sectionCharges = [];
     s.sectionCharges.push(newCharge);
 
-    await updateDraft(draft.id, {
-      draftSections: sections,
-      lastAutoSavedAt: new Date(),
-    });
+    await updateDraft(
+      draft.id,
+      {
+        draftSections: sections,
+      },
+      c,
+      "Created section charge",
+    );
 
     return c.json(
       {
@@ -630,10 +717,14 @@ export class DraftBuilderController {
 
     s.sectionCharges[cIdx] = { ...s.sectionCharges[cIdx], ...updateData };
 
-    await updateDraft(draft.id, {
-      draftSections: sections,
-      lastAutoSavedAt: new Date(),
-    });
+    await updateDraft(
+      draft.id,
+      {
+        draftSections: sections,
+      },
+      c,
+      "Updated section charge",
+    );
 
     return c.json({
       ...s.sectionCharges[cIdx],
@@ -653,10 +744,14 @@ export class DraftBuilderController {
     const s = sections.find((s: any) => s.id === sectionId);
     if (s?.sectionCharges) {
       s.sectionCharges = s.sectionCharges.filter((ch: any) => ch.id !== chargeId);
-      await updateDraft(draft.id, {
-        draftSections: sections,
-        lastAutoSavedAt: new Date(),
-      });
+      await updateDraft(
+        draft.id,
+        {
+          draftSections: sections,
+        },
+        c,
+        "Deleted section charge",
+      );
     }
     return c.json({ success: true });
   }
@@ -688,10 +783,14 @@ export class DraftBuilderController {
       }
       s.sectionCharges = reordered;
 
-      await updateDraft(draft.id, {
-        draftSections: sections,
-        lastAutoSavedAt: new Date(),
-      });
+      await updateDraft(
+        draft.id,
+        {
+          draftSections: sections,
+        },
+        c,
+        "Reordered section charges",
+      );
     }
     return c.json({ success: true });
   }

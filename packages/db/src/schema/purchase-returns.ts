@@ -8,7 +8,6 @@ import { decimal, index, pgTable, text, timestamp, unique } from "drizzle-orm/pg
 import { organizations, users } from "./auth";
 import { clients } from "./clients";
 import { documentStatusEnum, stockStateEnum } from "./inventory-enums";
-import { inventoryTransactions } from "./inventory-transactions";
 import { products } from "./products";
 import { purchaseItems } from "./purchases";
 import { warehouses } from "./warehouses";
@@ -115,7 +114,6 @@ export const purchaseReturnsRelations = relations(purchaseReturns, ({ one, many 
     references: [users.id],
   }),
   items: many(purchaseReturnItems),
-  transactions: many(inventoryTransactions),
 }));
 
 export const purchaseReturnItemsRelations = relations(purchaseReturnItems, ({ one }) => ({

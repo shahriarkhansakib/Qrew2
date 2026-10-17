@@ -150,10 +150,11 @@ EXECUTION (Snapshots — immutable once frozen, legally binding):
 'disputed'        // Under dispute, frozen but flagged
 
 // document_type_enum
-'pda'             // Preliminary Disbursement Account
-'fda'             // Final Disbursement Account
-'proforma'        // Proforma invoice
 'general'         // General purpose invoice
+'standard'        // Standard commercial invoice
+'retainer'        // Retainer / recurring invoice
+'proforma'        // Proforma invoice
+'credit_note'     // Credit note adjustment
 
 // config_value_type_enum
 'number'          // Plain numeric (e.g., exchange rate: 121.20)
@@ -195,10 +196,11 @@ companyTagline:        text
 invoiceNumberFormat:   text NOT NULL DEFAULT '{DOC_TYPE}-{FILE_SEQ}'
                        -- Pattern variables: {ORG_CODE}, {DOC_TYPE}, {FILE_SEQ},
                        --   {DOC_SEQ}, {YEAR}, {MONTH}, {MONTH_YEAR}, {CUSTOM_VOYAGE}
-pdaPrefix:             text NOT NULL DEFAULT 'PDA'
-fdaPrefix:             text NOT NULL DEFAULT 'FDA'
-proformaPrefix:        text NOT NULL DEFAULT 'PRO'
 generalPrefix:         text NOT NULL DEFAULT 'INV'
+standardPrefix:        text NOT NULL DEFAULT 'INV'
+proformaPrefix:        text NOT NULL DEFAULT 'PRO'
+retainerPrefix:        text NOT NULL DEFAULT 'RET'
+creditNotePrefix:      text NOT NULL DEFAULT 'CRN'
 currentDocSequence:    integer NOT NULL DEFAULT 0      -- LOCKED on every document generation
 defaultPaymentTerms:   text
 bankDetails:           jsonb                           -- shape: BankDetailsV1
@@ -221,7 +223,7 @@ updatedAt:      timestamp NOT NULL DEFAULT now(), $onUpdate
 ```
 
 ### 5.4 `invoice_reserved_numbers`
-Pre-generated PDA/FDA document numbers reserved at file (project) creation time.
+Pre-generated document numbers reserved at project/file creation time.
 ```
 id:             text PK, defaultFn: randomUUID()
 organizationId: text NOT NULL, FK → organizations.id, onDelete: cascade
@@ -380,7 +382,7 @@ organizationId:         text NOT NULL, FK → organizations.id, onDelete: restri
 projectId:              text NOT NULL, FK → projects.id, onDelete: restrict
 clientId:               text NOT NULL, FK → clients.id, onDelete: restrict
 documentType:           document_type_enum NOT NULL
-documentNumber:         text NOT NULL          -- e.g., 'ECSL/PDA/042/V-123/09-25'
+documentNumber:         text NOT NULL          -- e.g., 'ECSL/INV/042/09-25'
 status:                 invoice_status_enum NOT NULL DEFAULT 'draft'
 sourceTemplateId:       text, FK → invoice_templates.id, onDelete: set null
 sourceTemplateVersion:  integer
@@ -864,7 +866,7 @@ GET  /api/invoice-pdf-layouts/preview
 ```
 GET    /api/invoice-templates
        Auth: requireAuth + requireActiveAccount
-       Query: ?scope=organization|preset&documentType=pda|fda|...&archived=false
+       Query: ?scope=organization|preset&documentType=general|standard|retainer|proforma|credit_note&archived=false
        Returns: InvoiceTemplate[] with section+row counts, NO row data
 
 POST   /api/invoice-templates
@@ -1045,13 +1047,32 @@ POST /api/invoices/generate
      Returns: { invoiceId, documentNumber, status: 'frozen' }
 
 POST /api/invoices/:id/issue
-     Auth: requireRole('admin') or requireRole('user') with permission
-     Action: status 'frozen' → 'issued', set issuedAt = NOW()
+     Auth: requireOrgPermission('finance:manage_invoices')
+     Action: status 'frozen' or 'disputed' → 'issued', set issuedAt = NOW()
      Returns: updated invoice
 
+POST /api/invoices/:id/dispute
+     Auth: requireOrgPermission('finance:manage_invoices')
+     Body: { reason?: string }
+     Action: status 'issued' → 'disputed' (pauses dunning/collections)
+     Returns: updated invoice
+
+POST /api/invoices/:id/mark-paid
+     Auth: requireOrgPermission('finance:manage_invoices')
+     Action: status 'issued' or 'disputed' or 'frozen' → 'paid'
+     Returns: updated invoice
+
+POST /api/invoices/:id/unfreeze
+     Auth: requireOrgPermission('finance:manage_invoices')
+     Guard: invoice status must be 'frozen', 'issued', or 'disputed' (never 'paid' or 'void')
+     Action: Reverts invoice back to mutable draft. Restores template constants, sets
+             draft name to 'Correction: {documentNumber}', appends audit log entry,
+             and deletes the previous invoice record to free sequence locks.
+     Returns: { success: true, draftId }
+
 POST /api/invoices/:id/void
-     Auth: requireRole('admin')
-     Body: { voidReason: string }
+     Auth: requireOrgPermission('finance:manage_invoices')
+     Body: { voidReason?: string }
      Action: status → 'void', set voidedAt, voidReason
      Returns: updated invoice
 
@@ -1060,12 +1081,48 @@ GET  /api/invoices/:id/pdf
      Action: generate PDF from frozen invoice data + pdf layout config
      Returns: PDF buffer (application/pdf)
 
-GET  /api/invoices?projectId=
+GET  /api/invoices?projectId=&status=
      Returns: Invoice[] with line item counts, NO line item data
 
 GET  /api/invoices/:id
      Returns: full invoice + all line items (sorted by displayOrder)
 ```
+
+### 9.11 Invoice Lifecycle & State Machine
+
+```mermaid
+stateDiagram-v2
+    direction LR
+    [*] --> Draft: Created by team member
+    Draft --> Frozen: Finalize draft (Ready to Bill)
+    Frozen --> Draft: Revert to draft (Correct)
+    Frozen --> Issued: Send / Mark as Issued
+    Frozen --> Void: Void
+    
+    Issued --> Paid: Client pays
+    Issued --> Disputed: Client contests line items
+    Issued --> Draft: Revert to draft (Correct)
+    Issued --> Void: Void
+
+    Disputed --> Issued: Resolve dispute (Re-issue)
+    Disputed --> Paid: Settled & paid
+    Disputed --> Draft: Revert to draft (Correct)
+    Disputed --> Void: Void
+
+    Paid --> Void: Void
+    Void --> [*]
+```
+
+#### State Transition Matrix & Invariants
+1. **Draft Collaboration**: Multiple drafts per project allowed. Any user with `finance:manage_invoices` can edit. Changes logged to `editHistory` with user ID, name, email, action, and timestamp. Consecutive edits within 2 minutes coalesce into one entry.
+2. **Frozen (`Ready to Bill`)**: Finalized snapshot stored. Ready for client issuance or early correction.
+3. **Issued**: Officially transmitted to client. Automated collection/reminders active.
+4. **Disputed**: Halts automated collections when a client contests a charge. Preserves original document number and paper trail without canceling. Can be resolved (`disputed` → `issued`), paid (`disputed` → `paid`), reverted to draft for corrections, or voided.
+5. **Revert to Draft (Correction Workflow)**:
+   - Permitted from `frozen`, `issued`, or `disputed`. Strictly forbidden once `paid` or `void`.
+   - Restores draft rows, draft headers, and `draftConstants`.
+   - Renames draft to `Correction: <Document Number>` and appends audit log: `"Reverted from invoice <Document Number> for corrections"`.
+   - Deletes old invoice record to avoid duplicate sequence collision when finalized again.
 
 ---
 

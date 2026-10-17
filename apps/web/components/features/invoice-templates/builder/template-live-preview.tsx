@@ -163,7 +163,7 @@ export function TemplateLivePreview({ templateId }: { templateId: string }) {
           </div>
         )}
 
-        {/* PDA Table Preview */}
+        {/* Live Invoice Table Preview */}
         <div className="bg-white border rounded-xl shadow-sm overflow-hidden font-sans">
           <div className="bg-gray-800 text-white px-4 py-2">
             <h3 className="text-sm font-bold tracking-wide uppercase">Invoice Preview</h3>

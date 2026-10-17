@@ -749,3 +749,47 @@ const createRowSchema = z.object({
 11. **The `sectionToken` field is READ-ONLY after creation.** Do not render it as editable in the section rename form.
 
 12. **All forms have an explicit cancel action that reverts all unsaved changes.** No form auto-submits on blur.
+
+---
+
+## 12. Multi-Draft Collaboration & Lifecycle State Machine
+
+### 12.1 Invoice Lifecycle State Machine
+
+```mermaid
+stateDiagram-v2
+    direction LR
+    [*] --> Draft: Created by team member
+    Draft --> Frozen: Finalize draft (Ready to Bill)
+    Frozen --> Draft: Revert to draft (Correct)
+    Frozen --> Issued: Send / Mark as Issued
+    Frozen --> Void: Void
+    
+    Issued --> Paid: Client pays
+    Issued --> Disputed: Client contests line items
+    Issued --> Draft: Revert to draft (Correct)
+    Issued --> Void: Void
+
+    Disputed --> Issued: Resolve dispute (Re-issue)
+    Disputed --> Paid: Settled & paid
+    Disputed --> Draft: Revert to draft (Correct)
+    Disputed --> Void: Void
+
+    Paid --> Void: Void
+    Void --> [*]
+```
+
+### 12.2 Multi-Draft Collaboration UI Guidelines
+1. **Multiple Concurrent Drafts**: Users can create unlimited drafts per project without overwriting each other.
+2. **Creator Attribution & Audit Popover**:
+   - The Drafts table displays a **Created By** column with user attribution and creation date.
+   - The Draft Builder header displays creator name, creation date, and an interactive **History** Popover.
+   - The Popover displays the chronological list of edits from `draft.editHistory` (author, action, formatted date/time).
+3. **Status Badges & Row Actions**:
+   - `draft`: Muted badge with `Clock` icon. Action: *Edit Draft*, *Delete Draft*.
+   - `frozen` (*Ready to Bill*): Blue badge with `CheckCircle2` icon. Actions: *View*, *Mark as Issued*, *Mark as Paid*, *Revert to Draft*, *Void Invoice*.
+   - `issued`: Indigo badge with `Receipt` icon. Actions: *View*, *Mark as Paid*, *Mark as Disputed*, *Revert to Draft (Correct)*, *Void Invoice*.
+   - `disputed`: Amber badge with `AlertCircle` icon. Actions: *View*, *Resolve Dispute (Re-Issue)*, *Mark as Paid*, *Revert to Draft (Correct)*, *Void Invoice*.
+   - `paid`: Primary badge with `CheckCircle2` icon. Actions: *View*, *Void Invoice*.
+   - `void`: Red badge with `AlertCircle` icon. Read-only terminal state.
+

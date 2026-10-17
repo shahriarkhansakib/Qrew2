@@ -230,6 +230,12 @@ invoicesRouter.post(
 );
 
 invoicesRouter.post(
+  "/:id/dispute",
+  requireOrgPermission("finance:manage_invoices"),
+  InvoicesController.disputeInvoice,
+);
+
+invoicesRouter.post(
   "/:id/mark-paid",
   requireOrgPermission("finance:manage_invoices"),
   InvoicesController.markPaid,

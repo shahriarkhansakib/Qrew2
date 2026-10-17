@@ -38,7 +38,13 @@ export const invoiceStatusEnum = pgEnum("invoice_status_enum", [
 ]);
 
 // ── Invoice document type ─────────────────────────────────────────────────────
-export const documentTypeEnum = pgEnum("document_type_enum", ["pda", "fda", "proforma", "general"]);
+export const documentTypeEnum = pgEnum("document_type_enum", [
+  "general",
+  "standard",
+  "retainer",
+  "proforma",
+  "credit_note",
+]);
 
 // ── Org config value type ─────────────────────────────────────────────────────
 export const configValueTypeEnum = pgEnum("config_value_type_enum", [

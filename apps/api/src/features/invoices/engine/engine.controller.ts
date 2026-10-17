@@ -14,7 +14,7 @@ import { Context } from "hono";
 import { z } from "zod";
 import { AstEvaluatorService } from "./ast-evaluator.service";
 import { DagValidatorService } from "./dag-validator.service";
-import { resolveScope } from "./token-resolver.service";
+import { parseToBN, resolveScope } from "./token-resolver.service";
 import type {
   EvaluatorRow,
   EvaluatorRowCharge,
@@ -119,12 +119,10 @@ export class EngineController {
               tplIdToToken[val.id] = key;
             }
             const raw = val?.value ?? val; // handle both object and primitive
-            const numVal = parseFloat(String(raw));
-            if (!Number.isNaN(numVal)) {
-              const fixed = numVal.toFixed(6);
-              scope[key] = fixed;
-              scope[`TPL_${key}`] = fixed;
-            }
+            const bn = parseToBN(raw);
+            const fixed = bn.toFixed(6);
+            scope[key] = fixed;
+            scope[`TPL_${key}`] = fixed;
           }
         }
 
@@ -267,12 +265,10 @@ export class EngineController {
 
           // Publish to scope just like we do for draftConstants
           if (c.defaultValue && c.token) {
-            const numVal = parseFloat(c.defaultValue);
-            if (!Number.isNaN(numVal)) {
-              const fixed = numVal.toFixed(6);
-              scope[c.token] = fixed;
-              scope[`TPL_${c.token}`] = fixed;
-            }
+            const bn = parseToBN(c.defaultValue);
+            const fixed = bn.toFixed(6);
+            scope[c.token] = fixed;
+            scope[`TPL_${c.token}`] = fixed;
           }
         }
 
