@@ -4,18 +4,14 @@ import { useQuery } from "@tanstack/react-query";
 import { format } from "date-fns";
 import {
   ArrowLeft,
-  Calendar,
-  CheckCircle2,
   Clock,
   Eye,
   FileStack,
-  FileText,
   Pencil,
   Plus,
   Receipt,
 } from "lucide-react";
 import Link from "next/link";
-import { useRouter } from "next/navigation";
 import { use, useState } from "react";
 import { GenerateInvoiceModal } from "@/components/features/invoices/generate-invoice-modal";
 import { Badge } from "@/components/ui/badge";
@@ -35,7 +31,6 @@ import { cn } from "@/lib/utils";
 
 export default function ProjectDetailsPage({ params }: { params: Promise<{ id: string }> }) {
   const { id: projectId } = use(params);
-  const router = useRouter();
   const [isGenerateInvoiceOpen, setIsGenerateInvoiceOpen] = useState(false);
 
   // 1. Fetch Project Details
