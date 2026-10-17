@@ -29,6 +29,8 @@ interface FreezeParams {
   issuedToClientName: string;
   currency?: string;
   notes?: string;
+  periodStart?: string | Date | null;
+  periodEnd?: string | Date | null;
 }
 
 /**
@@ -63,6 +65,8 @@ export async function freezeInvoice(params: FreezeParams) {
       templateId: params.sourceTemplateId ?? "",
       db: tx,
       headerFieldValues,
+      periodStart: params.periodStart,
+      periodEnd: params.periodEnd,
     });
 
     // Build lookup maps for formula decoding from draft and template

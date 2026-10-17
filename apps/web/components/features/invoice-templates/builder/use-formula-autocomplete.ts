@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useState } from "react";
 import { getLastWord, lastSegmentIsNumeric } from "./formula-bar-utils";
+import { MATH_FUNCTIONS } from "./use-formula-keydown";
 
 export function useFormulaAutocomplete(
   inputValue: string,
@@ -23,36 +24,27 @@ export function useFormulaAutocomplete(
   const lastWord = getLastWord(valueUpToCursor);
   const numericOnly = lastSegmentIsNumeric(valueUpToCursor);
 
-  // Sorted full token list, excluding the current token, its variants, hidden tokens, and legacy prefixed/suffixed aliases
+  // Sorted full token list, including all independent categories/fields, constants, row tokens, and math functions
   const allTokens = useMemo(() => {
-    return Object.keys(tokenMap)
-      .filter((t) => {
-        if (hiddenTokens.has(t)) return false;
-        if (t === "EXP_TOTAL") {
-          // Explicitly keep EXP_TOTAL
-        } else if (
-          t.endsWith("_TOTAL") ||
-          t.startsWith("ORG_") ||
-          t.startsWith("GBL_") ||
-          t.startsWith("FILE_") ||
-          t.startsWith("TPL_") ||
-          t.startsWith("EXP_")
-        ) {
-          return false;
-        }
-        if (!currentToken) return true;
-        const clean = currentToken.replace(/_(BASE|TOTAL|CHARGES)$/, "");
-        if (
-          t === clean ||
-          t === `${clean}_BASE` ||
-          t === `${clean}_TOTAL` ||
-          t === `${clean}_CHARGES`
-        )
-          return false;
-        if (t === currentToken) return false;
-        return true;
-      })
-      .sort();
+    const rawTokens = Object.keys(tokenMap).filter((t) => {
+      if (hiddenTokens.has(t)) return false;
+      if (t.endsWith("_TOTAL") && t !== "EXP_TOTAL") {
+        return false;
+      }
+      if (!currentToken) return true;
+      const clean = currentToken.replace(/_(BASE|TOTAL|CHARGES)$/, "");
+      if (
+        t === clean ||
+        t === `${clean}_BASE` ||
+        t === `${clean}_TOTAL` ||
+        t === `${clean}_CHARGES`
+      )
+        return false;
+      if (t === currentToken) return false;
+      return true;
+    });
+
+    return [...new Set([...rawTokens, ...MATH_FUNCTIONS])].sort();
   }, [tokenMap, currentToken, hiddenTokens]);
 
   // Reset forceHidden whenever input value or cursor position changes
@@ -62,11 +54,11 @@ export function useFormulaAutocomplete(
 
   // Determine if cursor is at a position where a token is allowed:
   // 1. Start of input (empty or whitespace)
-  // 2. Right after an operator or open paren: +, -, *, /, //, % (if binary), (
+  // 2. Right after an operator, comma, or open paren: +, -, *, /, //, %, (, ,
   // 3. Actively typing a token prefix (lastWord has content and is not purely numeric)
   const trimmed = valueUpToCursor.trimEnd();
   const atInsertPosition =
-    trimmed.length === 0 || /[+\-*/%(]$/.test(trimmed) || trimmed.endsWith("//");
+    trimmed.length === 0 || /[+\-*/%(,]$/.test(trimmed) || trimmed.endsWith("//");
 
   const isAtValidTokenPosition = atInsertPosition || (lastWord.length > 0 && !numericOnly);
 

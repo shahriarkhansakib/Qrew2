@@ -7,7 +7,12 @@ import { toast } from "sonner";
 import { cn } from "@/lib/utils";
 import { useBuilderContext } from "../builder-context";
 import { renderHighlightedToken, SyntaxOverlay } from "../formula-bar-syntax";
-import { getChunkAtCursor, isValidTokenPrefix, validateFormulaSave } from "../formula-bar-utils";
+import {
+  getChunkAtCursor,
+  isValidTokenPrefix,
+  validateFormulaSave,
+  MATH_FUNCTIONS,
+} from "../formula-bar-utils";
 import { useFormulaAutocomplete } from "../use-formula-autocomplete";
 import { useFormulaKeyDown } from "../use-formula-keydown";
 import { useSaveCellMutation } from "../use-save-cell";
@@ -111,6 +116,58 @@ export function TemplateFormulaBar() {
         const trimmedBefore = before.trimEnd();
         const lastChar = trimmedBefore[trimmedBefore.length - 1];
 
+        // ── Comma: allowed exclusively within function arguments ──
+        if (tokenToInsert === ",") {
+          let openParens = 0;
+          let insideFn = false;
+          for (let i = 0; i < cursor; i++) {
+            if (base[i] === "(") {
+              openParens++;
+              const wordBefore = base
+                .slice(0, i)
+                .trimEnd()
+                .match(/[A-Z0-9_]+$/)?.[0];
+              if (wordBefore && (MATH_FUNCTIONS as readonly string[]).includes(wordBefore)) {
+                insideFn = true;
+              }
+            } else if (base[i] === ")") {
+              openParens--;
+              if (openParens === 0) insideFn = false;
+            }
+          }
+
+          if (!insideFn || openParens <= 0) {
+            toast.error("Commas are only allowed to separate function arguments.");
+            return prev;
+          }
+
+          const lastActualChar = trimmedBefore[trimmedBefore.length - 1];
+          if (!lastActualChar || /[+\-*/%(,]/.test(lastActualChar)) {
+            toast.error("Cannot place a comma directly after an operator or opening parenthesis.");
+            return prev;
+          }
+
+          const newVal = `${trimmedBefore}, ${after.trimStart()}`;
+          const newPos = trimmedBefore.length + 2;
+          setTimeout(() => inputRef.current?.setSelectionRange(newPos, newPos), 0);
+          return newVal;
+        }
+
+        // ── Math function with open parenthesis: e.g. MIN(, MAX( ──
+        const isFnWithParen = /^[A-Z]+\($/.test(tokenToInsert);
+        if (isFnWithParen) {
+          if (trimmedBefore.length > 0 && lastChar && /[A-Za-z0-9_)]/.test(lastChar)) {
+            toast.error("Add an operator before inserting a function.");
+            return prev;
+          }
+
+          const prefix = before.endsWith(" ") || before === "" || before.endsWith("(") ? "" : " ";
+          const newVal = before + prefix + tokenToInsert + after;
+          const newCursorPos = before.length + prefix.length + tokenToInsert.length;
+          setTimeout(() => inputRef.current?.setSelectionRange(newCursorPos, newCursorPos), 0);
+          return newVal;
+        }
+
         // Ensure we don't insert a closing parenthesis without an open one (globally)
         if (tokenToInsert === ")") {
           const openCount = (base.match(/\(/g) || []).length;
@@ -141,6 +198,7 @@ export function TemplateFormulaBar() {
               lastWordInBuffer &&
               !allTokensRef.current.includes(lastWordInBuffer) &&
               !(isLegacy && allTokensRef.current.includes(canonicalEquivalent)) &&
+              !(MATH_FUNCTIONS as readonly string[]).includes(lastWordInBuffer) &&
               !/^[0-9.]+$/.test(lastWordInBuffer)
             ) {
               toast.error(
@@ -148,7 +206,12 @@ export function TemplateFormulaBar() {
               );
               return prev;
             }
-            if (isOpenParen && lastChar && /[A-Z0-9_)]/.test(lastChar)) {
+            if (
+              isOpenParen &&
+              lastChar &&
+              /[A-Z0-9_)]/.test(lastChar) &&
+              !(MATH_FUNCTIONS as readonly string[]).includes(lastWordInBuffer)
+            ) {
               toast.error("Add an operator before opening a parenthesis after a token or number.");
               return prev;
             }
@@ -293,11 +356,15 @@ export function TemplateFormulaBar() {
       const withoutPartial = inputValue.slice(0, selStart - lastWord.length);
       const afterCursor = inputValue.slice(selStart);
 
+      const isMathFn = (MATH_FUNCTIONS as readonly string[]).includes(token);
+      const tokenWithParen = isMathFn ? `${token}(` : token;
+
       const padLeft =
         withoutPartial.endsWith(" ") || withoutPartial === "" || withoutPartial.endsWith("(")
           ? ""
           : " ";
-      const newVal = `${withoutPartial + padLeft + token} ${afterCursor}`;
+      const padRight = isMathFn ? "" : " ";
+      const newVal = `${withoutPartial + padLeft + tokenWithParen}${padRight}${afterCursor}`;
 
       setInputValue(newVal);
       isDirty.current = true;
@@ -306,7 +373,8 @@ export function TemplateFormulaBar() {
 
       setTimeout(() => {
         inputRef.current?.focus();
-        const pos = withoutPartial.length + padLeft.length + token.length + 1;
+        const pos =
+          withoutPartial.length + padLeft.length + tokenWithParen.length + (isMathFn ? 0 : 1);
         inputRef.current?.setSelectionRange(pos, pos);
       }, 0);
     },

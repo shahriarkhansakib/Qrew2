@@ -3,8 +3,10 @@
  * Validates human-readable (decoded) formula strings before UUID encoding.
  */
 
-/** Valid character regex for a preprocessed formula */
-const VALID_CHAR_RE = /^[A-Z0-9_.+\-*/%\s()]+$/;
+/** Valid character regex for a preprocessed formula (includes commas for function arguments) */
+const VALID_CHAR_RE = /^[A-Z0-9_.+\-*/%,\s()]+$/;
+
+export const MATH_FUNCTION_NAMES = new Set(["MIN", "MAX", "ROUND", "CLAMP", "ABS"]);
 
 /**
  * Validate a formula string for character allowlist and basic syntax.
@@ -23,7 +25,7 @@ export function validateFormulaStrict(
 
   // 1. Character allowlist
   if (!VALID_CHAR_RE.test(f)) {
-    const bad = f.match(/[^A-Z0-9_.+\-*/%\s()]/);
+    const bad = f.match(/[^A-Z0-9_.+\-*/%,\s()]/);
     return {
       valid: false,
       error: `Invalid character in formula: "${bad?.[0]}" — only tokens, numbers, and operators are allowed`,
@@ -55,10 +57,11 @@ export function validateFormulaStrict(
     }
   }
 
-  // 2. Word segments must be known tokens (skip if set is empty — means skip check)
+  // 2. Word segments must be known tokens or whitelisted math functions
   if (validTokens.size > 0) {
     const wordSegments = f.match(/[A-Z_][A-Z0-9_]*/g) ?? [];
     for (const word of wordSegments) {
+      if (MATH_FUNCTION_NAMES.has(word)) continue;
       if (!validTokens.has(word)) {
         return {
           valid: false,

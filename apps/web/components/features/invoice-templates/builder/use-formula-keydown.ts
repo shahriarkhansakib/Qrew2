@@ -5,6 +5,15 @@ import { toast } from "sonner";
 import type { SelectedCell } from "./builder-context";
 import { getChunkAtCursor, getLastWord, isValidTokenPrefix } from "./formula-bar-utils";
 
+export const MATH_FUNCTIONS = ["MIN", "MAX", "ROUND", "CLAMP", "ABS"] as const;
+
+export function isTokenOrFnPrefix(cand: string, tokens: string[]): boolean {
+  return (
+    isValidTokenPrefix(cand, tokens) ||
+    MATH_FUNCTIONS.some((fn) => fn.startsWith(cand.toUpperCase()))
+  );
+}
+
 export interface UseFormulaKeyDownProps {
   inputValue: string;
   setInputValue: React.Dispatch<React.SetStateAction<string>>;
@@ -186,7 +195,7 @@ export function useFormulaKeyDown({
               const relativePos = selStart - 1 - chunk.start;
               const newChunkText =
                 chunk.text.slice(0, relativePos) + chunk.text.slice(relativePos + 1);
-              if (newChunkText.length > 0 && !isValidTokenPrefix(newChunkText, allTokens)) {
+              if (newChunkText.length > 0 && !isTokenOrFnPrefix(newChunkText, allTokens)) {
                 e.preventDefault();
                 toast.error(`Cannot delete: "${newChunkText}" does not match any valid token.`);
                 return;
@@ -217,7 +226,7 @@ export function useFormulaKeyDown({
               const relativePos = selStart - chunk.start;
               const newChunkText =
                 chunk.text.slice(0, relativePos) + chunk.text.slice(relativePos + 1);
-              if (newChunkText.length > 0 && !isValidTokenPrefix(newChunkText, allTokens)) {
+              if (newChunkText.length > 0 && !isTokenOrFnPrefix(newChunkText, allTokens)) {
                 e.preventDefault();
                 toast.error(`Cannot delete: "${newChunkText}" does not match any valid token.`);
                 return;
@@ -314,8 +323,72 @@ export function useFormulaKeyDown({
         return;
       }
 
-      // Operator characters
-      if (["+", "-", "*", "/", "%", "(", ")"].includes(e.key)) {
+      // Operator and syntax characters
+      if (["+", "-", "*", "/", "%", "(", ")", ","].includes(e.key)) {
+        // ── Comma: allowed exclusively within function arguments ──
+        if (e.key === ",") {
+          e.preventDefault();
+          const target = e.target as HTMLInputElement;
+          const selStart = target.selectionStart ?? inputValue.length;
+          const selEnd = target.selectionEnd ?? inputValue.length;
+          const before = inputValue.slice(0, selStart);
+          const after = inputValue.slice(selEnd);
+          const trimmedBefore = before.trimEnd();
+
+          // Check if cursor is inside a function call's parenthesis scope
+          let openParens = 0;
+          let insideFn = false;
+          for (let i = 0; i < selStart; i++) {
+            if (inputValue[i] === "(") {
+              openParens++;
+              const wordBefore = inputValue
+                .slice(0, i)
+                .trimEnd()
+                .match(/[A-Z0-9_]+$/)?.[0];
+              if (wordBefore && (MATH_FUNCTIONS as readonly string[]).includes(wordBefore)) {
+                insideFn = true;
+              }
+            } else if (inputValue[i] === ")") {
+              openParens--;
+              if (openParens === 0) insideFn = false;
+            }
+          }
+
+          if (!insideFn || openParens <= 0) {
+            toast.error("Commas are only allowed to separate function arguments.");
+            return;
+          }
+
+          const lastActualChar = trimmedBefore[trimmedBefore.length - 1];
+          if (!lastActualChar || /[+\-*/%(,]/.test(lastActualChar)) {
+            toast.error("Cannot place a comma directly after an operator or opening parenthesis.");
+            return;
+          }
+
+          const lastWordMatch = trimmedBefore.match(/[A-Z0-9_]+$/);
+          const lastWordInBuf = lastWordMatch ? lastWordMatch[0] : "";
+          if (lastWordInBuf && !/^[0-9.]+$/.test(lastWordInBuf)) {
+            if (
+              !allTokens.includes(lastWordInBuf) &&
+              !(MATH_FUNCTIONS as readonly string[]).includes(lastWordInBuf)
+            ) {
+              toast.error(
+                `"${lastWordInBuf}" is not a complete token. Finish the token before adding a comma.`,
+              );
+              return;
+            }
+          }
+
+          const newVal = `${trimmedBefore}, ${after.trimStart()}`;
+          setInputValue(newVal);
+          isDirty.current = true;
+          setTimeout(() => {
+            const newPos = trimmedBefore.length + 2;
+            inputRef.current?.setSelectionRange(newPos, newPos);
+          }, 0);
+          return;
+        }
+
         if (["+", "-", "*", "/"].includes(e.key)) {
           e.preventDefault();
           const target = e.target as HTMLInputElement;
@@ -408,6 +481,18 @@ export function useFormulaKeyDown({
           const lastWordMatch = trimmedBefore.match(/[A-Z0-9_]+$/);
           const lastWordInBuf = lastWordMatch ? lastWordMatch[0] : "";
 
+          // If preceded by a whitelisted math function (e.g. MAX, MIN, ROUND, CLAMP, ABS), allow ( directly without an operator!
+          if (lastWordInBuf && (MATH_FUNCTIONS as readonly string[]).includes(lastWordInBuf)) {
+            const newVal = `${before}(${after}`;
+            setInputValue(newVal);
+            isDirty.current = true;
+            setTimeout(() => {
+              const newPos = before.length + 1;
+              inputRef.current?.setSelectionRange(newPos, newPos);
+            }, 0);
+            return;
+          }
+
           // Block ( after incomplete token
           if (lastWordInBuf && !/^[0-9.]+$/.test(lastWordInBuf)) {
             if (
@@ -496,7 +581,7 @@ export function useFormulaKeyDown({
         return;
       }
 
-      // Letter typing: validate against active tokens with auto-capitalization & exact matching
+      // Letter typing: validate against active tokens & math functions with auto-capitalization & exact matching
       if (/^[a-zA-Z]$/.test(e.key)) {
         e.preventDefault();
         const upper = e.key.toUpperCase();
@@ -507,11 +592,11 @@ export function useFormulaKeyDown({
         const after = inputValue.slice(selEnd);
         const currentLastWord = getLastWord(before);
 
-        // Exact match continuation (e.g. typing "P", "PO", "PORT")
+        // Exact match continuation (e.g. typing "P", "PO", "PORT" or "M", "MA", "MAX")
         const directCandidate = currentLastWord ? currentLastWord + upper : upper;
-        const hasDirectMatch = allTokens.some(
-          (t) => t.startsWith(directCandidate) || t.includes(directCandidate),
-        );
+        const hasDirectMatch =
+          allTokens.some((t) => t.startsWith(directCandidate) || t.includes(directCandidate)) ||
+          MATH_FUNCTIONS.some((fn) => fn.startsWith(directCandidate));
 
         if (hasDirectMatch) {
           const newVal = before + upper + after;
@@ -521,7 +606,7 @@ export function useFormulaKeyDown({
           return;
         }
 
-        // Keystroke does not match any token path -> reject
+        // Keystroke does not match any token path or math function -> reject
         return;
       }
 

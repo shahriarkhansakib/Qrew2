@@ -158,18 +158,48 @@ export function decodeFormula(
   return decoded;
 }
 
+export const MATH_FUNCTION_NAMES = new Set(["MIN", "MAX", "ROUND", "CLAMP", "ABS"]);
+
 /**
  * Safely evaluate an arithmetic expression string where all identifiers have
  * already been substituted with numeric literals.
+ * Supports standard operators as well as MIN, MAX, ROUND, CLAMP, ABS functions.
  * Returns null if evaluation fails or result is not finite.
  */
-function safeEval(expr: string): number | null {
+export function safeEval(expr: string): number | null {
   try {
-    // Validate: after substitution, only digits, operators, and whitespace/parens
-    // should remain. Reject anything else to prevent code injection.
-    if (!/^[\d\s+\-*/.()]+$/.test(expr.trim())) return null;
-    // eslint-disable-next-line no-new-func
-    const result = new Function(`"use strict"; return (${expr})`)() as number;
+    const trimmed = expr.trim();
+    if (!trimmed) return null;
+
+    // Validate: only numbers, operators, parens, commas, and identifiers allowed
+    if (!/^[0-9\s+\-*/%(),.a-zA-Z_]+$/.test(trimmed)) return null;
+
+    // Check that identifiers are only allowed math functions
+    const idents = trimmed.match(/[A-Za-z_][A-Za-z0-9_]*/g) || [];
+    const allowed = new Set(["MIN", "MAX", "ROUND", "CLAMP", "ABS"]);
+    if (idents.some((id) => !allowed.has(id.toUpperCase()))) {
+      return null;
+    }
+
+    const fn = new Function(
+      "MIN",
+      "MAX",
+      "ROUND",
+      "CLAMP",
+      "ABS",
+      `"use strict"; return (${trimmed});`,
+    );
+
+    const round = (val: number, decimals = 0) => {
+      const factor = Math.pow(10, decimals);
+      return Math.round(val * factor) / factor;
+    };
+
+    const clamp = (val: number, min: number, max: number) => {
+      return Math.min(Math.max(val, min), max);
+    };
+
+    const result = fn(Math.min, Math.max, round, clamp, Math.abs);
     return typeof result === "number" && Number.isFinite(result) ? result : null;
   } catch {
     return null;
@@ -206,6 +236,8 @@ export function evaluateFormula(formula: string, tokens: TokenMap): number | nul
   const sortedTokens = Object.keys(tokens).sort((a, b) => b.length - a.length);
 
   for (const token of sortedTokens) {
+    // Skip math function names so they are not replaced
+    if (MATH_FUNCTION_NAMES.has(token)) continue;
     // Use word-boundary-like replacement: token must not be preceded/followed
     // by another word character to avoid partial matches.
     expr = expr.replace(
@@ -220,7 +252,8 @@ export function evaluateFormula(formula: string, tokens: TokenMap): number | nul
 export function extractTokens(formula: string): string[] {
   if (!formula) return [];
   const matches = formula.match(/[A-Z_][A-Z0-9_]*/g);
-  return matches ? Array.from(new Set(matches)) : [];
+  if (!matches) return [];
+  return Array.from(new Set(matches.filter((t) => !MATH_FUNCTION_NAMES.has(t))));
 }
 
 export interface CircularDependencyResult {

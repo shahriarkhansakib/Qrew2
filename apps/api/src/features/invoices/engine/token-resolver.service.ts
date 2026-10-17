@@ -10,7 +10,7 @@ import {
   templateHeaderFields,
   tokens,
 } from "@starter/db";
-import { and, eq, sql } from "drizzle-orm";
+import { and, eq, gte, lte, sql } from "drizzle-orm";
 import * as math from "mathjs";
 
 const bigMath = math.create(math.all, { number: "BigNumber", precision: 20 });
@@ -46,6 +46,10 @@ export interface ResolveScopeInput {
   headerFieldValues?: Record<string, string>;
   /** External token overrides from preview / test input panel */
   externalOverrides?: Record<string, string>;
+  /** Optional time-period filter start date (e.g. for March 2026: 2026-03-01) */
+  periodStart?: string | Date | null;
+  /** Optional time-period filter end date (e.g. for March 2026: 2026-03-31T23:59:59.999Z) */
+  periodEnd?: string | Date | null;
 }
 
 /**
@@ -53,7 +57,7 @@ export interface ResolveScopeInput {
  *
  * Returns Record<tokenKey, BigNumber-as-string> — never undefined for known tokens.
  *
- * 1. EXP_* — SUM of expenses per category + EXP_TOTAL
+ * 1. EXP_* — SUM of expenses per category + EXP_TOTAL (supports optional periodStart/periodEnd filtering)
  * 2. GBL_* — organization_configs WHERE tokens.isInjectable = true
  * 3. TPL_* — template_constants for the given template
  * 4. FILE_* — from projects.customFields + direct columns per template_header_fields config
@@ -94,6 +98,35 @@ export async function resolveScope(input: ResolveScopeInput): Promise<Record<str
     }
   }
 
+  // Parse optional period filter from input or header values (e.g. PERIOD_START / PERIOD_END)
+  const rawStart =
+    input.periodStart ??
+    input.headerFieldValues?.PERIOD_START ??
+    input.headerFieldValues?.EXPENSE_PERIOD_START;
+  const rawEnd =
+    input.periodEnd ??
+    input.headerFieldValues?.PERIOD_END ??
+    input.headerFieldValues?.EXPENSE_PERIOD_END;
+
+  const expenseConditions = [
+    eq(expenses.categoryId, expenseCategories.id),
+    eq(expenses.projectId, projectId),
+    eq(expenses.organizationId, organizationId),
+  ];
+
+  if (rawStart) {
+    const dStart = new Date(rawStart);
+    if (!Number.isNaN(dStart.getTime())) {
+      expenseConditions.push(gte(expenses.createdAt, dStart));
+    }
+  }
+  if (rawEnd) {
+    const dEnd = new Date(rawEnd);
+    if (!Number.isNaN(dEnd.getTime())) {
+      expenseConditions.push(lte(expenses.createdAt, dEnd));
+    }
+  }
+
   // Compute actual sums and override the zeros
   const categorySums = await db
     .select({
@@ -103,14 +136,7 @@ export async function resolveScope(input: ResolveScopeInput): Promise<Record<str
     })
     .from(expenseCategories)
     .innerJoin(tokens, eq(tokens.id, expenseCategories.id))
-    .leftJoin(
-      expenses,
-      and(
-        eq(expenses.categoryId, expenseCategories.id),
-        eq(expenses.projectId, projectId),
-        eq(expenses.organizationId, organizationId),
-      ),
-    )
+    .leftJoin(expenses, and(...expenseConditions))
     .where(and(eq(tokens.organizationId, organizationId), eq(tokens.isSystem, false)))
     .groupBy(tokens.tokenKey, tokens.isSystem, expenseCategories.id);
 

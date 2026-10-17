@@ -217,6 +217,8 @@ export function BuilderProvider({
 
   const getTokenColor = useCallback(
     (token: string) => {
+      if (["MIN", "MAX", "ROUND", "CLAMP", "ABS"].includes(token))
+        return "text-amber-400 font-semibold";
       if (token === "EXP_TOTAL") return "text-rose-500 font-bold bg-rose-500/15";
       if (externalTokens.category?.has(token) || token.startsWith("EXP_"))
         return "text-rose-400 bg-rose-500/10";

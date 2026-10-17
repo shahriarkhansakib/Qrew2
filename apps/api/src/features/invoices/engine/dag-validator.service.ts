@@ -31,6 +31,8 @@ import { type DagValidationResult, type EngineError, type EvaluatorSection } fro
 // TOKEN EXTRACTION
 // ─────────────────────────────────────────────────────────────────────────────
 
+export const MATH_FUNCTION_NAMES = new Set(["MIN", "MAX", "ROUND", "CLAMP", "ABS"]);
+
 /**
  * Extracts all bare token identifiers from a formula string.
  * Tokens are alphanumeric + underscore sequences (not numbers or operators).
@@ -39,7 +41,8 @@ import { type DagValidationResult, type EngineError, type EvaluatorSection } fro
 function extractTokens(formula: string): string[] {
   // Match word-char sequences that are NOT pure numbers
   const matches = formula.match(/\b[A-Z_][A-Z0-9_]*\b/g);
-  return matches ? [...new Set(matches)] : [];
+  if (!matches) return [];
+  return [...new Set(matches.filter((t) => !MATH_FUNCTION_NAMES.has(t)))];
 }
 
 // ─────────────────────────────────────────────────────────────────────────────

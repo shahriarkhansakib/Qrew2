@@ -54,6 +54,49 @@ const math: MathJsInstance = create(all, {
 const ZERO = math.bignumber("0");
 const FIXED_SCALE = 6;
 
+export const MATH_FUNCTION_NAMES = new Set(["MIN", "MAX", "ROUND", "CLAMP", "ABS"]);
+
+const origMin = math.min;
+const origMax = math.max;
+const origRound = math.round;
+const origAbs = math.abs;
+
+math.import(
+  {
+    MIN: (...args: any[]) => origMin(...args.map(safeBN)),
+    min: (...args: any[]) => origMin(...args.map(safeBN)),
+    MAX: (...args: any[]) => origMax(...args.map(safeBN)),
+    max: (...args: any[]) => origMax(...args.map(safeBN)),
+    ROUND: (val: any, decimals: any = 0) => {
+      const dec = typeof decimals === "number" ? decimals : parseInt(String(decimals || 0), 10);
+      return origRound(safeBN(val), dec);
+    },
+    round: (val: any, decimals: any = 0) => {
+      const dec = typeof decimals === "number" ? decimals : parseInt(String(decimals || 0), 10);
+      return origRound(safeBN(val), dec);
+    },
+    ABS: (val: any) => origAbs(safeBN(val)),
+    abs: (val: any) => origAbs(safeBN(val)),
+    CLAMP: (val: any, minVal: any, maxVal: any) => {
+      const bnVal = safeBN(val);
+      const bnMin = safeBN(minVal);
+      const bnMax = safeBN(maxVal);
+      if (math.smaller(bnVal, bnMin)) return bnMin;
+      if (math.larger(bnVal, bnMax)) return bnMax;
+      return bnVal;
+    },
+    clamp: (val: any, minVal: any, maxVal: any) => {
+      const bnVal = safeBN(val);
+      const bnMin = safeBN(minVal);
+      const bnMax = safeBN(maxVal);
+      if (math.smaller(bnVal, bnMin)) return bnMin;
+      if (math.larger(bnVal, bnMax)) return bnMax;
+      return bnVal;
+    },
+  },
+  { override: true },
+);
+
 function toFixed(val: BigNumber): string {
   return math.format(val, { notation: "fixed", precision: FIXED_SCALE });
 }
@@ -111,6 +154,7 @@ function evalFormula(
     TOKEN_RE.lastIndex = 0;
     while ((m = TOKEN_RE.exec(formula)) !== null) {
       const tok = m[1];
+      if (MATH_FUNCTION_NAMES.has(tok)) continue;
       if (!(tok in scope)) unknownTokens.add(tok);
     }
     for (const tok of unknownTokens) {

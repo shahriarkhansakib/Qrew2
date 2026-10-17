@@ -1,4 +1,5 @@
-import { Clipboard, Delete, Eraser, Redo2, Trash2, Undo2 } from "lucide-react";
+import { ChevronDown, Clipboard, Delete, Eraser, Redo2, Trash2, Undo2 } from "lucide-react";
+import { useState } from "react";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import { OPERATORS } from "../formula-bar-types";
@@ -28,6 +29,7 @@ export function FormulaActions({
   onBackspace: (e: React.MouseEvent) => void;
   onClear: (e: React.MouseEvent) => void;
 }) {
+  const [showFunctions, setShowFunctions] = useState(false);
   return (
     <div
       className={cn(
@@ -67,6 +69,34 @@ export function FormulaActions({
             {op.label}
           </Button>
         ))}
+
+        <Button
+          variant="ghost"
+          size="sm"
+          className={cn(
+            "h-7 px-2 flex items-center gap-1 rounded border border-border/50 text-xs font-mono transition-colors",
+            showFunctions
+              ? "bg-primary/10 text-primary border-primary/30"
+              : "bg-card/50 hover:bg-card text-muted-foreground hover:text-foreground",
+          )}
+          title={
+            showFunctions
+              ? "Hide math functions"
+              : "Show math functions (MIN, MAX, ROUND, CLAMP, ABS)"
+          }
+          onMouseDown={(e) => {
+            e.preventDefault();
+            setShowFunctions(!showFunctions);
+          }}
+        >
+          <span>Functions</span>
+          <ChevronDown
+            className={cn(
+              "h-3 w-3 transition-transform duration-200",
+              showFunctions && "rotate-180",
+            )}
+          />
+        </Button>
 
         <div className="w-[1px] h-4 bg-border mx-1 hidden sm:block" />
 
@@ -138,6 +168,34 @@ export function FormulaActions({
           type a token name to autocomplete · Tab/Enter to insert
         </span>
       </div>
+
+      {/* Row 3: Collapsible Math Functions */}
+      {showFunctions && (
+        <div className="flex flex-wrap items-center gap-1 pt-0.5 animate-in fade-in slide-in-from-top-1 duration-150">
+          {[
+            { label: "MIN(", title: "Minimum of values: MIN(a, b, ...)" },
+            { label: "MAX(", title: "Maximum of values: MAX(a, b, ...)" },
+            { label: "ROUND(", title: "Round to decimals: ROUND(value, decimals)" },
+            { label: "CLAMP(", title: "Clamp between min and max: CLAMP(val, min, max)" },
+            { label: "ABS(", title: "Absolute value: ABS(value)" },
+            { label: ",", title: "Argument separator comma" },
+          ].map((fn) => (
+            <Button
+              key={fn.label}
+              variant="ghost"
+              size="sm"
+              className="h-7 px-2 min-w-[28px] flex items-center justify-center rounded bg-amber-500/10 hover:bg-amber-500/20 border border-amber-500/30 text-xs font-mono text-amber-500 dark:text-amber-400 font-semibold transition-colors"
+              title={fn.title}
+              onMouseDown={(e) => {
+                e.preventDefault();
+                window.dispatchEvent(new CustomEvent("insert-token", { detail: fn.label }));
+              }}
+            >
+              {fn.label}
+            </Button>
+          ))}
+        </div>
+      )}
     </div>
   );
 }

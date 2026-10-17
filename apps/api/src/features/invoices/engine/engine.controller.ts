@@ -30,6 +30,8 @@ const previewSchema = z.object({
   overrides: z.record(z.string(), z.string()).optional(),
   externalOverrides: z.record(z.string(), z.string()).optional(),
   headerFieldValues: z.record(z.string(), z.string()).optional().default({}),
+  periodStart: z.string().optional(),
+  periodEnd: z.string().optional(),
 });
 
 /**
@@ -72,7 +74,7 @@ export class EngineController {
         );
       }
 
-      const { projectId, templateId, headerFieldValues } = parsed.data;
+      const { projectId, templateId, headerFieldValues, periodStart, periodEnd } = parsed.data;
 
       // ─────────────────────────────────────────────────────────────────────
       // 1. Resolve full token scope (FILE_*, GBL_*, EXP_*)
@@ -84,6 +86,8 @@ export class EngineController {
         db,
         headerFieldValues: headerFieldValues ?? {},
         externalOverrides: parsed.data.externalOverrides,
+        periodStart,
+        periodEnd,
       });
 
       // ─────────────────────────────────────────────────────────────────────
