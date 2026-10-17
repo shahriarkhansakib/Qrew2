@@ -63,7 +63,17 @@ export const auth = betterAuth({
   }),
   secret: betterAuthSecret,
   baseURL: betterAuthUrl,
-  trustedOrigins: [nextPublicAppUrl.replace(/['"]/g, "").replace(/\/+$/, "")],
+  trustedOrigins: Array.from(
+    new Set(
+      [
+        nextPublicAppUrl.replace(/['"]/g, "").replace(/\/+$/, ""),
+        "http://localhost:3001",
+        ...(process.env.BETTER_AUTH_TRUSTED_ORIGINS
+          ? process.env.BETTER_AUTH_TRUSTED_ORIGINS.split(",")
+          : []),
+      ].filter(Boolean),
+    ),
+  ),
   session: {
     expiresIn: 60 * 60 * 24 * 7,
     updateAge: 60 * 60 * 24,
