@@ -10,8 +10,8 @@ import { renderHighlightedToken, SyntaxOverlay } from "../formula-bar-syntax";
 import {
   getChunkAtCursor,
   isValidTokenPrefix,
-  validateFormulaSave,
   MATH_FUNCTIONS,
+  validateFormulaSave,
 } from "../formula-bar-utils";
 import { useFormulaAutocomplete } from "../use-formula-autocomplete";
 import { useFormulaKeyDown } from "../use-formula-keydown";

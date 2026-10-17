@@ -48,11 +48,11 @@ vi.mock("@starter/db", () => {
   };
 });
 
+import { validateFormulaChars } from "../../invoice-templates/validation/formula-validator";
 import { AstEvaluatorService } from "./ast-evaluator.service";
 import { DagValidatorService } from "./dag-validator.service";
 import { resolveScope } from "./token-resolver.service";
 import type { EvaluatorSection } from "./types";
-import { validateFormulaChars } from "../../invoice-templates/validation/formula-validator";
 
 describe("Track C — AST Math Functions & Period-Aware Expenses", () => {
   describe("Backend AST Evaluator — Math Functions", () => {

@@ -191,7 +191,7 @@ export function safeEval(expr: string): number | null {
     );
 
     const round = (val: number, decimals = 0) => {
-      const factor = Math.pow(10, decimals);
+      const factor = 10 ** decimals;
       return Math.round(val * factor) / factor;
     };
 
