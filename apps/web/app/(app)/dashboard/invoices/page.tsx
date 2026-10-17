@@ -544,10 +544,7 @@ export default function InvoicesPage() {
                   <EmptyRow colSpan={7} message="No completed invoices yet." />
                 ) : (
                   billedInvoices.map((inv: any) => (
-                    <TableRow
-                      key={inv.id}
-                      className="hover:bg-muted/30 transition-colors group"
-                    >
+                    <TableRow key={inv.id} className="hover:bg-muted/30 transition-colors group">
                       {/* Invoice */}
                       <TableCell>
                         <div className="flex flex-col gap-0.5">
@@ -626,11 +623,15 @@ export default function InvoicesPage() {
                               <DropdownMenuContent align="end">
                                 {inv.status === "issued" && (
                                   <>
-                                    <DropdownMenuItem onClick={() => handleAction(inv.id, "mark-paid")}>
+                                    <DropdownMenuItem
+                                      onClick={() => handleAction(inv.id, "mark-paid")}
+                                    >
                                       <CheckCircle2 className="w-4 h-4 mr-2" />
                                       Mark as Paid
                                     </DropdownMenuItem>
-                                    <DropdownMenuItem onClick={() => handleAction(inv.id, "dispute")}>
+                                    <DropdownMenuItem
+                                      onClick={() => handleAction(inv.id, "dispute")}
+                                    >
                                       <AlertCircle className="w-4 h-4 mr-2 text-amber-500" />
                                       Mark as Disputed
                                     </DropdownMenuItem>
@@ -658,7 +659,9 @@ export default function InvoicesPage() {
                                       <Send className="w-4 h-4 mr-2" />
                                       Resolve Dispute (Re-Issue)
                                     </DropdownMenuItem>
-                                    <DropdownMenuItem onClick={() => handleAction(inv.id, "mark-paid")}>
+                                    <DropdownMenuItem
+                                      onClick={() => handleAction(inv.id, "mark-paid")}
+                                    >
                                       <CheckCircle2 className="w-4 h-4 mr-2" />
                                       Mark as Paid
                                     </DropdownMenuItem>

@@ -10,9 +10,7 @@ export function appendAuditEntry(
   user: { id: string; name?: string | null; email?: string | null },
   action: string = "Edited draft",
 ): DraftEditAuditEntry[] {
-  const history: DraftEditAuditEntry[] = Array.isArray(existingHistory)
-    ? [...existingHistory]
-    : [];
+  const history: DraftEditAuditEntry[] = Array.isArray(existingHistory) ? [...existingHistory] : [];
   const now = new Date();
   const userName = user.name || user.email || "Unknown User";
 

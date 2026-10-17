@@ -286,12 +286,7 @@ export class DraftsController {
 
       await db
         .delete(invoiceDrafts)
-        .where(
-          and(
-            eq(invoiceDrafts.id, id!),
-            eq(invoiceDrafts.organizationId, organizationId!),
-          ),
-        );
+        .where(and(eq(invoiceDrafts.id, id!), eq(invoiceDrafts.organizationId, organizationId!)));
 
       return new Response(null, { status: 204 });
     } catch (err: any) {

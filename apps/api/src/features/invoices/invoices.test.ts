@@ -14,35 +14,31 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { InvoicesController } from "./invoices.controller";
 
-const {
-  mockDbQuery,
-  mockDbInsert,
-  mockDbUpdate,
-  mockDbDelete,
-  mockDbTransaction,
-} = vi.hoisted(() => {
-  const mockDbQuery = {
-    invoices: {
-      findMany: vi.fn(),
-      findFirst: vi.fn(),
-    },
-    templateConstants: {
-      findMany: vi.fn(),
-    },
-  };
-  const mockDbInsert = vi.fn();
-  const mockDbUpdate = vi.fn();
-  const mockDbDelete = vi.fn();
-  const mockDbTransaction = vi.fn();
+const { mockDbQuery, mockDbInsert, mockDbUpdate, mockDbDelete, mockDbTransaction } = vi.hoisted(
+  () => {
+    const mockDbQuery = {
+      invoices: {
+        findMany: vi.fn(),
+        findFirst: vi.fn(),
+      },
+      templateConstants: {
+        findMany: vi.fn(),
+      },
+    };
+    const mockDbInsert = vi.fn();
+    const mockDbUpdate = vi.fn();
+    const mockDbDelete = vi.fn();
+    const mockDbTransaction = vi.fn();
 
-  return {
-    mockDbQuery,
-    mockDbInsert,
-    mockDbUpdate,
-    mockDbDelete,
-    mockDbTransaction,
-  };
-});
+    return {
+      mockDbQuery,
+      mockDbInsert,
+      mockDbUpdate,
+      mockDbDelete,
+      mockDbTransaction,
+    };
+  },
+);
 
 vi.mock("@starter/db", () => {
   const chainable = () => ({

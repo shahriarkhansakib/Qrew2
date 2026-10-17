@@ -1,4 +1,11 @@
-import { db, invoiceDrafts, invoiceLineItems, invoices, templateConstants, tokens } from "@starter/db";
+import {
+  db,
+  invoiceDrafts,
+  invoiceLineItems,
+  invoices,
+  templateConstants,
+  tokens,
+} from "@starter/db";
 import { and, desc, eq, isNull, or } from "drizzle-orm";
 import { Context } from "hono";
 import { z } from "zod";
@@ -211,10 +218,14 @@ export class InvoicesController {
 
       if (!invoice) return c.json({ error: "Invoice not found" }, 404);
       if (invoice.status === "issued") return c.json({ error: "Invoice is already issued" }, 409);
-      if (invoice.status === "paid") return c.json({ error: "Invoice is already marked as paid" }, 409);
+      if (invoice.status === "paid")
+        return c.json({ error: "Invoice is already marked as paid" }, 409);
       if (invoice.status === "void") return c.json({ error: "Cannot issue a voided invoice" }, 422);
       if (invoice.status !== "frozen" && invoice.status !== "disputed") {
-        return c.json({ error: `Cannot issue invoice from current status '${invoice.status}'` }, 422);
+        return c.json(
+          { error: `Cannot issue invoice from current status '${invoice.status}'` },
+          422,
+        );
       }
 
       const [updated] = await db
@@ -246,9 +257,11 @@ export class InvoicesController {
       });
 
       if (!invoice) return c.json({ error: "Invoice not found" }, 404);
-      if (invoice.status === "disputed") return c.json({ error: "Invoice is already marked as disputed" }, 409);
+      if (invoice.status === "disputed")
+        return c.json({ error: "Invoice is already marked as disputed" }, 409);
       if (invoice.status === "paid") return c.json({ error: "Cannot dispute a paid invoice" }, 409);
-      if (invoice.status === "void") return c.json({ error: "Cannot dispute a voided invoice" }, 422);
+      if (invoice.status === "void")
+        return c.json({ error: "Cannot dispute a voided invoice" }, 422);
       if (invoice.status !== "issued") {
         return c.json({ error: "Only issued invoices can be marked as disputed" }, 422);
       }
@@ -311,8 +324,10 @@ export class InvoicesController {
       });
 
       if (!invoice) return c.json({ error: "Invoice not found" }, 404);
-      if (invoice.status === "paid") return c.json({ error: "Invoice is already marked as paid" }, 409);
-      if (invoice.status === "void") return c.json({ error: "Cannot mark a voided invoice as paid" }, 422);
+      if (invoice.status === "paid")
+        return c.json({ error: "Invoice is already marked as paid" }, 409);
+      if (invoice.status === "void")
+        return c.json({ error: "Cannot mark a voided invoice as paid" }, 422);
       if (invoice.status === "draft") {
         return c.json({ error: "Cannot mark a draft invoice as paid without finalizing it" }, 422);
       }
@@ -342,10 +357,7 @@ export class InvoicesController {
 
       // Find the invoice
       const invoice = await db.query.invoices.findFirst({
-        where: and(
-          eq(invoices.id, id!),
-          eq(invoices.organizationId, organizationId!),
-        ),
+        where: and(eq(invoices.id, id!), eq(invoices.organizationId, organizationId!)),
       });
 
       if (!invoice) return c.json({ error: "Invoice not found" }, 404);

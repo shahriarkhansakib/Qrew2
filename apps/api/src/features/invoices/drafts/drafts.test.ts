@@ -290,7 +290,7 @@ describe("DraftsController & Collaboration Audit Tests", () => {
     });
 
     it("caps audit history at 50 entries under high-frequency edit stress", () => {
-      let history: any[] = [];
+      const history: any[] = [];
       const pastTime = new Date("2026-01-01T00:00:00.000Z");
 
       // Seed 60 distinct edits separated by 5 minutes each

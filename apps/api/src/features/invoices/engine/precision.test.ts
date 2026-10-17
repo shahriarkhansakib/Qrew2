@@ -18,8 +18,8 @@ vi.mock("@starter/db", () => {
 });
 
 import { AstEvaluatorService, roundToCurrency } from "./ast-evaluator.service";
-import { parseToBN } from "./token-resolver.service";
 import { interpolate } from "./text-interpolator.service";
+import { parseToBN } from "./token-resolver.service";
 import type { EvaluatorSection } from "./types";
 
 describe("Invoice Engine — Precision & Arithmetic Integrity", () => {
@@ -125,14 +125,7 @@ describe("Invoice Engine — Precision & Arithmetic Integrity", () => {
         "SEC_A",
       ];
 
-      const result = AstEvaluatorService.evaluate(
-        sections,
-        {},
-        {},
-        {},
-        {},
-        topologicalOrder,
-      );
+      const result = AstEvaluatorService.evaluate(sections, {}, {}, {}, {}, topologicalOrder);
 
       // Should not throw fatal errors
       expect(result.errors).toHaveLength(0);
@@ -199,14 +192,7 @@ describe("Invoice Engine — Precision & Arithmetic Integrity", () => {
         "SEC_A",
       ];
 
-      const result = AstEvaluatorService.evaluate(
-        sections,
-        {},
-        {},
-        {},
-        {},
-        topologicalOrder,
-      );
+      const result = AstEvaluatorService.evaluate(sections, {}, {}, {}, {}, topologicalOrder);
 
       expect(result.errors).toHaveLength(0);
       const row = result.evaluatedSections[0].rows[0];
