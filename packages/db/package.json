@@ -5,7 +5,8 @@
   "exports": {
     ".": "./src/index.ts",
     "./schema": "./src/schema/index.ts",
-    "./formula-codec": "./src/formula-codec.ts"
+    "./formula-codec": "./src/formula-codec.ts",
+    "./seed-agency-templates": "./src/seed-agency-templates.ts"
   },
   "scripts": {
     "generate": "drizzle-kit generate --config=drizzle.config.ts",

@@ -30,8 +30,8 @@ const previewSchema = z.object({
   overrides: z.record(z.string(), z.string()).optional(),
   externalOverrides: z.record(z.string(), z.string()).optional(),
   headerFieldValues: z.record(z.string(), z.string()).optional().default({}),
-  periodStart: z.string().optional(),
-  periodEnd: z.string().optional(),
+  periodStart: z.string().nullable().optional(),
+  periodEnd: z.string().nullable().optional(),
 });
 
 /**

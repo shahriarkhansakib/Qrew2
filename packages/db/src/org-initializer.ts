@@ -340,4 +340,8 @@ export async function seedOrganizationDefaults(db: any, orgId: string, userId: s
       }
     }
   }
+
+  // 4. Seed Default Agency Invoice Templates
+  const { seedAgencyTemplates } = await import("./seed-agency-templates");
+  await seedAgencyTemplates(db, orgId, userId);
 }

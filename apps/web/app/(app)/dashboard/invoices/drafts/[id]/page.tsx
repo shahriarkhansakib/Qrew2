@@ -5,7 +5,9 @@ import { format } from "date-fns";
 import {
   AlertTriangle,
   ArrowLeft,
+  Calendar,
   CheckCircle,
+  Clock,
   History,
   Loader2,
   PanelRightClose,
@@ -65,7 +67,7 @@ export default function DraftBuilderPage() {
 
   // 2. Preview for read-only mode
   // The draft itself doesn't contain calculated sums. We rely on the engine to calculate the preview.
-  const { data: preview, isLoading: previewLoading } = useQuery({
+  const { data: preview, isLoading: _previewLoading } = useQuery({
     queryKey: [
       "draft-preview",
       draftId,
@@ -90,6 +92,8 @@ export default function DraftBuilderPage() {
           projectId: draft.projectId,
           clientId: draft.project?.clientId,
           templateId: draft.sourceTemplateId,
+          periodStart: draft.draftHeaderValues?.PERIOD_START || null,
+          periodEnd: draft.draftHeaderValues?.PERIOD_END || null,
         }),
       });
       if (!res.ok) throw new Error("Preview failed");
@@ -107,12 +111,15 @@ export default function DraftBuilderPage() {
         headers: { "Content-Type": "application/json" },
         credentials: "include",
         body: JSON.stringify({
+          draftId: draft.id,
           projectId: draft.projectId,
           clientId: draft.project?.clientId,
           documentType: "general", // We'll let the user choose or use a default later, or get from project
           sourceTemplateId: draft.sourceTemplateId,
           draftRows: draft.draftSections,
           headerFieldValues: draft.draftHeaderValues || {},
+          periodStart: draft.draftHeaderValues?.PERIOD_START || null,
+          periodEnd: draft.draftHeaderValues?.PERIOD_END || null,
           issuedToClientName: draft.project?.client?.name || "Client",
           currency: "USD",
         }),
@@ -126,13 +133,9 @@ export default function DraftBuilderPage() {
     },
     onSuccess: async () => {
       toast.success("Invoice finalized successfully!");
-      // Delete the draft
-      await fetch(`${apiUrl}/api/invoices/drafts/${id}`, {
-        method: "DELETE",
-        credentials: "include",
-      });
       queryClient.invalidateQueries({ queryKey: ["project-invoices"] });
       queryClient.invalidateQueries({ queryKey: ["invoice-drafts"] });
+      queryClient.invalidateQueries({ queryKey: ["invoices"] });
       router.push("/dashboard/invoices");
     },
     onError: (err: any) => toast.error(err.message),
@@ -217,20 +220,23 @@ export default function DraftBuilderPage() {
     }
   }
 
-  const updateDraftDetails = async (field: string, value: string) => {
+  const updateDraftDetails = async (field: string, value: any) => {
     try {
       const res = await fetch(`${apiUrl}/api/invoices/drafts`, {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
         credentials: "include",
         body: JSON.stringify({
+          id: draft.id,
           projectId: draft.projectId,
           [field]: value,
         }),
       });
       if (!res.ok) throw new Error("Failed to update draft");
       queryClient.invalidateQueries({ queryKey: ["invoice-draft", draftId] });
+      queryClient.invalidateQueries({ queryKey: ["draft-preview", draftId] });
       queryClient.invalidateQueries({ queryKey: ["drafts"] });
+      queryClient.invalidateQueries({ queryKey: ["invoice-drafts"] });
     } catch (_error) {
       toast.error("Failed to update draft detail");
     }
@@ -266,6 +272,26 @@ export default function DraftBuilderPage() {
                   className="text-accent-foreground border-amber-400/40 bg-accent/10 text-[11px]"
                 >
                   Editing
+                </Badge>
+              )}
+              {draft?.draftHeaderValues?.PERIOD_START && draft?.draftHeaderValues?.PERIOD_END ? (
+                <Badge
+                  variant="outline"
+                  className="text-[11px] gap-1 px-2 py-0.5 border-primary/30 bg-primary/5 text-primary font-mono"
+                  title="Expenses scoped to this period"
+                >
+                  <Calendar className="w-3 h-3" />
+                  {format(new Date(draft.draftHeaderValues.PERIOD_START), "MMM d")} –{" "}
+                  {format(new Date(draft.draftHeaderValues.PERIOD_END), "MMM d, yyyy")}
+                </Badge>
+              ) : (
+                <Badge
+                  variant="outline"
+                  className="text-[11px] gap-1 px-2 py-0.5 border-emerald-500/30 bg-emerald-500/5 text-emerald-600 dark:text-emerald-400"
+                  title="Expenses across the entire project lifecycle are dynamically calculated"
+                >
+                  <Clock className="w-3 h-3" />
+                  Full Timeline (Live Sync)
                 </Badge>
               )}
             </div>

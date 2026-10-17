@@ -13,11 +13,14 @@ import { appendAuditEntry } from "./drafts/draft-audit";
 import { freezeInvoice } from "./engine/invoice-freeze";
 
 const generateSchema = z.object({
+  draftId: z.string().optional(),
   projectId: z.string(),
   clientId: z.string(),
   sourceTemplateId: z.string().optional(),
   sourceTemplateVersion: z.number().optional(),
   headerFieldValues: z.record(z.string(), z.string()).default({}),
+  periodStart: z.string().nullable().optional(),
+  periodEnd: z.string().nullable().optional(),
   issuedToClientName: z.string(),
   currency: z.string().default("USD"),
   notes: z.string().optional(),

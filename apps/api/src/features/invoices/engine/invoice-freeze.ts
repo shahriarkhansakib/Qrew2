@@ -19,6 +19,7 @@ import { parseToBN, resolveScope } from "./token-resolver.service";
 const math: MathJsInstance = create(all, { number: "BigNumber", precision: 20 });
 
 interface FreezeParams {
+  draftId?: string;
   organizationId: string;
   projectId: string;
   clientId: string;
@@ -45,13 +46,11 @@ export async function freezeInvoice(params: FreezeParams) {
     // ─────────────────────────────────────────────────────────────────────
     // STEP 1: Load draft sections from invoice_drafts DB table
     // ─────────────────────────────────────────────────────────────────────
-    const [draft] = await tx
-      .select()
-      .from(invoiceDrafts)
-      .where(
-        and(eq(invoiceDrafts.projectId, params.projectId), eq(invoiceDrafts.userId, params.userId)),
-      )
-      .limit(1);
+    const draftCondition = params.draftId
+      ? eq(invoiceDrafts.id, params.draftId)
+      : and(eq(invoiceDrafts.projectId, params.projectId), eq(invoiceDrafts.userId, params.userId));
+
+    const [draft] = await tx.select().from(invoiceDrafts).where(draftCondition).limit(1);
 
     const draftSections: any[] = draft?.draftSections ?? [];
 
@@ -334,11 +333,18 @@ export async function freezeInvoice(params: FreezeParams) {
     // ─────────────────────────────────────────────────────────────────────
     // STEP 9: Delete the draft
     // ─────────────────────────────────────────────────────────────────────
-    await tx
-      .delete(invoiceDrafts)
-      .where(
-        and(eq(invoiceDrafts.projectId, params.projectId), eq(invoiceDrafts.userId, params.userId)),
-      );
+    if (draft?.id) {
+      await tx.delete(invoiceDrafts).where(eq(invoiceDrafts.id, draft.id));
+    } else {
+      await tx
+        .delete(invoiceDrafts)
+        .where(
+          and(
+            eq(invoiceDrafts.projectId, params.projectId),
+            eq(invoiceDrafts.userId, params.userId),
+          ),
+        );
+    }
 
     return frozen;
   });

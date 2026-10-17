@@ -9,12 +9,14 @@ import {
   CornerUpLeft,
   Eye,
   FileText,
+  Loader2,
   MoreHorizontal,
   Pencil,
   Receipt,
   Send,
 } from "lucide-react";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { useState } from "react";
 import { toast } from "sonner";
 import { ClientDetailsModal } from "@/components/features/clients/client-details-modal";
@@ -131,6 +133,7 @@ function EmptyRow({ colSpan, message }: { colSpan: number; message: string }) {
 // ─── Page ─────────────────────────────────────────────────────────────────────
 
 export default function InvoicesPage() {
+  const router = useRouter();
   const [activeTab, setActiveTab] = useState("drafts");
   const [isGenerateModalOpen, setIsGenerateModalOpen] = useState(false);
   const [selectedProjectId, setSelectedProjectId] = useState<string | null>(null);
@@ -140,6 +143,9 @@ export default function InvoicesPage() {
 
   const [draftToDelete, setDraftToDelete] = useState<string | null>(null);
   const [isDeletingDraft, setIsDeletingDraft] = useState(false);
+
+  const [invoiceToRevert, setInvoiceToRevert] = useState<any | null>(null);
+  const [isReverting, setIsReverting] = useState(false);
 
   const queryClient = useQueryClient();
 
@@ -492,7 +498,7 @@ export default function InvoicesPage() {
                               </DropdownMenuItem>
                               <DropdownMenuSeparator />
                               <DropdownMenuItem
-                                onClick={() => handleAction(inv.id, "unfreeze")}
+                                onClick={() => setInvoiceToRevert(inv)}
                                 className="text-accent-foreground focus:text-accent-foreground"
                               >
                                 <CornerUpLeft className="w-4 h-4 mr-2" />
@@ -637,7 +643,7 @@ export default function InvoicesPage() {
                                     </DropdownMenuItem>
                                     <DropdownMenuSeparator />
                                     <DropdownMenuItem
-                                      onClick={() => handleAction(inv.id, "unfreeze")}
+                                      onClick={() => setInvoiceToRevert(inv)}
                                       className="text-accent-foreground focus:text-accent-foreground"
                                     >
                                       <CornerUpLeft className="w-4 h-4 mr-2" />
@@ -667,7 +673,7 @@ export default function InvoicesPage() {
                                     </DropdownMenuItem>
                                     <DropdownMenuSeparator />
                                     <DropdownMenuItem
-                                      onClick={() => handleAction(inv.id, "unfreeze")}
+                                      onClick={() => setInvoiceToRevert(inv)}
                                       className="text-accent-foreground focus:text-accent-foreground"
                                     >
                                       <CornerUpLeft className="w-4 h-4 mr-2" />
@@ -705,6 +711,72 @@ export default function InvoicesPage() {
           </div>
         </TabsContent>
       </Tabs>
+
+      {/* ── Revert to Draft (Correction) Confirmation Dialog ── */}
+      <AlertDialog
+        open={!!invoiceToRevert}
+        onOpenChange={(open) => !open && !isReverting && setInvoiceToRevert(null)}
+      >
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Revert Invoice to Editable Draft?</AlertDialogTitle>
+            <AlertDialogDescription>
+              This will unlock invoice{" "}
+              <strong className="text-foreground">
+                {invoiceToRevert?.documentNumber && invoiceToRevert?.documentNumber !== "PENDING"
+                  ? invoiceToRevert.documentNumber
+                  : invoiceToRevert?.sourceTemplateName || "Invoice"}
+              </strong>{" "}
+              and convert it back into an active draft. You will be able to modify line items,
+              re-evaluate dynamic formulas, and correct values before re-finalizing. The draft will
+              open immediately for editing.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={isReverting}>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              disabled={isReverting}
+              className="bg-amber-600 hover:bg-amber-700 text-white focus:ring-amber-600 gap-1.5"
+              onClick={async (e) => {
+                e.preventDefault();
+                if (!invoiceToRevert) return;
+                setIsReverting(true);
+                try {
+                  const res = await fetch(`${apiUrl}/api/invoices/${invoiceToRevert.id}/unfreeze`, {
+                    method: "POST",
+                    credentials: "include",
+                  });
+                  const data = await res.json().catch(() => ({}));
+                  if (!res.ok) {
+                    throw new Error(data.error || "Failed to revert invoice");
+                  }
+                  toast.success("Invoice reverted to draft for corrections");
+                  queryClient.invalidateQueries({ queryKey: ["invoices"] });
+                  queryClient.invalidateQueries({ queryKey: ["invoice-drafts"] });
+                  const draftId = data.draftId;
+                  setInvoiceToRevert(null);
+                  if (draftId) {
+                    router.push(`/dashboard/invoices/drafts/${draftId}`);
+                  }
+                } catch (err: any) {
+                  toast.error(err.message || "Failed to revert invoice");
+                } finally {
+                  setIsReverting(false);
+                }
+              }}
+            >
+              {isReverting ? (
+                <>
+                  <Loader2 className="w-4 h-4 animate-spin" />
+                  Reverting...
+                </>
+              ) : (
+                "Revert & Open Draft"
+              )}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
 
       {isGenerateModalOpen && selectedProjectId && (
         <GenerateInvoiceModal

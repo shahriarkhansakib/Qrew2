@@ -48,7 +48,7 @@ interface ProjectDetailsModalProps {
 
 // ─── Invoices sub-section ──────────────────────────────────────────────────
 function ProjectInvoicesSection({ projectId, router }: { projectId: string; router: any }) {
-  const { data: invoiceList, isLoading } = useQuery({
+  const { data: invoiceList, isLoading: invoicesLoading } = useQuery({
     queryKey: ["project-invoices", projectId],
     queryFn: async () => {
       if (!projectId) return [];
@@ -61,12 +61,28 @@ function ProjectInvoicesSection({ projectId, router }: { projectId: string; rout
     enabled: !!projectId,
   });
 
+  const { data: draftList, isLoading: draftsLoading } = useQuery({
+    queryKey: ["project-drafts", projectId],
+    queryFn: async () => {
+      if (!projectId) return [];
+      const res = await fetch(`${apiUrl}/api/invoices/drafts/list?projectId=${projectId}`, {
+        credentials: "include",
+      });
+      if (!res.ok) return [];
+      return res.json();
+    },
+    enabled: !!projectId,
+  });
+
+  const isLoading = invoicesLoading || draftsLoading;
+  const hasItems = (draftList?.length ?? 0) > 0 || (invoiceList?.length ?? 0) > 0;
+
   const statusColor: Record<string, string> = {
     frozen: "bg-blue-500/15 text-blue-400 border-blue-500/30",
     issued: "bg-primary/15 text-primary border-primary/30",
     paid: "bg-green-500/15 text-green-400 border-green-500/30",
     void: "bg-red-500/15 text-red-400 border-red-500/30",
-    draft: "bg-yellow-500/15 text-yellow-400 border-yellow-500/30",
+    draft: "bg-amber-500/15 text-amber-500 border-amber-500/30",
   };
 
   return (
@@ -74,7 +90,7 @@ function ProjectInvoicesSection({ projectId, router }: { projectId: string; rout
       <div className="flex items-center justify-between mb-3">
         <h3 className="text-sm font-semibold uppercase tracking-wider text-muted-foreground flex items-center gap-2">
           <FileStack className="w-4 h-4" />
-          Invoices
+          Invoices & Drafts
         </h3>
       </div>
 
@@ -82,14 +98,43 @@ function ProjectInvoicesSection({ projectId, router }: { projectId: string; rout
         <div className="flex items-center justify-center py-4">
           <Loader2 className="w-4 h-4 animate-spin text-muted-foreground" />
         </div>
-      ) : !invoiceList || invoiceList.length === 0 ? (
+      ) : !hasItems ? (
         <div className="text-center py-5 rounded-xl border border-dashed border-border bg-background/50">
           <FileStack className="w-6 h-6 text-muted-foreground/40 mx-auto mb-1.5" />
-          <p className="text-xs text-muted-foreground">No invoices yet</p>
+          <p className="text-xs text-muted-foreground">No invoices or active drafts yet</p>
         </div>
       ) : (
         <div className="space-y-1.5">
-          {invoiceList.map((inv: any) => {
+          {/* Active Drafts */}
+          {(draftList ?? []).map((draft: any) => (
+            <button
+              key={`draft-${draft.id}`}
+              onClick={() => router.push(`/dashboard/invoices/drafts/${draft.id}`)}
+              className="w-full flex items-center justify-between gap-2 p-2.5 rounded-lg border border-amber-500/20 bg-amber-500/5 hover:bg-amber-500/10 transition-colors text-left group"
+            >
+              <div className="flex flex-col min-w-0">
+                <span className="text-xs font-medium text-foreground truncate group-hover:text-primary transition-colors">
+                  {draft.name || "Invoice Draft"}
+                </span>
+                <span className="text-[11px] text-muted-foreground mt-0.5">
+                  Draft by {draft.user?.name || draft.user?.email || "Team Member"}
+                </span>
+              </div>
+              <div className="flex flex-col items-end gap-1 shrink-0">
+                <span className="text-[10px] font-semibold uppercase tracking-wider px-1.5 py-0.5 rounded border bg-amber-500/15 text-amber-500 border-amber-500/30">
+                  Draft
+                </span>
+                <span className="text-[10px] text-muted-foreground">
+                  {draft.lastAutoSavedAt
+                    ? format(new Date(draft.lastAutoSavedAt), "MMM d")
+                    : "Editing"}
+                </span>
+              </div>
+            </button>
+          ))}
+
+          {/* Finalized Invoices */}
+          {(invoiceList ?? []).map((inv: any) => {
             const isDraft = inv.status === "draft";
             const route = isDraft
               ? `/dashboard/invoices/drafts/${inv.id}`
@@ -97,7 +142,7 @@ function ProjectInvoicesSection({ projectId, router }: { projectId: string; rout
             const label =
               inv.documentNumber && inv.documentNumber !== "PENDING"
                 ? inv.documentNumber
-                : inv.sourceTemplateName || "Invoice Draft";
+                : inv.sourceTemplateName || "Invoice";
 
             return (
               <button

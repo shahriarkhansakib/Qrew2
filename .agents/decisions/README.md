@@ -15,6 +15,7 @@ Each record documents the context, alternatives considered, exact decision taken
 | [**0003**](./0003-multi-draft-collaboration-and-audit-trail.md) | **Multi-Draft Project Collaboration and Lightweight Audit Trail** | 2026-10-16 | Accepted | Invoices, Drafts, Collaboration |
 | [**0004**](./0004-calculation-precision-and-domain-generalization.md) | **General-Purpose Domain Decoupling, Zero-Float Arithmetic, and Precision** | 2026-10-17 | Accepted | Engine, MathJS, Schema |
 | [**0005**](./0005-numerical-period-based-expenses-and-formula-functions.md) | **Period-Aware Numerical Expenses, AST Math Functions, and Gating** | 2026-10-17 | Accepted | Engine, Expenses, Formula UX |
+| [**0006**](./0006-optional-period-billing-and-backend-engine-isolation.md) | **Optional Period Billing, Backend Engine Isolation, and Multi-Draft Lifecycle** | 2026-10-17 | Accepted | Invoices, Drafts, Scope, Bundles |
 
 ---
 
