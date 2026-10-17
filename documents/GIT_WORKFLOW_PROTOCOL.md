@@ -204,7 +204,7 @@ pnpm test:e2e
 - Relates to ADR-0001, ADR-0002, ADR-0004 in `.agents/decisions/`
 
 ## Testing Evidence
-- [x] Vitest: 46/46 API test files passing (375 tests)
+- [x] Vitest: All API unit & integration test files passing (100% pass rate)
 - [x] TypeScript: Clean typecheck across all workspaces (0 errors)
 - [x] Biome: Formatting & lint checks passing (pnpm check:ci)
 - [x] Playwright E2E: Verified critical paths (optional/applicable)
@@ -215,4 +215,4 @@ pnpm test:e2e
 
 ### Review & Merge Strategy
 * **Squash and Merge** (or Rebase Merge): Preferred to keep a clean, linear git history on `develop`.
-* Delete the feature branch upon successful merge to keep the repository clean.
+* Delete the feature branch upon successful merge to prevent branch clutter.
