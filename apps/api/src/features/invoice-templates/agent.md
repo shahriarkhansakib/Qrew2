@@ -9,6 +9,7 @@
 - **Circular Reference Prevention:** A formula for a row or charge cannot reference its own token or its `_TOTAL` variant.
 
 ## 2. Data Model and Schema Mapping
+- `invoice_templates`: Columns include `id`, `organizationId`, `name`, `documentType`, `scope`, `currency`, `version`, `isArchived`, `optional_rows` (`TemplateOptionalRow[]`).
 - `template_rows`: Columns include `id`, `templateId`, `sectionId`, `parentLabel`, `rowToken`, `description`, `valueType` (`normal` | `formula`), `formula`, `initialValue`, `sortOrder`.
 - `template_row_charges`: Belongs directly to `template_rows`. Columns include `id`, `rowId`, `label`, `chargeToken`, `formula`, `subDescription`, `qualifier`, `tags`, `sortOrder`.
 - `template_sections`: Defines section groupings and tokens (`sectionToken`).
@@ -31,6 +32,9 @@ The feature is split into domain-focused submodules, each containing its own con
 - `PATCH /:templateId/sections/:sectionId/rows/:rowId`: Updates row values (`valueType`, `formula`, `initialValue`, `parentLabel`, `rowToken`, charges).
 - `POST /sections/:sectionId/section-charges`: Accepts unified `formula`.
 - `PATCH /sections/:sectionId/section-charges/:chargeId`: Partial update of formula and labels.
+- `GET /:id/optional-rows`: Lists prebuilt optional service rows defined for the template.
+- `POST /:id/optional-rows`: Adds or appends a prebuilt optional service row to the catalog.
+- `DELETE /:id/optional-rows/:rowToken`: Deletes an optional service row from the catalog by its `rowToken`.
 
 ## 6. Error States
 - 422 Unprocessable Entity: Emitted if a `formula` payload fails mathematical parsing (via `validateFormulaChars` / `math.parse`), contains invalid characters, or attempts a circular reference to itself.

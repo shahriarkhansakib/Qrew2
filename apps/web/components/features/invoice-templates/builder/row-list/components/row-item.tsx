@@ -1,9 +1,13 @@
 import { useQueryClient } from "@tanstack/react-query";
-import { GripVertical } from "lucide-react";
+import { GripVertical, Trash2 } from "lucide-react";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
+import { Can } from "@/components/features/auth/can";
+import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
 import { decodeFormula, fmt, TokenMap } from "@/lib/formula-evaluator";
 import { cn } from "@/lib/utils";
+import { usePermissionStore } from "@/store/use-permission-store";
 import { cellFromRow, cellFromRowCharge, useBuilderContext } from "../../builder-context";
 import { RowChargeLine } from "./charge-item";
 import { MobileRowActions, RowActions, UnresolvedNoticeButton } from "./row-context-menu";
@@ -13,7 +17,7 @@ export type SectionColor = { border: string; bg: string };
 
 export function LabelCell({
   rowId,
-  templateId,
+  templateId: _templateId,
   sectionId,
   value,
   zoomLevel = 0,
@@ -28,7 +32,17 @@ export function LabelCell({
   const [draft, setDraft] = useState(value);
   const inputRef = useRef<HTMLInputElement>(null);
   const queryClient = useQueryClient();
-  const { apiBasePath, invalidateKey } = useBuilderContext();
+  const { apiBasePath, invalidateKey, mode } = useBuilderContext();
+  const { canAny } = usePermissionStore();
+
+  const canEditLabel =
+    mode === "template" ||
+    canAny([
+      "invoice:edit_line_labels",
+      "finance:manage_invoices",
+      "invoice_templates:edit",
+      "org:manage",
+    ]);
 
   useEffect(() => {
     if (!editing) setDraft(value);
@@ -61,11 +75,11 @@ export function LabelCell({
 
   return (
     <div
-      role="button"
-      tabIndex={0}
-      onClick={() => !editing && setEditing(true)}
-      onKeyDown={(e) => e.key === "Enter" && !editing && setEditing(true)}
-      className="w-full h-full"
+      role={canEditLabel ? "button" : undefined}
+      tabIndex={canEditLabel ? 0 : undefined}
+      onClick={() => canEditLabel && !editing && setEditing(true)}
+      onKeyDown={(e) => canEditLabel && e.key === "Enter" && !editing && setEditing(true)}
+      className={cn("w-full h-full", !canEditLabel && "cursor-default")}
     >
       {editing ? (
         <input
@@ -98,6 +112,7 @@ export function LabelCell({
             !value && "text-muted-foreground/30",
           )}
           style={{ fontSize: 14 + zoomLevel }}
+          title={!canEditLabel ? "Label editing locked" : undefined}
         >
           {value || "Click to add label…"}
         </span>
@@ -137,10 +152,42 @@ export function SingleRow({
   dragHandleProps?: any;
   zoomLevel?: number;
 }) {
-  const { selectedCell, setSelectedCell, mode, validationErrors } = useBuilderContext();
+  const {
+    selectedCell,
+    setSelectedCell,
+    mode,
+    validationErrors,
+    apiBasePath,
+    invalidateKey,
+    draftId,
+  } = useBuilderContext();
+  const queryClient = useQueryClient();
   const isFormulaMode = !!selectedCell;
+  const isOptionalService = !!row.isOptionalService;
   const charges: any[] = row.charges ?? [];
   const hasCharges = charges.length > 0;
+
+  const handleDeleteOptionalService = async (e: React.MouseEvent) => {
+    e.stopPropagation();
+    try {
+      const res = await fetch(`${apiBasePath}/optional-rows/${row.id}`, {
+        method: "DELETE",
+        credentials: "include",
+      });
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}));
+        throw new Error(err.error || "Failed to remove optional service");
+      }
+      toast.success(`Removed optional service "${row.rowToken}"`);
+      queryClient.invalidateQueries({ queryKey: invalidateKey });
+      if (draftId) {
+        queryClient.invalidateQueries({ queryKey: ["draft-preview", draftId] });
+        queryClient.invalidateQueries({ queryKey: ["invoice-draft", draftId] });
+      }
+    } catch (err: any) {
+      toast.error(err.message || "Failed to remove optional service");
+    }
+  };
 
   const baseValue = tokenMap[`${row.rowToken}_BASE`];
   const totalValue = tokenMap[row.rowToken] ?? tokenMap[`${row.rowToken}_TOTAL`];
@@ -194,11 +241,34 @@ export function SingleRow({
         actions={
           mode !== "fill" ? (
             <RowActions onEdit={onEdit} onDelete={onDelete} onAddCharge={onAddCharge} />
+          ) : isOptionalService ? (
+            <Can I={["invoice:manage_optional_rows", "finance:manage_invoices"]}>
+              <Button
+                variant="ghost"
+                size="icon"
+                className="h-6 w-6 text-muted-foreground hover:text-destructive"
+                onClick={handleDeleteOptionalService}
+                title="Remove optional service from draft"
+              >
+                <Trash2 className="h-3 w-3" />
+              </Button>
+            </Can>
           ) : undefined
         }
         mobileActions={
           mode !== "fill" ? (
             <MobileRowActions onEdit={onEdit} onDelete={onDelete} onAddCharge={onAddCharge} />
+          ) : isOptionalService ? (
+            <Can I={["invoice:manage_optional_rows", "finance:manage_invoices"]}>
+              <Button
+                variant="ghost"
+                size="sm"
+                className="h-7 text-xs text-destructive hover:bg-destructive/10"
+                onClick={handleDeleteOptionalService}
+              >
+                <Trash2 className="h-3 w-3 mr-1" /> Remove
+              </Button>
+            </Can>
           ) : undefined
         }
         formula={formulaAnnotation}
@@ -212,6 +282,15 @@ export function SingleRow({
               value={row.label ?? ""}
               zoomLevel={zoomLevel}
             />
+            {isOptionalService && (
+              <Badge
+                variant="outline"
+                className="text-[10px] px-1 py-0 border-primary/30 bg-primary/5 text-primary shrink-0 font-normal"
+                title="Prebuilt optional service row"
+              >
+                Optional
+              </Badge>
+            )}
             {notices && notices.length > 0 && <UnresolvedNoticeButton notices={notices} />}
           </div>
         }

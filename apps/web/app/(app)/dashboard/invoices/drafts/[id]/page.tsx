@@ -8,7 +8,9 @@ import {
   Calendar,
   CheckCircle,
   Clock,
+  ExternalLink,
   History,
+  Layers,
   Loader2,
   PanelRightClose,
   PanelRightOpen,
@@ -19,10 +21,12 @@ import Link from "next/link";
 import { useParams, useRouter } from "next/navigation";
 import { useCallback, useState } from "react";
 import { toast } from "sonner";
+import { Can } from "@/components/features/auth/can";
 // --- TEMPLATE BUILDER IMPORTS ---
 import { BuilderProvider } from "@/components/features/invoice-templates/builder/builder-context";
 import { TemplateBuilderWorkspace } from "@/components/features/invoice-templates/builder/template-builder-workspace";
 import { TemplateTokenPool } from "@/components/features/invoice-templates/builder/token-pool";
+import { AddOptionalServiceModal } from "@/components/features/invoices/drafts/add-optional-service-modal";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -48,6 +52,7 @@ export default function DraftBuilderPage() {
   const queryClient = useQueryClient();
 
   const [isEditMode, setIsEditMode] = useState(false);
+  const [isAddOptionalServiceModalOpen, setIsAddOptionalServiceModalOpen] = useState(false);
   const [overrides, setOverrides] = useState<Record<string, string>>({});
   const [tokenPoolOpen, setTokenPoolOpen] = useState(true);
   const [zoomLevel, setZoomLevel] = useState(0);
@@ -421,6 +426,39 @@ export default function DraftBuilderPage() {
               <span className="text-lg leading-none font-medium mb-1">+</span>
             </Button>
           </div>
+          {draft.sourceTemplateId && (
+            <Can I={["invoice_templates:edit", "org:manage"]}>
+              <Link
+                href={`/org-admin/invoice-templates/${draft.sourceTemplateId}`}
+                target="_blank"
+                rel="noopener noreferrer"
+              >
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className="gap-1.5 h-8 text-xs text-muted-foreground hover:text-foreground"
+                  title="Open master template in new tab"
+                >
+                  <ExternalLink className="h-3.5 w-3.5" />
+                  <span className="hidden sm:inline">Edit Template</span>
+                </Button>
+              </Link>
+            </Can>
+          )}
+
+          <Can I={["invoice:manage_optional_rows", "finance:manage_invoices"]}>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => setIsAddOptionalServiceModalOpen(true)}
+              className="gap-1.5 h-8 text-xs border-dashed border-primary/40 text-primary hover:bg-primary/5"
+              title="Add prebuilt optional service row"
+            >
+              <Layers className="h-3.5 w-3.5" />
+              <span>Add Service</span>
+            </Button>
+          </Can>
+
           {isEditMode ? (
             <>
               <Button
@@ -436,41 +474,44 @@ export default function DraftBuilderPage() {
                   <PanelRightOpen className="h-4 w-4 text-muted-foreground" />
                 )}
               </Button>
-              <AlertDialog>
-                <AlertDialogTrigger asChild>
-                  <Button
-                    variant="destructive"
-                    size="sm"
-                    className="gap-1.5"
-                    disabled={deleteMutation.isPending}
-                  >
-                    {deleteMutation.isPending ? "Deleting..." : "Delete Draft"}
-                  </Button>
-                </AlertDialogTrigger>
-                <AlertDialogContent>
-                  <AlertDialogHeader>
-                    <AlertDialogTitle>Are you absolutely sure?</AlertDialogTitle>
-                    <AlertDialogDescription>
-                      This action cannot be undone. This will permanently delete your invoice draft.
-                    </AlertDialogDescription>
-                  </AlertDialogHeader>
-                  <AlertDialogFooter>
-                    <AlertDialogCancel disabled={deleteMutation.isPending}>
-                      Cancel
-                    </AlertDialogCancel>
-                    <AlertDialogAction
+              <Can I={["invoice:delete", "finance:manage_invoices"]}>
+                <AlertDialog>
+                  <AlertDialogTrigger asChild>
+                    <Button
+                      variant="destructive"
+                      size="sm"
+                      className="gap-1.5"
                       disabled={deleteMutation.isPending}
-                      className="bg-red-600 hover:bg-red-700 focus:ring-red-600"
-                      onClick={(e) => {
-                        e.preventDefault();
-                        deleteMutation.mutate();
-                      }}
                     >
                       {deleteMutation.isPending ? "Deleting..." : "Delete Draft"}
-                    </AlertDialogAction>
-                  </AlertDialogFooter>
-                </AlertDialogContent>
-              </AlertDialog>
+                    </Button>
+                  </AlertDialogTrigger>
+                  <AlertDialogContent>
+                    <AlertDialogHeader>
+                      <AlertDialogTitle>Are you absolutely sure?</AlertDialogTitle>
+                      <AlertDialogDescription>
+                        This action cannot be undone. This will permanently delete your invoice
+                        draft.
+                      </AlertDialogDescription>
+                    </AlertDialogHeader>
+                    <AlertDialogFooter>
+                      <AlertDialogCancel disabled={deleteMutation.isPending}>
+                        Cancel
+                      </AlertDialogCancel>
+                      <AlertDialogAction
+                        disabled={deleteMutation.isPending}
+                        className="bg-red-600 hover:bg-red-700 focus:ring-red-600"
+                        onClick={(e) => {
+                          e.preventDefault();
+                          deleteMutation.mutate();
+                        }}
+                      >
+                        {deleteMutation.isPending ? "Deleting..." : "Delete Draft"}
+                      </AlertDialogAction>
+                    </AlertDialogFooter>
+                  </AlertDialogContent>
+                </AlertDialog>
+              </Can>
               <Button
                 variant="outline"
                 size="sm"
@@ -483,24 +524,28 @@ export default function DraftBuilderPage() {
             </>
           ) : (
             <>
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={() => setIsEditMode(true)}
-                className="gap-1.5"
-              >
-                <Pencil className="h-3.5 w-3.5" />
-                Edit Draft
-              </Button>
-              <Button
-                size="sm"
-                onClick={() => finalizeMutation.mutate()}
-                disabled={finalizeMutation.isPending}
-                className="gap-1.5"
-              >
-                <CheckCircle className="h-3.5 w-3.5" />
-                {finalizeMutation.isPending ? "Finalizing..." : "Finalize Invoice"}
-              </Button>
+              <Can I={["invoice:author_formulas", "finance:manage_invoices"]}>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => setIsEditMode(true)}
+                  className="gap-1.5"
+                >
+                  <Pencil className="h-3.5 w-3.5" />
+                  Edit Draft
+                </Button>
+              </Can>
+              <Can I={["invoice:finalize", "finance:manage_invoices"]}>
+                <Button
+                  size="sm"
+                  onClick={() => finalizeMutation.mutate()}
+                  disabled={finalizeMutation.isPending}
+                  className="gap-1.5"
+                >
+                  <CheckCircle className="h-3.5 w-3.5" />
+                  {finalizeMutation.isPending ? "Finalizing..." : "Finalize Invoice"}
+                </Button>
+              </Can>
             </>
           )}
         </div>
@@ -624,6 +669,15 @@ export default function DraftBuilderPage() {
             </div>
           </BuilderProvider>
         </div>
+      )}
+
+      {isAddOptionalServiceModalOpen && (
+        <AddOptionalServiceModal
+          isOpen={isAddOptionalServiceModalOpen}
+          onClose={() => setIsAddOptionalServiceModalOpen(false)}
+          draftId={draftId}
+          sections={draft.draftSections || []}
+        />
       )}
     </div>
   );

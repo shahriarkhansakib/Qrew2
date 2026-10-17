@@ -74,11 +74,64 @@ const INITIAL_PERMISSIONS = [
     description: "Manage expense categories",
   },
 
-  // Invoicing
-  { key: "invoice:view", category: "Invoicing", description: "See generated invoices" },
-  { key: "invoice:create", category: "Invoicing", description: "Generate new invoices" },
-  { key: "invoice:edit", category: "Invoicing", description: "Edit draft invoices" },
-  { key: "invoice:delete", category: "Invoicing", description: "Void or Delete invoices" },
+  // Invoicing (Granular PBAC Architecture)
+  {
+    key: "invoice:view",
+    category: "Invoicing",
+    description: "View generated invoices, drafts, and previews",
+  },
+  {
+    key: "invoice:create_draft",
+    category: "Invoicing",
+    description: "Create new invoice drafts from templates",
+  },
+  {
+    key: "invoice:fill_values",
+    category: "Invoicing",
+    description: "Enter manual numbers, rates, and values on drafts",
+  },
+  {
+    key: "invoice:edit_line_labels",
+    category: "Invoicing",
+    description: "Customize line item labels, descriptions, and notes on drafts",
+  },
+  {
+    key: "invoice:manage_optional_rows",
+    category: "Invoicing",
+    description: "Add or remove prebuilt optional service line items on drafts",
+  },
+  {
+    key: "invoice:author_formulas",
+    category: "Invoicing",
+    description: "Use draft builder mode to write custom formulas, ad-hoc rows, and edit constants",
+  },
+  {
+    key: "invoice:finalize",
+    category: "Invoicing",
+    description: "Finalize and freeze invoice drafts into issued invoices (Ready to Bill)",
+  },
+  {
+    key: "invoice:revert",
+    category: "Invoicing",
+    description: "Revert frozen or issued invoices back to draft for correction",
+  },
+  { key: "invoice:void", category: "Invoicing", description: "Void issued or paid invoices" },
+  {
+    key: "invoice:delete",
+    category: "Invoicing",
+    description: "Permanently delete draft invoices",
+  },
+  // Aliases for broad access roles
+  {
+    key: "finance:manage_invoices",
+    category: "Invoicing",
+    description: "Full administrative access to manage all invoices and drafts",
+  },
+  {
+    key: "finance:view_invoices",
+    category: "Invoicing",
+    description: "View invoices and billing records",
+  },
 
   // Invoice Templates
   {

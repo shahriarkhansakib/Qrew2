@@ -136,8 +136,28 @@ stateDiagram-v2
 ## 16. Backend Math Engine Isolation
 - `mathjs` is strictly isolated on the backend Node.js server (`@starter/api`) and is never imported into `@starter/web`. The frontend bundle size impact is strictly **0 KB**.
 
+## 17. Prebuilt Optional Service Rows & Add-On Catalog (`draft-builder.controller.ts`, `invoice-templates.controller.ts`)
+- **Full Normal Row Behavior**: Optional service rows (`TemplateOptionalRow`) are mathematically, structurally, and visually normal rows. They are NOT row charges, taxes, or surcharges. They calculate via standard AST formulas or manual numeric rates, appear in standard USD1/USD2 table cells, and sum into section totals.
+- **No `ADDON_` Prefix**: Rows retain their canonical upper-snake tokens directly (e.g., `CRANE_RENTAL`). Collision avoidance appends incremental integer suffixes if multiple instances are attached to the same draft (`CRANE_RENTAL_2`, `CRANE_RENTAL_3`).
+- **Mathematical Token Immutability**: Staff can customize display labels and override manual values, but the allocated `rowToken` remains immutable so formula references (`ROW_CRANE_RENTAL`), DAG topological ordering, and snapshot schemas remain unbreakable.
+- **Template-Level Catalog (`optional_rows`)**: Prebuilt services are stored on `invoice_templates.optional_rows` JSONB column. Draft rows instantiated from this catalog carry `isOptional: true`.
+- **Guarded Removal**: The removal endpoint `DELETE /api/invoices/drafts/:id/optional-rows/:rowToken` only allows deletion of rows marked `isOptional: true`, safeguarding foundational core template rows from accidental deletion during drafting.
 
-
-
-
-
+## 18. Granular Invoicing PBAC Architecture & 3-Tier Hierarchy (`seed-permissions.ts`, `require-permission.ts`, `can.tsx`)
+- **Atomic Permissions**:
+  - `invoice:fill_values`: Enter numeric rates/quantities for manual and constant rows in drafts.
+  - `invoice:edit_line_labels`: Rename or tweak line item display labels in drafts.
+  - `invoice:manage_optional_rows`: Attach prebuilt optional service rows and delete optional service rows in drafts.
+  - `invoice:author_formulas`: Switch cells to formula mode and author/edit mathematical AST formulas.
+  - `invoice:finalize`: Freeze drafts into legally binding, immutable invoices (`Ready to Bill`).
+  - `invoice:revert`: Revert frozen/issued/disputed invoices back into draft sessions for correction.
+  - `invoice:void`: Retire invoice numbers and void finalized invoices.
+  - `invoice:delete`: Delete drafts or voided documents.
+- **Legacy Compatibility**:
+  - `finance:manage_invoices` and `finance:view_invoices` are automatically mapped to all respective atomic permissions for backwards compatibility (`seed-permissions.ts`, `requireOrgPermission([perm1, perm2])`, `<Can I={[...]} />`).
+- **3-Tier Hierarchy Mapping**:
+  - **Tier 1 (Architect / Admin)**: Holds `invoice:author_formulas` and `finance:manage_invoices`. Can edit master templates directly via `/org-admin/invoice-templates/:id` (linked directly from the draft page header), manage the template optional rows catalog, and enter arbitrary AST formulas in draft builder mode.
+  - **Tier 2 (Accountant / Staff)**: Holds `invoice:fill_values`, `invoice:edit_line_labels`, `invoice:manage_optional_rows`. Can attach optional service rows, customize labels, and input manual rates. Formula bar is locked from editing formulas.
+  - **Tier 3 (Clerk)**: Holds `invoice:fill_values`, `invoice:manage_optional_rows`. Can attach optional services and input numbers, but both formula authoring and label editing are strictly locked.
+- **Automated Cache Invalidation**:
+  - Role updates in `roles.controller.ts` automatically invalidate Redis permission caches (`permission:*`) to prevent stale permissions from persisting.

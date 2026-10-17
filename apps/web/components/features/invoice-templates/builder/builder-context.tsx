@@ -70,6 +70,8 @@ type BuilderContextValue = {
   clipboardToken: string | null;
   setClipboardToken: (token: string | null) => void;
   getTokenColor: (token: string) => string;
+  draftId?: string;
+  templateId?: string;
 };
 
 const DEFAULT_EXTERNAL_TOKENS: ExternalTokens = {
@@ -103,6 +105,8 @@ const BuilderContext = createContext<BuilderContextValue>({
 // ─── Provider ─────────────────────────────────────────────────────────────────
 
 export function BuilderProvider({
+  templateId,
+  draftId,
   tokenPoolOpen = false,
   apiBasePath,
   mode = "template",
@@ -405,6 +409,8 @@ export function BuilderProvider({
       clipboardToken,
       setClipboardToken,
       getTokenColor,
+      draftId,
+      templateId,
     }),
     [
       selectedCell,
@@ -425,6 +431,8 @@ export function BuilderProvider({
       validationErrors,
       clipboardToken,
       getTokenColor,
+      draftId,
+      templateId,
     ],
   );
 

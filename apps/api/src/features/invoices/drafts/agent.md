@@ -37,6 +37,20 @@
 2. **Optional Period Billing**: Drafts store `periodStart` and `periodEnd` (ISO strings or null). When null, the draft operates in **Full Project Timeline (Live Sync)** mode, dynamically computing newly added project expenses.
 3. **Atomic Draft Finalization (`freezeParams.draftId`)**: Finalizing an invoice accepts an optional `draftId`. When provided, the finalization transaction targets that specific draft, computes its snapshot, generates the invoice record, and deletes that exact draft record atomically upon successful commit.
 
+### 2.4 Prebuilt Optional Service Rows
+1. **Normal Row Architecture**: Optional service rows (`TemplateOptionalRow`) are standard normal rows with normal formula/value fields, displaying in USD1/USD2 table columns and summing into section totals. They are NOT row charges or surcharges.
+2. **Token Naming & Collision Avoidance**: They retain their canonical uppercase snake tokens (e.g. `CRANE_RENTAL`). Sequential integer suffixes (`CRANE_RENTAL_2`, `CRANE_RENTAL_3`) are automatically appended if duplicate instances are added to the draft.
+3. **Token Immutability & Label Freedom**: In drafts, the assigned `rowToken` cannot be modified by staff. Staff can freely customize the display `label` and override manual rates.
+4. **Guarded Removal**: Endpoint `DELETE /api/invoices/drafts/:id/optional-rows/:rowToken` only allows deleting rows marked `isOptional: true`. Any attempt to delete a core template row returns `403 Forbidden`.
+
+### 2.5 Granular PBAC Hierarchy
+1. **Atomic Invoicing Permissions**: `invoice:fill_values`, `invoice:edit_line_labels`, `invoice:manage_optional_rows`, `invoice:author_formulas`, `invoice:finalize`, `invoice:revert`, `invoice:void`, `invoice:delete`.
+2. **Legacy Super-Permission**: `finance:manage_invoices` grants access across all atomic operations.
+3. **3-Tier Role Capabilities**:
+   - **Tier 1 (Architect / Admin)**: Direct access to master template builder (`/org-admin/invoice-templates/:id`) from draft page; can manage optional services catalog and author AST formulas.
+   - **Tier 2 (Accountant / Staff)**: Can attach optional services, modify labels, and enter manual rates; formula editing locked.
+   - **Tier 3 (Clerk)**: Can select optional services and enter numbers; formula authoring and label editing locked.
+
 ## 3. Draft Lifecycle & Correction State Machine
 
 ```mermaid

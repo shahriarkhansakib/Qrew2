@@ -105,4 +105,85 @@ export const invoiceApi = {
     if (!res.ok) throw new Error("Failed to fetch invoice detail");
     return res.json();
   },
+
+  // --- Optional Service Rows ---
+  getDraftOptionalRows: async (draftId: string) => {
+    const res = await fetch(`${apiUrl}/api/invoices/drafts/${draftId}/optional-rows`, {
+      credentials: "include",
+    });
+    if (!res.ok) throw new Error("Failed to fetch draft optional rows");
+    return res.json();
+  },
+
+  addDraftOptionalRow: async (
+    draftId: string,
+    payload: {
+      canonicalToken: string;
+      sectionId?: string;
+      customLabel?: string;
+      customValue?: number;
+      customFormula?: string;
+    },
+  ) => {
+    const res = await fetch(`${apiUrl}/api/invoices/drafts/${draftId}/optional-rows`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      credentials: "include",
+      body: JSON.stringify(payload),
+    });
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({}));
+      throw new Error(err.error || "Failed to add optional service row");
+    }
+    return res.json();
+  },
+
+  deleteDraftOptionalRow: async (draftId: string, rowId: string) => {
+    const res = await fetch(`${apiUrl}/api/invoices/drafts/${draftId}/optional-rows/${rowId}`, {
+      method: "DELETE",
+      credentials: "include",
+    });
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({}));
+      throw new Error(err.error || "Failed to delete optional service row");
+    }
+    return res.json();
+  },
+
+  getTemplateOptionalRows: async (templateId: string) => {
+    const res = await fetch(`${apiUrl}/api/invoice-templates/${templateId}/optional-rows`, {
+      credentials: "include",
+    });
+    if (!res.ok) throw new Error("Failed to fetch template optional rows");
+    return res.json();
+  },
+
+  addTemplateOptionalRow: async (templateId: string, payload: any) => {
+    const res = await fetch(`${apiUrl}/api/invoice-templates/${templateId}/optional-rows`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      credentials: "include",
+      body: JSON.stringify(payload),
+    });
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({}));
+      throw new Error(err.error || "Failed to add template optional row");
+    }
+    return res.json();
+  },
+
+  deleteTemplateOptionalRow: async (templateId: string, canonicalToken: string) => {
+    const res = await fetch(
+      `${apiUrl}/api/invoice-templates/${templateId}/optional-rows/${canonicalToken}`,
+      {
+        method: "DELETE",
+        credentials: "include",
+      },
+    );
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({}));
+      throw new Error(err.error || "Failed to delete template optional row");
+    }
+    return res.json();
+  },
 };

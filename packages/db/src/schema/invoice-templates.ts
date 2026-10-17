@@ -1,9 +1,10 @@
-import { relations } from "drizzle-orm";
+import { relations, sql } from "drizzle-orm";
 import {
   AnyPgColumn,
   boolean,
   index,
   integer,
+  jsonb,
   numeric,
   pgTable,
   text,
@@ -14,6 +15,20 @@ import { organizations, users } from "./auth";
 import { customFieldDefinitions } from "./custom_fields";
 import { componentValueTypeEnum, headerFieldTypeEnum, templateScopeEnum } from "./invoice-enums";
 import { tokens } from "./tokens";
+
+// ─────────────────────────────────────────────────────────────────────────────
+// PREBUILT OPTIONAL SERVICE ROW CONTRACT
+// ─────────────────────────────────────────────────────────────────────────────
+export interface TemplateOptionalRow {
+  id: string; // UUID
+  rowToken: string; // Canonical token name (e.g., "CRANE_RENTAL")
+  label: string; // Default display label (e.g., "Mobile Crane Rental")
+  subDescription?: string | null;
+  valueType: "normal" | "formula";
+  formula?: string | null;
+  initialValue?: string | null;
+  suggestedSectionToken?: string | null;
+}
 
 // ─────────────────────────────────────────────────────────────────────────────
 // INVOICE TEMPLATES
@@ -40,6 +55,10 @@ export const invoiceTemplates = pgTable(
       (): AnyPgColumn => invoiceTemplates.id,
       { onDelete: "set null" },
     ),
+    optionalRows: jsonb("optional_rows")
+      .$type<TemplateOptionalRow[]>()
+      .default(sql`'[]'::jsonb`)
+      .notNull(),
     createdAt: timestamp("created_at", { mode: "date" }).defaultNow().notNull(),
     updatedAt: timestamp("updated_at", { mode: "date" })
       .defaultNow()

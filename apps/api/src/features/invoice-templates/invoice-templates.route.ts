@@ -63,6 +63,25 @@ invoiceTemplatesRouter.delete(
   InvoiceTemplatesController.deleteTemplate,
 );
 
+// ── Optional Service Rows (Catalog) ──────────────────────────────────────────
+invoiceTemplatesRouter.get(
+  "/:id/optional-rows",
+  requireOrgPermission(["template:view", "invoice:view", "finance:view_invoices"]),
+  InvoiceTemplatesController.listOptionalRows,
+);
+
+invoiceTemplatesRouter.post(
+  "/:id/optional-rows",
+  requireOrgPermission(["template:edit", "finance:manage_invoices"]),
+  InvoiceTemplatesController.addOptionalRow,
+);
+
+invoiceTemplatesRouter.delete(
+  "/:id/optional-rows/:optionalRowId",
+  requireOrgPermission(["template:edit", "finance:manage_invoices"]),
+  InvoiceTemplatesController.deleteOptionalRow,
+);
+
 // ── Header Fields ─────────────────────────────────────────────────────────────
 invoiceTemplatesRouter.get(
   "/:templateId/header-fields",

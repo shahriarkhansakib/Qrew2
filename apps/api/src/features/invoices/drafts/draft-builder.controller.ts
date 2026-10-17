@@ -1,6 +1,14 @@
-import { db, decodeFormula, encodeFormula, invoiceDrafts } from "@starter/db";
+import {
+  db,
+  decodeFormula,
+  encodeFormula,
+  invoiceDrafts,
+  invoiceTemplates,
+  TemplateOptionalRow,
+} from "@starter/db";
 import { and, eq } from "drizzle-orm";
 import { Context } from "hono";
+import { v4 as uuidv4 } from "uuid";
 import { appendAuditEntry } from "./draft-audit";
 
 async function getDraft(c: Context) {
@@ -793,5 +801,191 @@ export class DraftBuilderController {
       );
     }
     return c.json({ success: true });
+  }
+
+  static async listOptionalRows(c: Context) {
+    const draft = await getDraft(c);
+    if (!draft) return c.json({ error: "Draft not found" }, 404);
+    if (!draft.sourceTemplateId) {
+      return c.json({ available: [], optionalRows: [], attached: [], activeRowTokens: [] });
+    }
+
+    const tpl = await db.query.invoiceTemplates.findFirst({
+      where: eq(invoiceTemplates.id, draft.sourceTemplateId),
+    });
+
+    const optionalRows = (tpl?.optionalRows as TemplateOptionalRow[]) || [];
+    const sections: any[] = draft.draftSections || [];
+    const activeRowTokens: string[] = [];
+    const attached: any[] = [];
+
+    for (const sec of sections) {
+      for (const r of sec.rows || []) {
+        if (r.rowToken) activeRowTokens.push(r.rowToken);
+        if (r.isOptionalService || r.templateOptionalRowId) {
+          attached.push({
+            rowId: r.id,
+            token: r.rowToken,
+            canonicalToken: r.canonicalToken || r.rowToken?.replace(/_\d+$/, ""),
+            label: r.label,
+            sectionId: sec.id,
+            sectionToken: sec.sectionToken,
+            sectionTitle: sec.headerName || sec.sectionToken,
+            valueType: r.valueType,
+            initialValue: r.initialValue,
+            formula: r.formula,
+          });
+        }
+      }
+    }
+
+    return c.json({
+      available: optionalRows,
+      optionalRows,
+      attached,
+      activeRowTokens,
+    });
+  }
+
+  static async addOptionalRow(c: Context) {
+    const draft = await getDraft(c);
+    if (!draft) return c.json({ error: "Draft not found" }, 404);
+    if (!draft.sourceTemplateId) return c.json({ error: "Draft has no template assigned" }, 400);
+
+    const body = await c.req.json();
+    const { canonicalToken, optionalRowId, sectionId, customLabel, customValue, customFormula } =
+      body;
+    const targetLookup = canonicalToken || optionalRowId;
+    if (!targetLookup) {
+      return c.json({ error: "canonicalToken or optionalRowId is required" }, 400);
+    }
+
+    const tpl = await db.query.invoiceTemplates.findFirst({
+      where: eq(invoiceTemplates.id, draft.sourceTemplateId),
+    });
+
+    const catalog = (tpl?.optionalRows as TemplateOptionalRow[]) || [];
+    const templateItem = catalog.find(
+      (item) => item.rowToken === targetLookup || item.id === targetLookup,
+    );
+    if (!templateItem) return c.json({ error: "Optional row not found in template catalog" }, 404);
+
+    const sections: any[] = draft.draftSections || [];
+    if (sections.length === 0) return c.json({ error: "Draft has no sections" }, 400);
+
+    // Target section: provided sectionId, or matching suggestedSectionToken, or first section
+    let targetSection = sections.find((s: any) => s.id === sectionId);
+    if (!targetSection && templateItem.suggestedSectionToken) {
+      targetSection = sections.find(
+        (s: any) =>
+          s.sectionToken === templateItem.suggestedSectionToken ||
+          `SEC_${s.sectionToken}` === templateItem.suggestedSectionToken,
+      );
+    }
+    if (!targetSection) {
+      targetSection = sections[0];
+    }
+
+    // Determine unique token: base token, or sequential suffix if repeated
+    const existingTokens = new Set<string>();
+    for (const s of sections) {
+      for (const r of s.rows || []) {
+        if (r.rowToken) existingTokens.add(r.rowToken);
+      }
+    }
+
+    let finalToken = templateItem.rowToken;
+    if (existingTokens.has(finalToken)) {
+      let counter = 2;
+      while (existingTokens.has(`${templateItem.rowToken}_${counter}`)) {
+        counter++;
+      }
+      finalToken = `${templateItem.rowToken}_${counter}`;
+    }
+
+    if (!targetSection.rows) targetSection.rows = [];
+
+    const newRow = {
+      id: uuidv4(),
+      rowToken: finalToken,
+      canonicalToken: templateItem.rowToken,
+      label: customLabel?.trim() || templateItem.label,
+      subDescription: templateItem.subDescription || null,
+      valueType: templateItem.valueType,
+      formula: customFormula !== undefined ? customFormula : templateItem.formula || null,
+      initialValue:
+        customValue !== undefined
+          ? parseFloat(customValue) || null
+          : templateItem.initialValue
+            ? parseFloat(templateItem.initialValue) || null
+            : null,
+      sortOrder: targetSection.rows.length,
+      isOptionalService: true,
+      templateOptionalRowId: templateItem.id,
+      charges: [],
+    };
+
+    targetSection.rows.push(newRow);
+
+    await updateDraft(
+      draft.id,
+      { draftSections: sections },
+      c,
+      `Added optional service "${newRow.label}" (${newRow.rowToken})`,
+    );
+
+    return c.json({ success: true, row: newRow, allocatedToken: finalToken });
+  }
+
+  static async removeOptionalRow(c: Context) {
+    const draft = await getDraft(c);
+    if (!draft) return c.json({ error: "Draft not found" }, 404);
+    const rowId = c.req.param("rowId");
+    if (!rowId) return c.json({ error: "rowId is required" }, 400);
+
+    const sections: any[] = draft.draftSections || [];
+    let removedLabel = "Optional service";
+    let removedToken = "";
+    let found = false;
+
+    for (const s of sections) {
+      if (s.rows) {
+        const idx = s.rows.findIndex((r: any) => r.id === rowId);
+        if (idx !== -1) {
+          const targetRow = s.rows[idx];
+          if (targetRow.isOptionalService !== true) {
+            return c.json(
+              { error: "Only prebuilt optional service rows can be deleted from drafts" },
+              400,
+            );
+          }
+          removedLabel = targetRow.label || removedLabel;
+          removedToken = targetRow.rowToken || "";
+          s.rows.splice(idx, 1);
+          // Re-index remaining rows
+          s.rows.forEach((r: any, i: number) => {
+            r.sortOrder = i;
+          });
+          found = true;
+          break;
+        }
+      }
+    }
+
+    if (!found) return c.json({ error: "Row not found in draft" }, 404);
+
+    await updateDraft(
+      draft.id,
+      { draftSections: sections },
+      c,
+      `Removed optional service "${removedLabel}" (${removedToken})`,
+    );
+
+    return c.json({
+      success: true,
+      deletedRowId: rowId,
+      token: removedToken,
+      label: removedLabel,
+    });
   }
 }

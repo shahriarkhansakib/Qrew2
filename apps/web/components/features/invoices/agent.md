@@ -803,4 +803,34 @@ stateDiagram-v2
 3. **Revert to Draft Safety Dialog**:
    - In `invoices/page.tsx`, reverting an invoice to draft launches an `AlertDialog` warning users that sequence numbers will be released, before routing them directly to the restored draft editor.
 
+---
+
+## 13. Prebuilt Optional Service Rows & Granular PBAC Architecture
+
+### 13.1 Prebuilt Optional Service Rows UI Flow
+1. **Master Template Builder (`TemplateOptionalRowsModal`)**:
+   - Master template architects define standard add-on service items (e.g. *Crane Rental*, *Vessel Fumigation*) in `/org-admin/invoice-templates/:id` via the "Optional Services" header button.
+   - Defines default token (`CRANE_RENTAL`), label, default rate, and description.
+2. **Draft Service Picker (`AddOptionalServiceModal`)**:
+   - In draft fill/edit mode, authorized staff click **"+ Add Service"** in the header.
+   - Modal displays the prebuilt services catalog, destination section dropdown, and inputs to tweak display label or override the numeric rate.
+   - When added, the row displays an **Optional** badge.
+   - The assigned `rowToken` cannot be modified by staff, preventing broken formulas.
+   - Removing optional service rows is permitted directly in draft mode, but deleting foundational core template rows is strictly blocked.
+3. **Template Architect Shortcut**:
+   - If the user has `finance:manage_invoices` or `invoice:author_formulas`, the draft page displays an **"Edit Master Template"** link leading directly to `/org-admin/invoice-templates/:id`.
+
+### 13.2 Granular PBAC Frontend Gating
+1. **Tier 1 (Architect / Admin)**:
+   - Permitted: Formula authoring, template editing, optional services catalog management.
+2. **Tier 2 (Accountant / Staff)**:
+   - Gated via `<Can I={["invoice:fill_values", "finance:manage_invoices"]}>`: Can input manual values.
+   - Gated via `<Can I={["invoice:edit_line_labels", "finance:manage_invoices"]}>`: Can click and rename row labels.
+   - Gated via `<Can I={["invoice:manage_optional_rows", "finance:manage_invoices"]}>`: Can open "+ Add Service" modal and delete optional service rows.
+   - Formula bar input and type toggle are locked (`isLocked = true`) when `invoice:author_formulas` is absent.
+3. **Tier 3 (Clerk)**:
+   - Label editing is disabled (read-only cell).
+   - Formula authoring is locked.
+   - Manual numeric values and prebuilt service attachment remain enabled.
+
 

@@ -95,3 +95,16 @@ Before saving on Enter, button click, or outside blur, `handleSave` strictly enf
 | Percentage | `50%` or `.5%` | `(50/100)` or `(0.5/100)` |
 | Modulo / Remainder | `//` | `%` |
 | Row Reference | `ROW_TOKEN` | Internal DB UUID `{{$row:UUID}}` via codec |
+
+---
+
+## 5. Prebuilt Optional Services Catalog (`TemplateOptionalRowsModal`)
+
+- **Location**: Master Template Builder header (`/org-admin/invoice-templates/:id`).
+- **Trigger**: "Optional Services" button in the template header bar.
+- **Functionality**:
+  - Architects define reusable optional line items (`TemplateOptionalRow`) associated with the template.
+  - Form fields: Token name (`CRANE_RENTAL`), display label (`Crane Rental / Operational Lift`), default rate/value (`numeric(20, 6)`), description/sub-description.
+  - Saved to `invoice_templates.optional_rows` JSONB column.
+  - Invoices generated or drafted from this template can browse, select, customize label/rate, and attach these services to any destination section.
+

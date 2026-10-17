@@ -5,6 +5,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import TextareaAutosize from "react-textarea-autosize";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
+import { usePermissionStore } from "@/store/use-permission-store";
 import { useBuilderContext } from "../builder-context";
 import { renderHighlightedToken, SyntaxOverlay } from "../formula-bar-syntax";
 import {
@@ -24,13 +25,33 @@ export function TemplateFormulaBar() {
     selectedCell,
     setSelectedCell,
     tokenMap,
-    sections,
     clipboardToken,
     getTokenColor,
     hiddenTokens,
     invalidTokens,
     getTokenDisabledReason,
+    mode,
   } = useBuilderContext();
+  const { canAny } = usePermissionStore();
+
+  const canAuthorFormulas =
+    mode === "template" ||
+    canAny([
+      "invoice:author_formulas",
+      "finance:manage_invoices",
+      "invoice_templates:edit",
+      "org:manage",
+    ]);
+
+  const canFillValues =
+    mode === "template" ||
+    canAny([
+      "invoice:fill_values",
+      "finance:manage_invoices",
+      "invoice_templates:edit",
+      "org:manage",
+    ]);
+
   const saveMutation = useSaveCellMutation();
 
   const [inputValue, setInputValue] = useState("");
@@ -44,6 +65,11 @@ export function TemplateFormulaBar() {
   const isDirty = useRef(false);
   const inputRef = useRef<HTMLTextAreaElement>(null);
   const overlayRef = useRef<HTMLDivElement>(null);
+
+  const isFormulaInput = selectedCell?.valueType === "formula";
+  const isActive = !!selectedCell;
+  const isLocked =
+    isActive && ((isFormulaInput && !canAuthorFormulas) || (!isFormulaInput && !canFillValues));
 
   // We need to sync cursorPos whenever inputValue changes or selection changes.
   useEffect(() => {
@@ -59,7 +85,6 @@ export function TemplateFormulaBar() {
     selectedCellRef.current = selectedCell;
   }, [selectedCell]);
 
-  const isActive = !!selectedCell;
   const isPending = saveMutation.isPending;
 
   const {
@@ -88,8 +113,6 @@ export function TemplateFormulaBar() {
     invalidTokensRef.current = invalidTokens;
   }, [allTokens, hiddenTokens, invalidTokens]);
 
-  const isFormulaInput = selectedCell?.valueType === "formula";
-
   useEffect(() => {
     const initial = selectedCell?.currentInput ?? "";
     resetHistory(initial);
@@ -102,7 +125,7 @@ export function TemplateFormulaBar() {
 
   useEffect(() => {
     const handleInsertToken = (e: any) => {
-      if (!selectedCellRef.current) return;
+      if (!selectedCellRef.current || isLocked) return;
       const tokenToInsert: string = e.detail.trim();
 
       setInputValue((prev) => {
@@ -278,7 +301,7 @@ export function TemplateFormulaBar() {
 
     window.addEventListener("insert-token", handleInsertToken);
     return () => window.removeEventListener("insert-token", handleInsertToken);
-  }, []);
+  }, [isLocked]);
 
   useEffect(() => {
     if (selectedCell) {
@@ -288,6 +311,10 @@ export function TemplateFormulaBar() {
 
   const handleSave = useCallback(() => {
     if (!selectedCell || saveMutation.isPending) return;
+    if (isLocked) {
+      setSelectedCell(null);
+      return;
+    }
     if (!isDirty.current) {
       setSelectedCell(null);
       return;
@@ -323,6 +350,7 @@ export function TemplateFormulaBar() {
     tokenMap,
     invalidTokens,
     hiddenTokens,
+    isLocked,
   ]);
 
   useEffect(() => {
@@ -520,7 +548,7 @@ export function TemplateFormulaBar() {
   return (
     <div className="flex flex-col w-full sticky top-0 z-30 formula-bar-container">
       <FormulaActions
-        isActive={isActive}
+        isActive={isActive && !isLocked}
         historyIndex={historyIndex}
         historyLength={history.length}
         clipboardToken={clipboardToken}
@@ -742,9 +770,17 @@ export function TemplateFormulaBar() {
                 isDirty.current = true;
               }}
               onKeyDown={handleKeyDown as any}
-              disabled={!isActive || isPending}
+              disabled={!isActive || isPending || isLocked}
               placeholder={
-                isActive ? (isFormulaInput ? "Enter formula..." : "Enter number...") : ""
+                isActive
+                  ? isLocked
+                    ? isFormulaInput
+                      ? "Formula locked (requires Formula Architect permission)"
+                      : "Value editing locked"
+                    : isFormulaInput
+                      ? "Enter formula..."
+                      : "Enter number..."
+                  : ""
               }
               className={cn(
                 "w-full px-3 py-1.5 bg-transparent resize-none outline-none font-mono text-sm relative z-10 whitespace-pre-wrap break-all overflow-y-auto leading-normal",

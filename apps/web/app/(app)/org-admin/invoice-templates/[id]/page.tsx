@@ -1,11 +1,12 @@
 "use client";
 
 import { useQuery } from "@tanstack/react-query";
-import { ArrowLeft, PanelRightClose, PanelRightOpen } from "lucide-react";
+import { ArrowLeft, Layers, PanelRightClose, PanelRightOpen } from "lucide-react";
 import { useParams, useRouter } from "next/navigation";
 import { useState } from "react";
 import { BuilderProvider } from "@/components/features/invoice-templates/builder/builder-context";
 import { TemplateBuilderWorkspace } from "@/components/features/invoice-templates/builder/template-builder-workspace";
+import { TemplateOptionalRowsModal } from "@/components/features/invoice-templates/builder/template-optional-rows-modal";
 import { TemplatePreviewModal } from "@/components/features/invoice-templates/builder/template-preview-modal";
 import { TemplateTokenPool } from "@/components/features/invoice-templates/builder/token-pool";
 import { Button } from "@/components/ui/button";
@@ -20,6 +21,7 @@ export default function TemplateBuilderPage() {
   const [zoomLevel, setZoomLevel] = useState(0);
   const [poolWidth, setPoolWidth] = useState(320);
   const [previewOpen, setPreviewOpen] = useState(false);
+  const [optionalRowsModalOpen, setOptionalRowsModalOpen] = useState(false);
 
   const { data: template, isLoading } = useQuery({
     queryKey: ["invoice-templates", templateId],
@@ -151,12 +153,24 @@ export default function TemplateBuilderPage() {
           </Button>
         </div>
 
+        {/* Optional Services Catalog Button */}
+        <Button
+          variant="outline"
+          size="sm"
+          onClick={() => setOptionalRowsModalOpen(true)}
+          className="shrink-0 gap-1.5 text-xs h-8 ml-auto border-dashed border-primary/40 text-primary hover:bg-primary/5"
+          title="Manage prebuilt optional service items for this template"
+        >
+          <Layers className="h-3.5 w-3.5" />
+          <span className="hidden sm:inline">Optional Services</span>
+        </Button>
+
         {/* Preview Button */}
         <Button
           variant="secondary"
           size="sm"
           onClick={() => setPreviewOpen(true)}
-          className="shrink-0 gap-2 text-xs h-8 ml-auto"
+          className="shrink-0 gap-2 text-xs h-8 ml-2"
         >
           Preview Template
         </Button>
@@ -180,6 +194,7 @@ export default function TemplateBuilderPage() {
 
       <BuilderProvider
         mode="template"
+        templateId={templateId}
         apiBasePath={`${apiUrl}/api/invoice-templates/${templateId}`}
         invalidateKey={["template-sections", templateId]}
       >
@@ -252,6 +267,14 @@ export default function TemplateBuilderPage() {
         <TemplatePreviewModal
           isOpen={previewOpen}
           onClose={() => setPreviewOpen(false)}
+          templateId={templateId}
+        />
+      )}
+
+      {optionalRowsModalOpen && (
+        <TemplateOptionalRowsModal
+          isOpen={optionalRowsModalOpen}
+          onClose={() => setOptionalRowsModalOpen(false)}
           templateId={templateId}
         />
       )}
