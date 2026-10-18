@@ -209,15 +209,7 @@ export function safeEval(expr: string): number | null {
       return Math.min(Math.max(val, min), max);
     };
 
-    const result = fn(
-      Math.min,
-      Math.max,
-      round,
-      clamp,
-      Math.abs,
-      Math.floor,
-      Math.ceil,
-    );
+    const result = fn(Math.min, Math.max, round, clamp, Math.abs, Math.floor, Math.ceil);
     return typeof result === "number" && Number.isFinite(result) ? result : null;
   } catch {
     return null;

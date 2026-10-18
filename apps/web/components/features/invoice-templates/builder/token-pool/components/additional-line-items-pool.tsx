@@ -310,8 +310,7 @@ export function AdditionalLineItemsPool({
               {...provided.droppableProps}
               className={cn(
                 "flex-1 border border-border rounded-b-md bg-card/30 flex flex-col transition-all min-h-[140px] divide-y divide-border/40",
-                snapshot.isDraggingOver &&
-                  "bg-primary/5 ring-2 ring-primary/50 border-primary/40",
+                snapshot.isDraggingOver && "bg-primary/5 ring-2 ring-primary/50 border-primary/40",
               )}
             >
               {snapshot.isDraggingOver && (
@@ -331,7 +330,9 @@ export function AdditionalLineItemsPool({
                   <div className="p-2.5 rounded-full bg-muted/40 border border-border/40 text-muted-foreground/50">
                     <Layers className="w-5 h-5" />
                   </div>
-                  <span className="font-medium text-foreground/80">No additional line items yet</span>
+                  <span className="font-medium text-foreground/80">
+                    No additional line items yet
+                  </span>
                   <p className="text-[11px] max-w-[220px]">
                     Drag any row from the table here to save it, or click "+ New Item" above.
                   </p>
@@ -436,7 +437,8 @@ export function AdditionalLineItemsPool({
               <span>Create Additional Line Item</span>
             </DialogTitle>
             <DialogDescription className="text-xs">
-              Define a prebuilt item for this catalog. Drag it into any invoice or section at any time.
+              Define a prebuilt item for this catalog. Drag it into any invoice or section at any
+              time.
             </DialogDescription>
           </DialogHeader>
 

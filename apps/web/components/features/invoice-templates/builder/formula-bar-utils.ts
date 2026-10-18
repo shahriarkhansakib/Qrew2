@@ -62,15 +62,7 @@ export function getChunkAtCursor(
   return best;
 }
 
-export const MATH_FUNCTIONS = [
-  "MIN",
-  "MAX",
-  "ROUND",
-  "CLAMP",
-  "ABS",
-  "FLOOR",
-  "CEIL",
-] as const;
+export const MATH_FUNCTIONS = ["MIN", "MAX", "ROUND", "CLAMP", "ABS", "FLOOR", "CEIL"] as const;
 
 export interface TokenVariantSibling {
   key: string;
@@ -120,7 +112,8 @@ export function resolveTokenMetadata({
 
   const isSelfReference = (targetToken: string) => {
     if (!currentCellToken) return false;
-    if (targetToken === currentCellToken || targetToken === `${currentCellToken}_TOTAL`) return true;
+    if (targetToken === currentCellToken || targetToken === `${currentCellToken}_TOTAL`)
+      return true;
     if (isRowCharge) {
       // Row charges cannot reference their own charge token, but CAN reference parent row base
       return false;
@@ -151,11 +144,7 @@ export function resolveTokenMetadata({
             ? `${rowLabel} (Charges)`
             : `${rowLabel} (Total)`;
 
-        const categoryLabel = isBase
-          ? "Row Base"
-          : isCharges
-            ? "Row Charges"
-            : "Row Total";
+        const categoryLabel = isBase ? "Row Base" : isCharges ? "Row Charges" : "Row Total";
 
         const baseKey = `${rowToken}_BASE`;
         const chargesKey = `${rowToken}_CHARGES`;

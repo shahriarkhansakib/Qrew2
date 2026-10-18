@@ -180,7 +180,10 @@ export function FileDetailsHeaderBox({
 
   const getCleanToken = (field: any) => {
     if (field.tokenKey) {
-      return field.tokenKey.toUpperCase().replace(/^FILE_/, "").replace(/^(GBL_|ORG_)/, "");
+      return field.tokenKey
+        .toUpperCase()
+        .replace(/^FILE_/, "")
+        .replace(/^(GBL_|ORG_)/, "");
     }
     if (field.fileFieldKey) {
       return field.fileFieldKey.toUpperCase().replace(/^FILE_/, "");
@@ -385,9 +388,7 @@ export function FileDetailsHeaderBox({
         {isSharedDnd ? (
           dndContent
         ) : (
-          <DragDropContext onDragEnd={handleDragEnd}>
-            {dndContent}
-          </DragDropContext>
+          <DragDropContext onDragEnd={handleDragEnd}>{dndContent}</DragDropContext>
         )}
       </div>
 

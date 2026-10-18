@@ -68,7 +68,8 @@ export async function createRow(c: Context) {
   const parsed = createRowSchema.safeParse(body);
   if (!parsed.success) return c.json({ error: parsed.error }, 400);
 
-  const { rowToken, label, description, orderIndex, valueType, formula, initialValue, charges } = parsed.data;
+  const { rowToken, label, description, orderIndex, valueType, formula, initialValue, charges } =
+    parsed.data;
 
   // Token uniqueness check
   const existingToken = await db.query.tokens?.findFirst({
@@ -100,7 +101,7 @@ export async function createRow(c: Context) {
     idToToken[rowId] = rowToken;
 
     const encodedRowFormula = formula
-      ? encodeFormula(formula, tokenToId, secTokenToId, tplTokenToId) ?? formula
+      ? (encodeFormula(formula, tokenToId, secTokenToId, tplTokenToId) ?? formula)
       : null;
 
     const row = await TokenService.createRowToken(

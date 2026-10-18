@@ -179,7 +179,9 @@ export default function TemplateBuilderPage() {
           }}
           className={cn(
             "shrink-0 gap-1.5 text-xs h-8 ml-auto border-dashed border-primary/40 text-primary hover:bg-primary/5",
-            tokenPoolOpen && sidebarTab === "line-items" && "bg-primary/10 border-primary text-primary font-semibold",
+            tokenPoolOpen &&
+              sidebarTab === "line-items" &&
+              "bg-primary/10 border-primary text-primary font-semibold",
           )}
           title="Open Additional Line Items pool"
         >
@@ -216,7 +218,9 @@ export default function TemplateBuilderPage() {
           }}
           className={cn(
             "shrink-0 gap-2 text-xs h-8 ml-2",
-            tokenPoolOpen && sidebarTab === "tokens" && "bg-primary/10 border-primary text-primary font-semibold",
+            tokenPoolOpen &&
+              sidebarTab === "tokens" &&
+              "bg-primary/10 border-primary text-primary font-semibold",
           )}
           title={tokenPoolOpen ? "Hide Sidebar" : "Show Sidebar"}
         >
@@ -389,7 +393,8 @@ export default function TemplateBuilderPage() {
             // 4. Header fields reordering (Case D)
             if (
               (source.droppableId === "header-left" || source.droppableId === "header-right") &&
-              (destination.droppableId === "header-left" || destination.droppableId === "header-right")
+              (destination.droppableId === "header-left" ||
+                destination.droppableId === "header-right")
             ) {
               const sourceCol = source.droppableId.replace(/^header-/, "") as "left" | "right";
               const destCol = destination.droppableId.replace(/^header-/, "") as "left" | "right";

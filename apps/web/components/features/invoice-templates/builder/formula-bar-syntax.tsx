@@ -21,8 +21,8 @@ export function getParenStyle(depth: number): { style: React.CSSProperties; clas
 }
 
 import { cn } from "@/lib/utils";
-import { MATH_FUNCTIONS } from "./formula-bar-utils";
 import { TokenCapsule } from "./formula-bar/token-capsule";
+import { MATH_FUNCTIONS } from "./formula-bar-utils";
 
 export interface SyntaxOverlayProps {
   value: string;

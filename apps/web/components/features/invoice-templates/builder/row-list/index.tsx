@@ -195,12 +195,7 @@ export function TemplateRowList({
           className="flex flex-col bg-background overflow-visible"
         >
           {sortedRows.map((row: any, idx: number) => (
-            <Draggable
-              key={row.id}
-              draggableId={row.id}
-              index={idx}
-              isDragDisabled={isFormulaMode}
-            >
+            <Draggable key={row.id} draggableId={row.id} index={idx} isDragDisabled={isFormulaMode}>
               {(provided) => (
                 <div
                   ref={provided.innerRef}

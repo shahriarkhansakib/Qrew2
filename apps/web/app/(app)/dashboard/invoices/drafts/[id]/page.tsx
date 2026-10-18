@@ -689,7 +689,10 @@ export default function DraftBuilderPage() {
                     return old.map((s: any) => {
                       if (s.id !== sectionId) return s;
                       const rowMap = Object.fromEntries((s.rows || []).map((r: any) => [r.id, r]));
-                      const reordered = orderedIds.map((id, i) => ({ ...rowMap[id], sortOrder: i }));
+                      const reordered = orderedIds.map((id, i) => ({
+                        ...rowMap[id],
+                        sortOrder: i,
+                      }));
                       return { ...s, rows: reordered };
                     });
                   });

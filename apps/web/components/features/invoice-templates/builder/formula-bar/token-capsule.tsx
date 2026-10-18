@@ -112,9 +112,7 @@ export function TokenCapsule({
           className="z-50 bg-popover/95 text-popover-foreground border border-border/80 backdrop-blur-md shadow-xl px-2.5 py-1.5 flex flex-col gap-0.5 rounded-md text-xs pointer-events-none"
         >
           <div className="flex items-center gap-2">
-            <span className="font-semibold text-foreground text-xs">
-              {metadata.friendlyLabel}
-            </span>
+            <span className="font-semibold text-foreground text-xs">{metadata.friendlyLabel}</span>
             {formattedValue !== null && (
               <span className="font-mono text-[11px] font-medium text-emerald-500 dark:text-emerald-400">
                 {formattedValue}
