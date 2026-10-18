@@ -4,6 +4,7 @@ import { and, desc, eq, sql } from "drizzle-orm";
 import { Context } from "hono";
 import { v4 as uuidv4 } from "uuid";
 import { auth } from "../../infra/lib/auth";
+import { PermissionService } from "../permissions/permission.service";
 
 export class WorkspacesController {
   static async createWorkspace(c: Context) {
@@ -494,6 +495,9 @@ export class WorkspacesController {
         assignedBy: sessionData.user.id,
       });
 
+      // Instantly purge Redis permissions cache so role updates apply immediately
+      await PermissionService.invalidateCache(targetMember.userId, activeOrgId);
+
       return c.json({ success: true }, 200);
     } catch (error) {
       console.error("[WorkspacesController.updateStaffRole] Failed:", error);
@@ -517,6 +521,9 @@ export class WorkspacesController {
       .returning();
 
     if (!deleted) return c.json({ error: "Member not found" }, 404);
+
+    // Instantly purge Redis permissions cache so revoked members lose access immediately
+    await PermissionService.invalidateCache(deleted.userId, orgId);
 
     return c.json({ success: true });
   }
@@ -730,7 +737,12 @@ export class WorkspacesController {
 
       // 2. Recent entities
       const recentFiles = await db
-        .select()
+        .select({
+          id: schema.projects.id,
+          name: schema.projects.name,
+          status: schema.projects.status,
+          createdAt: schema.projects.createdAt,
+        })
         .from(schema.projects)
         .where(eq(schema.projects.organizationId, activeOrgId))
         .orderBy(desc(schema.projects.createdAt))

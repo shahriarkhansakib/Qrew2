@@ -1,5 +1,6 @@
 "use client";
 
+import { DragDropContext, DropResult } from "@hello-pangea/dnd";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { format } from "date-fns";
 import {
@@ -27,6 +28,8 @@ import { BuilderProvider } from "@/components/features/invoice-templates/builder
 import { TemplateBuilderWorkspace } from "@/components/features/invoice-templates/builder/template-builder-workspace";
 import { TemplateTokenPool } from "@/components/features/invoice-templates/builder/token-pool";
 import { AddOptionalServiceModal } from "@/components/features/invoices/drafts/add-optional-service-modal";
+import { invoiceApi } from "@/components/features/invoices/shared/invoice-api";
+import { invoiceKeys } from "@/components/features/invoices/shared/invoice-keys";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -55,6 +58,7 @@ export default function DraftBuilderPage() {
   const [isAddOptionalServiceModalOpen, setIsAddOptionalServiceModalOpen] = useState(false);
   const [overrides, setOverrides] = useState<Record<string, string>>({});
   const [tokenPoolOpen, setTokenPoolOpen] = useState(true);
+  const [sidebarTab, setSidebarTab] = useState<"tokens" | "line-items">("tokens");
   const [zoomLevel, setZoomLevel] = useState(0);
   const [poolWidth, setPoolWidth] = useState(320);
 
@@ -448,30 +452,54 @@ export default function DraftBuilderPage() {
 
           <Can I={["invoice:manage_optional_rows", "finance:manage_invoices"]}>
             <Button
-              variant="outline"
+              variant={tokenPoolOpen && sidebarTab === "line-items" ? "secondary" : "outline"}
               size="sm"
-              onClick={() => setIsAddOptionalServiceModalOpen(true)}
-              className="gap-1.5 h-8 text-xs border-dashed border-primary/40 text-primary hover:bg-primary/5"
-              title="Add prebuilt optional service row"
+              onClick={() => {
+                if (tokenPoolOpen && sidebarTab === "line-items") {
+                  setTokenPoolOpen(false);
+                } else {
+                  setSidebarTab("line-items");
+                  setTokenPoolOpen(true);
+                }
+              }}
+              className={cn(
+                "gap-1.5 h-8 text-xs border-dashed border-primary/40 text-primary hover:bg-primary/5",
+                tokenPoolOpen &&
+                  sidebarTab === "line-items" &&
+                  "bg-primary/10 border-primary text-primary font-semibold",
+              )}
+              title="Additional Line Items catalog"
             >
               <Layers className="h-3.5 w-3.5" />
-              <span>Add Service</span>
+              <span>Additional Line Items</span>
             </Button>
           </Can>
 
           {isEditMode ? (
             <>
               <Button
-                variant="outline"
+                variant={tokenPoolOpen && sidebarTab === "tokens" ? "secondary" : "outline"}
                 size="sm"
-                onClick={() => setTokenPoolOpen((prev) => !prev)}
-                className="w-9 px-0 mr-2"
-                title={tokenPoolOpen ? "Close Token Pool" : "Open Token Pool"}
+                onClick={() => {
+                  if (tokenPoolOpen && sidebarTab === "tokens") {
+                    setTokenPoolOpen(false);
+                  } else {
+                    setSidebarTab("tokens");
+                    setTokenPoolOpen(true);
+                  }
+                }}
+                className={cn(
+                  "w-9 px-0 mr-2",
+                  tokenPoolOpen &&
+                    sidebarTab === "tokens" &&
+                    "bg-primary/10 border-primary text-primary",
+                )}
+                title={tokenPoolOpen ? "Close Sidebar" : "Open Sidebar"}
               >
                 {tokenPoolOpen ? (
-                  <PanelRightClose className="h-4 w-4 text-muted-foreground" />
+                  <PanelRightClose className="h-4 w-4" />
                 ) : (
-                  <PanelRightOpen className="h-4 w-4 text-muted-foreground" />
+                  <PanelRightOpen className="h-4 w-4" />
                 )}
               </Button>
               <Can I={["invoice:delete", "finance:manage_invoices"]}>
@@ -559,54 +587,186 @@ export default function DraftBuilderPage() {
             apiBasePath={`${apiUrl}/api/invoices/drafts/${draftId}`}
             invalidateKey={["draft-sections", draftId]}
           >
-            {/* Main Builder Area */}
-            <div className="flex-1 overflow-auto bg-muted/20">
-              <TemplateBuilderWorkspace
-                templateId={draft.sourceTemplateId}
-                draftId={draftId}
-                zoomLevel={zoomLevel}
-                onZoomChange={setZoomLevel}
-                project={draft?.project}
-              />
-            </div>
+            <DragDropContext
+              onDragEnd={async (result: DropResult) => {
+                if (!result.destination) return;
+                const { source, destination, draggableId } = result;
 
-            {/* Sliding Token Pool Panel */}
-            <div
-              className={cn(
-                "h-full bg-background border-l border-border overflow-visible transition-all duration-200 relative",
-                tokenPoolOpen ? "flex shrink-0" : "hidden",
-                "absolute md:relative inset-y-0 right-0 z-40 md:z-0 shadow-2xl md:shadow-none",
-              )}
-              style={{ width: tokenPoolOpen ? poolWidth : 0 }}
+                // 1. Dragging from Additional Line Items sidebar into a Section (Case A)
+                if (
+                  source.droppableId === "additional-line-items" &&
+                  destination.droppableId.startsWith("rows-")
+                ) {
+                  const targetSectionId = destination.droppableId.replace(/^rows-/, "");
+                  const itemId = draggableId.replace(/^catalog-/, "");
+                  const catalog: any[] =
+                    queryClient.getQueryData(invoiceKeys.optionalRows.byDraft(draftId)) || [];
+                  const item = catalog.find((c: any) => c.id === itemId);
+                  if (!item) return;
+
+                  try {
+                    await invoiceApi.addDraftOptionalRow(draftId, {
+                      canonicalToken: item.rowToken,
+                      sectionId: targetSectionId,
+                    });
+                    queryClient.invalidateQueries({ queryKey: ["draft-sections", draftId] });
+                    queryClient.invalidateQueries({ queryKey: ["draft-preview", draftId] });
+                    toast.success(`Added "${item.label}" to section`);
+                  } catch (err: any) {
+                    toast.error(err.message || "Failed to add row to draft");
+                  }
+                  return;
+                }
+
+                // 2. Dragging a Row from Table Section into Additional Line Items sidebar (Case B)
+                if (
+                  source.droppableId.startsWith("rows-") &&
+                  destination.droppableId === "additional-line-items"
+                ) {
+                  const sourceSectionId = source.droppableId.replace(/^rows-/, "");
+                  const draftSections: any[] =
+                    queryClient.getQueryData(["draft-sections", draftId]) || [];
+                  const sourceSection = draftSections.find((s: any) => s.id === sourceSectionId);
+                  const row = (sourceSection?.rows || []).find((r: any) => r.id === draggableId);
+                  if (!row) return;
+
+                  try {
+                    if (row.isOptionalService) {
+                      await invoiceApi.deleteDraftOptionalRow(draftId, row.id);
+                    } else {
+                      await invoiceApi.addDraftOptionalRow(draftId, {
+                        canonicalToken: row.rowToken,
+                        customLabel: row.label,
+                        customValue:
+                          row.valueType === "normal" && row.initialValue
+                            ? Number(row.initialValue)
+                            : undefined,
+                        customFormula: row.valueType === "formula" ? row.formula : undefined,
+                      });
+                      await fetch(
+                        `${apiUrl}/api/invoices/drafts/${draftId}/sections/${sourceSectionId}/rows/${row.id}`,
+                        {
+                          method: "DELETE",
+                          credentials: "include",
+                        },
+                      );
+                    }
+                    queryClient.invalidateQueries({ queryKey: ["draft-sections", draftId] });
+                    queryClient.invalidateQueries({ queryKey: ["draft-preview", draftId] });
+                    queryClient.invalidateQueries({
+                      queryKey: invoiceKeys.optionalRows.byDraft(draftId),
+                    });
+                    toast.success(`Moved "${row.label || row.rowToken}" to Additional Line Items`);
+                  } catch (err: any) {
+                    toast.error(err.message || "Failed to move row to catalog");
+                  }
+                  return;
+                }
+
+                // 3. Reordering rows within the same section (Case C)
+                if (
+                  source.droppableId.startsWith("rows-") &&
+                  destination.droppableId.startsWith("rows-") &&
+                  source.droppableId === destination.droppableId
+                ) {
+                  const sectionId = source.droppableId.replace(/^rows-/, "");
+                  if (source.index === destination.index) return;
+
+                  const sectionsData =
+                    queryClient.getQueryData<any[]>(["draft-sections", draftId]) || [];
+                  const section = sectionsData.find((s: any) => s.id === sectionId);
+                  if (!section) return;
+
+                  const sortedRows = [...(section.rows || [])].sort(
+                    (a: any, b: any) => a.sortOrder - b.sortOrder,
+                  );
+                  const [moved] = sortedRows.splice(source.index, 1);
+                  sortedRows.splice(destination.index, 0, moved);
+                  const orderedIds = sortedRows.map((r: any) => r.id);
+
+                  queryClient.setQueryData(["draft-sections", draftId], (old: any) => {
+                    if (!old) return old;
+                    return old.map((s: any) => {
+                      if (s.id !== sectionId) return s;
+                      const rowMap = Object.fromEntries((s.rows || []).map((r: any) => [r.id, r]));
+                      const reordered = orderedIds.map((id, i) => ({ ...rowMap[id], sortOrder: i }));
+                      return { ...s, rows: reordered };
+                    });
+                  });
+
+                  try {
+                    await fetch(
+                      `${apiUrl}/api/invoices/drafts/${draftId}/sections/${sectionId}/rows/reorder`,
+                      {
+                        method: "PUT",
+                        headers: { "Content-Type": "application/json" },
+                        credentials: "include",
+                        body: JSON.stringify({ orderedIds }),
+                      },
+                    );
+                  } catch (err) {
+                    queryClient.invalidateQueries({ queryKey: ["draft-sections", draftId] });
+                    toast.error("Failed to reorder rows");
+                  }
+                  return;
+                }
+              }}
             >
-              {tokenPoolOpen && (
-                <div
-                  className="absolute left-0 top-0 bottom-0 w-1.5 cursor-col-resize hover:bg-primary/50 transition-colors z-50 -ml-[1px]"
-                  onMouseDown={(e) => {
-                    e.preventDefault();
-                    const startX = e.clientX;
-                    const startWidth = poolWidth;
-
-                    const handleMouseMove = (moveEvent: MouseEvent) => {
-                      const delta = startX - moveEvent.clientX;
-                      const newWidth = Math.min(Math.max(startWidth + delta, 240), 600);
-                      setPoolWidth(newWidth);
-                    };
-
-                    const handleMouseUp = () => {
-                      window.removeEventListener("mousemove", handleMouseMove);
-                      window.removeEventListener("mouseup", handleMouseUp);
-                    };
-
-                    window.addEventListener("mousemove", handleMouseMove);
-                    window.addEventListener("mouseup", handleMouseUp);
-                  }}
+              {/* Main Builder Area */}
+              <div className="flex-1 overflow-auto bg-muted/20">
+                <TemplateBuilderWorkspace
+                  templateId={draft.sourceTemplateId}
+                  draftId={draftId}
+                  zoomLevel={zoomLevel}
+                  onZoomChange={setZoomLevel}
+                  project={draft?.project}
+                  isSharedDnd={true}
                 />
-              )}
-              <div className="flex-1 w-full h-full overflow-hidden">
-                <TemplateTokenPool templateId={draft.sourceTemplateId} draftId={draftId} />
               </div>
-            </div>
+
+              {/* Sliding Token Pool Panel */}
+              <div
+                className={cn(
+                  "h-full bg-background border-l border-border overflow-visible transition-all duration-200 relative",
+                  tokenPoolOpen ? "flex shrink-0" : "hidden",
+                  "absolute md:relative inset-y-0 right-0 z-40 md:z-0 shadow-2xl md:shadow-none",
+                )}
+                style={{ width: tokenPoolOpen ? poolWidth : 0 }}
+              >
+                {tokenPoolOpen && (
+                  <div
+                    className="absolute left-0 top-0 bottom-0 w-1.5 cursor-col-resize hover:bg-primary/50 transition-colors z-50 -ml-[1px]"
+                    onMouseDown={(e) => {
+                      e.preventDefault();
+                      const startX = e.clientX;
+                      const startWidth = poolWidth;
+
+                      const handleMouseMove = (moveEvent: MouseEvent) => {
+                        const delta = startX - moveEvent.clientX;
+                        const newWidth = Math.min(Math.max(startWidth + delta, 240), 600);
+                        setPoolWidth(newWidth);
+                      };
+
+                      const handleMouseUp = () => {
+                        window.removeEventListener("mousemove", handleMouseMove);
+                        window.removeEventListener("mouseup", handleMouseUp);
+                      };
+
+                      window.addEventListener("mousemove", handleMouseMove);
+                      window.addEventListener("mouseup", handleMouseUp);
+                    }}
+                  />
+                )}
+                <div className="flex-1 w-full h-full overflow-hidden">
+                  <TemplateTokenPool
+                    templateId={draft.sourceTemplateId}
+                    draftId={draftId}
+                    activeTab={sidebarTab}
+                    onTabChange={setSidebarTab}
+                  />
+                </div>
+              </div>
+            </DragDropContext>
           </BuilderProvider>
         </div>
       ) : (

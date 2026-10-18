@@ -37,6 +37,9 @@ const createRowSchema = z.object({
     ),
   description: z.string().optional().nullable(),
   orderIndex: z.number().int().min(0).default(0),
+  valueType: z.enum(["normal", "formula"]).optional().default("normal"),
+  formula: z.string().optional().nullable(),
+  initialValue: z.union([z.string(), z.number()]).optional().nullable(),
   charges: z.array(rowChargeSchema).optional().default([]),
 });
 
@@ -65,7 +68,7 @@ export async function createRow(c: Context) {
   const parsed = createRowSchema.safeParse(body);
   if (!parsed.success) return c.json({ error: parsed.error }, 400);
 
-  const { rowToken, label, description, orderIndex, charges } = parsed.data;
+  const { rowToken, label, description, orderIndex, valueType, formula, initialValue, charges } = parsed.data;
 
   // Token uniqueness check
   const existingToken = await db.query.tokens?.findFirst({
@@ -96,6 +99,10 @@ export async function createRow(c: Context) {
     tokenToId[rowToken] = rowId;
     idToToken[rowId] = rowToken;
 
+    const encodedRowFormula = formula
+      ? encodeFormula(formula, tokenToId, secTokenToId, tplTokenToId) ?? formula
+      : null;
+
     const row = await TokenService.createRowToken(
       {
         id: rowId,
@@ -104,9 +111,9 @@ export async function createRow(c: Context) {
         rowToken,
         label,
         description: description ?? null,
-        valueType: "normal",
-        formula: null,
-        initialValue: null,
+        valueType: valueType ?? "normal",
+        formula: encodedRowFormula,
+        initialValue: initialValue != null ? String(initialValue) : null,
         organizationId,
         sortOrder: newSortOrder,
       },

@@ -158,12 +158,20 @@ export function decodeFormula(
   return decoded;
 }
 
-export const MATH_FUNCTION_NAMES = new Set(["MIN", "MAX", "ROUND", "CLAMP", "ABS"]);
+export const MATH_FUNCTION_NAMES = new Set([
+  "MIN",
+  "MAX",
+  "ROUND",
+  "CLAMP",
+  "ABS",
+  "FLOOR",
+  "CEIL",
+]);
 
 /**
  * Safely evaluate an arithmetic expression string where all identifiers have
  * already been substituted with numeric literals.
- * Supports standard operators as well as MIN, MAX, ROUND, CLAMP, ABS functions.
+ * Supports standard operators as well as MIN, MAX, ROUND, CLAMP, ABS, FLOOR, CEIL functions.
  * Returns null if evaluation fails or result is not finite.
  */
 export function safeEval(expr: string): number | null {
@@ -176,7 +184,7 @@ export function safeEval(expr: string): number | null {
 
     // Check that identifiers are only allowed math functions
     const idents = trimmed.match(/[A-Za-z_][A-Za-z0-9_]*/g) || [];
-    const allowed = new Set(["MIN", "MAX", "ROUND", "CLAMP", "ABS"]);
+    const allowed = new Set(["MIN", "MAX", "ROUND", "CLAMP", "ABS", "FLOOR", "CEIL"]);
     if (idents.some((id) => !allowed.has(id.toUpperCase()))) {
       return null;
     }
@@ -187,6 +195,8 @@ export function safeEval(expr: string): number | null {
       "ROUND",
       "CLAMP",
       "ABS",
+      "FLOOR",
+      "CEIL",
       `"use strict"; return (${trimmed});`,
     );
 
@@ -199,7 +209,15 @@ export function safeEval(expr: string): number | null {
       return Math.min(Math.max(val, min), max);
     };
 
-    const result = fn(Math.min, Math.max, round, clamp, Math.abs);
+    const result = fn(
+      Math.min,
+      Math.max,
+      round,
+      clamp,
+      Math.abs,
+      Math.floor,
+      Math.ceil,
+    );
     return typeof result === "number" && Number.isFinite(result) ? result : null;
   } catch {
     return null;
@@ -399,7 +417,8 @@ export function getCircularDependencyTokens(
         if (charge.formula) {
           const decoded = decodeFormula(charge.formula, sections, templateConstants);
           for (const ref of extractTokens(decoded)) {
-            addEdge(ref, charge.chargeToken);
+            const dependency = ref === rowToken ? rowBase : ref;
+            addEdge(dependency, charge.chargeToken);
           }
         }
       }
@@ -467,7 +486,7 @@ export function getCircularDependencyTokens(
     const cellLabel = selectedCell.breadcrumb || "active cell";
     const seeds = new Set<string>();
 
-    if (selectedCell.row) {
+    if (selectedCell.row && !selectedCell.chargeId) {
       const rowToken = selectedCell.row.rowToken;
       if (rowToken) {
         seeds.add(rowToken);
@@ -550,6 +569,9 @@ export function getCircularDependencyTokens(
     // Row expansion
     const row = tokenToRowMap.get(token);
     if (row?.rowToken) {
+      const isParentOfActiveCharge =
+        Boolean(selectedCell?.chargeId) && selectedCell?.row?.id === row.id;
+
       const rowVariants = [
         row.rowToken,
         `${row.rowToken}_BASE`,
@@ -559,6 +581,13 @@ export function getCircularDependencyTokens(
       ].filter(Boolean);
 
       for (const variant of rowVariants) {
+        if (
+          isParentOfActiveCharge &&
+          (variant === `${row.rowToken}_BASE` || variant === row.rowToken)
+        ) {
+          // Parent row's base does not depend on row charge
+          continue;
+        }
         if (!invalidTokens.has(variant)) {
           invalidTokens.add(variant);
           tokenReasons.set(
@@ -572,6 +601,9 @@ export function getCircularDependencyTokens(
     // Section expansion
     const sec = tokenToSectionMap.get(token);
     if (sec?.sectionToken) {
+      const isParentOfActiveSecCharge =
+        Boolean(selectedCell?.isSectionCharge) && selectedCell?.sectionId === sec.id;
+
       const secVariants = [
         `SEC_${sec.sectionToken}`,
         `SEC_${sec.sectionToken}_BASE`,
@@ -581,6 +613,10 @@ export function getCircularDependencyTokens(
       ].filter(Boolean);
 
       for (const variant of secVariants) {
+        if (isParentOfActiveSecCharge && variant === `SEC_${sec.sectionToken}_BASE`) {
+          // Section base does not depend on section charge
+          continue;
+        }
         if (!invalidTokens.has(variant)) {
           invalidTokens.add(variant);
           tokenReasons.set(
@@ -738,6 +774,9 @@ export function buildTokenMap(
           tokens[`${row.rowToken}_BASE`] = rowBase;
           changed = true;
         }
+
+        // Expose base value on canonical rowToken before evaluating charges per Rule 1
+        tokens[row.rowToken] = rowBase;
 
         let rowChargesSum = 0;
         for (const charge of rowCharges) {

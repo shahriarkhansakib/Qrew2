@@ -3,6 +3,8 @@ import { GripVertical, Trash2 } from "lucide-react";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
 import { Can } from "@/components/features/auth/can";
+import { invoiceApi } from "@/components/features/invoices/shared/invoice-api";
+import { invoiceKeys } from "@/components/features/invoices/shared/invoice-keys";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { decodeFormula, fmt, TokenMap } from "@/lib/formula-evaluator";
@@ -205,6 +207,49 @@ export function SingleRow({
   const handleValueClick = () =>
     setSelectedCell(cellFromRow({ templateId, sectionId, row, decodedFormula }));
 
+  const handleMoveToAdditionalLineItems = async () => {
+    try {
+      if (templateId) {
+        await invoiceApi.addTemplateOptionalRow(templateId, {
+          rowToken: row.rowToken,
+          label: row.label,
+          subDescription: row.description || null,
+          valueType: row.valueType || "normal",
+          formula: row.formula || null,
+          initialValue: row.initialValue || null,
+        });
+        await fetch(`${apiBasePath}/sections/${sectionId}/rows/${row.id}`, {
+          method: "DELETE",
+          credentials: "include",
+        });
+        queryClient.invalidateQueries({ queryKey: invalidateKey });
+        queryClient.invalidateQueries({
+          queryKey: invoiceKeys.optionalRows.byTemplate(templateId),
+        });
+        toast.success(`Moved "${row.label || row.rowToken}" to Additional Line Items`);
+      } else if (draftId) {
+        await invoiceApi.addDraftOptionalRow(draftId, {
+          canonicalToken: row.canonicalToken || row.rowToken,
+          customLabel: row.label,
+          customValue:
+            row.valueType === "normal" && row.initialValue ? Number(row.initialValue) : undefined,
+          customFormula: row.valueType === "formula" ? row.formula : undefined,
+        });
+        await fetch(`${apiBasePath}/sections/${sectionId}/rows/${row.id}`, {
+          method: "DELETE",
+          credentials: "include",
+        });
+        queryClient.invalidateQueries({ queryKey: invalidateKey });
+        queryClient.invalidateQueries({
+          queryKey: invoiceKeys.optionalRows.byDraft(draftId),
+        });
+        toast.success(`Moved "${row.label || row.rowToken}" to Additional Line Items`);
+      }
+    } catch (e: any) {
+      toast.error(e.message || "Failed to move row to Additional Line Items");
+    }
+  };
+
   const formulaAnnotation = decodedFormula;
 
   return (
@@ -240,7 +285,12 @@ export function SingleRow({
         }
         actions={
           mode !== "fill" ? (
-            <RowActions onEdit={onEdit} onDelete={onDelete} onAddCharge={onAddCharge} />
+            <RowActions
+              onEdit={onEdit}
+              onDelete={onDelete}
+              onAddCharge={onAddCharge}
+              onMoveToAdditionalLineItems={handleMoveToAdditionalLineItems}
+            />
           ) : isOptionalService ? (
             <Can I={["invoice:manage_optional_rows", "finance:manage_invoices"]}>
               <Button
@@ -257,7 +307,12 @@ export function SingleRow({
         }
         mobileActions={
           mode !== "fill" ? (
-            <MobileRowActions onEdit={onEdit} onDelete={onDelete} onAddCharge={onAddCharge} />
+            <MobileRowActions
+              onEdit={onEdit}
+              onDelete={onDelete}
+              onAddCharge={onAddCharge}
+              onMoveToAdditionalLineItems={handleMoveToAdditionalLineItems}
+            />
           ) : isOptionalService ? (
             <Can I={["invoice:manage_optional_rows", "finance:manage_invoices"]}>
               <Button

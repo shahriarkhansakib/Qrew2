@@ -108,3 +108,59 @@ Before saving on Enter, button click, or outside blur, `handleSave` strictly enf
   - Saved to `invoice_templates.optional_rows` JSONB column.
   - Invoices generated or drafted from this template can browse, select, customize label/rate, and attach these services to any destination section.
 
+---
+
+## 6. Token Capsule Formula Editor Architecture (`formula-bar/`)
+
+- **Component Hierarchy**:
+  - `formula-bar/index.tsx`: Main formula input container, quick operator buttons, AST function drawer, and popover management.
+  - `formula-bar/formula-capsule.tsx`: Individual token capsule badge rendered inline within the input flow.
+- **Aesthetic Principles**:
+  - **Minimalist & Modern**: Token capsules have zero icons, zero borders, zero boundaries, and zero padding (`px-0 py-0`). They do not use cartoonish tags or heavy cards.
+  - **Dense Key Display**: Capsules display the concise uppercase token key (e.g., `PORT_DUES_BASE`), expanding to the user-friendly label on hover.
+  - **Category Colors**: Styled using `getTokenColor(token)` across distinct harmonic semantic tints.
+- **Quick Swap Pill Menu**:
+  - Clicking any active token capsule opens an inline Quick Swap popover showing available sibling variants (`[ Base ]`, `[ Charges ]`, `[ Total ]`).
+  - Selecting a variant immediately swaps the token in the formula string without requiring deletion or re-typing.
+- **Smart Backspace**:
+  - When the cursor is positioned directly after a token or with a token selected, pressing Backspace strips the token back to the preceding underscore (e.g. converting `_TOTAL` to the base token), or removes the token atomically if at the base word.
+- **Autocomplete Dropdown Value Layout**:
+  - Dropdown container width is set to `w-88 sm:w-96 max-w-[calc(100vw-2rem)]`.
+  - Evaluated numeric values are rendered directly adjacent to the token name inside a badge (`font-mono text-[11px] font-semibold tabular-nums px-1 py-0.2 rounded shrink-0 bg-muted/40`).
+  - Styled with the token's category color.
+  - Token names use `truncate shrink min-w-0` to ensure that the value badge is strictly `shrink-0` and never truncated or clipped.
+
+---
+
+## 7. Token Pool UX & Insertion Invariants (`token-pool/`, `template-builder-workspace.tsx`)
+
+- **Standardized Dropdown Accordions**:
+  - Both `sections-tree.tsx` and `expense-categories-section.tsx` follow an identical interaction pattern:
+    1. Clicking the header row toggles accordion expansion.
+    2. An expansion chevron (`ChevronRight`) is positioned directly beside the main token chip on the left and rotates 90° when expanded.
+    3. Clicking the token chip itself independently selects the token for formula insertion without toggling the accordion.
+    4. Evaluated total values are right-aligned.
+- **Top File Details Table Field Insertion**:
+  - Selectable fields in `FileDetailsHeaderBox` that insert tokens on click MUST include `.insertable-token` and bind `onMouseDown={(e) => { if (isFormulaMode && isSelectable) e.preventDefault(); }}`.
+  - This prevents `blur` events from triggering the formula bar's outside-click auto-save/deselect behavior before the click event can dispatch `insert-token`.
+
+---
+
+## 8. Additional Line Items Studio & Bidirectional Grab-and-Drag Architecture (`token-pool/`, `additional-line-items-pool.tsx`)
+
+- **Adobe Illustrator-Type Panel Tab Strip**:
+  - Docked in the right sidebar header (`TemplateTokenPool`).
+  - Seamlessly toggles between `[ Token Pool ]` and `[ Additional Line Items (N) ]` with an active tab highlight, count badge, and clean borders.
+- **Table-Body Matching Visual Rhythm**:
+  - 4-column layout mimicking the main invoice table:
+    1. Grip Handle (`GripVertical`) for grab-and-drag.
+    2. Label & Token pill (`font-mono text-primary font-semibold`) with optional sub-description.
+    3. USD / Rate column showing formatted rate or `fx` badge for formula-driven items.
+    4. Action buttons: `+` Quick-add to table and `Trash` delete from catalog.
+- **Bidirectional Drag-and-Drop (DND)**:
+  - Drag from Additional Line Items pool into table sections (`additional-line-items` -> `rows-${sectionId}`) automatically handles unique token allocation (`TOKEN_2`, `TOKEN_3`) to avoid DAG collisions.
+  - Drag from table section into Additional Line Items pool (`rows-${sectionId}` -> `additional-line-items`) saves the row structure/formula/value to the catalog and removes it from the table.
+  - 1-click alternative: "Move to Line Items" button and context menu item in `RowActions` and `MobileRowActions`.
+- **Shared DND Architecture**:
+  - Prevents nested `DragDropContext` errors by wrapping workspace and sidebar in a unified top-level context while child components set `isSharedDnd: true`.
+

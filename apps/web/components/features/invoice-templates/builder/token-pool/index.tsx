@@ -1,9 +1,11 @@
 "use client";
 
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { AlertTriangle, Edit2, Info, Trash2 } from "lucide-react";
+import { AlertTriangle, Edit2, Hash, Info, Layers, Trash2 } from "lucide-react";
 import { useState } from "react";
 import { toast } from "sonner";
+import { invoiceApi } from "@/components/features/invoices/shared/invoice-api";
+import { invoiceKeys } from "@/components/features/invoices/shared/invoice-keys";
 import { AddEditOrgConfigModal } from "@/components/features/org-configs/add-edit-org-config-modal";
 import { ConfirmDeleteModal } from "@/components/shared/confirm-delete-modal";
 import {
@@ -20,6 +22,7 @@ import { buildTokenMap, fmt } from "@/lib/formula-evaluator";
 import { cn } from "@/lib/utils";
 import { AddEditTemplateConstantModal } from "../add-edit-template-constant-modal";
 import { useBuilderContext } from "../builder-context";
+import { AdditionalLineItemsPool } from "./components/additional-line-items-pool";
 import { ExpenseCategoriesSection } from "./components/expense-categories-section";
 import { FileDetailsSection } from "./components/file-details-section";
 import { GlobalConstantsSection } from "./components/global-constants-section";
@@ -444,9 +447,15 @@ export function PoolSectionHeader({
 export function TemplateTokenPool({
   templateId,
   draftId,
+  activeTab: propActiveTab,
+  onTabChange: propOnTabChange,
+  onAddRowToSection,
 }: {
   templateId?: string;
   draftId?: string;
+  activeTab?: "tokens" | "line-items";
+  onTabChange?: (tab: "tokens" | "line-items") => void;
+  onAddRowToSection?: (item: any, sectionId?: string) => void;
 }) {
   const isDraftMode = !!draftId;
   const apiBasePath = isDraftMode
@@ -461,7 +470,23 @@ export function TemplateTokenPool({
     ? ["draft-sections", draftId]
     : ["template-sections", templateId];
 
-  const { selectedCell, setClipboardToken } = useBuilderContext();
+  const { selectedCell, setClipboardToken, sidebarTab, setSidebarTab } = useBuilderContext();
+  const currentTab = propActiveTab ?? sidebarTab;
+  const handleTabChange = propOnTabChange ?? setSidebarTab;
+
+  const { data: catalog = [] } = useQuery({
+    queryKey: templateId
+      ? invoiceKeys.optionalRows.byTemplate(templateId)
+      : invoiceKeys.optionalRows.byDraft(draftId || ""),
+    queryFn: () => {
+      if (templateId) return invoiceApi.getTemplateOptionalRows(templateId);
+      if (draftId) return invoiceApi.getDraftOptionalRows(draftId);
+      return [];
+    },
+    enabled: !!templateId || !!draftId,
+  });
+  const catalogCount = Array.isArray(catalog) ? catalog.length : 0;
+
   const [showLegend, setShowLegend] = useState(false);
   const [tokenZoomLevel, setTokenZoomLevel] = useState(0);
   const [isConfigModalOpen, setIsConfigModalOpen] = useState(false);
@@ -608,45 +633,82 @@ export function TemplateTokenPool({
   return (
     <>
       <div
-        className="flex flex-col h-full overflow-y-auto token-pool-container"
-        onMouseDown={(e) => e.preventDefault()}
+        className="flex flex-col h-full overflow-hidden token-pool-container bg-background"
+        onMouseDown={(e) => {
+          const target = e.target as HTMLElement;
+          if (target.closest("input") || target.closest("textarea") || target.closest("select")) {
+            return;
+          }
+          e.preventDefault();
+        }}
       >
-        <div className="px-4 py-3 border-b border-border bg-muted/20 shrink-0">
-          <div className="flex items-center justify-between">
-            <div>
-              <div className="flex items-center gap-1.5">
-                <h2 className="text-sm font-bold text-foreground">Token Pool</h2>
-                <button
-                  type="button"
-                  onClick={() => setShowLegend(true)}
-                  className={`p-1 rounded-full transition-colors cursor-pointer ${showLegend ? "bg-primary/10 text-primary" : "text-muted-foreground/40 hover:text-foreground hover:bg-muted/40"}`}
-                  title="Token color guide"
-                  aria-label="Token color guide"
-                >
-                  <Info className="w-3.5 h-3.5" />
-                </button>
-              </div>
-              <p className="text-[11px] text-muted-foreground/60 mt-0.5">
-                Click a token to insert it into a formula.
-              </p>
-            </div>
-            <div className="flex items-center gap-1 border border-border rounded-md px-0.5 h-7 bg-background shadow-sm">
+        {/* ── Adobe Illustrator-Style Tab Strip ── */}
+        <div className="flex items-center justify-between border-b border-border bg-muted/40 px-2 pt-1.5 select-none shrink-0">
+          <div className="flex items-center gap-1 -mb-[1px]">
+            <button
+              type="button"
+              onClick={() => handleTabChange("tokens")}
+              className={cn(
+                "flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold rounded-t-md transition-all cursor-pointer border border-b-0",
+                currentTab === "tokens"
+                  ? "bg-background text-foreground border-border border-t-2 border-t-primary shadow-xs z-10"
+                  : "bg-transparent text-muted-foreground hover:text-foreground hover:bg-muted/50 border-transparent",
+              )}
+            >
+              <Hash className="w-3.5 h-3.5 text-primary" />
+              <span>Token Pool</span>
+            </button>
+
+            <button
+              type="button"
+              onClick={() => handleTabChange("line-items")}
+              className={cn(
+                "flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold rounded-t-md transition-all cursor-pointer border border-b-0",
+                currentTab === "line-items"
+                  ? "bg-background text-foreground border-border border-t-2 border-t-primary shadow-xs z-10"
+                  : "bg-transparent text-muted-foreground hover:text-foreground hover:bg-muted/50 border-transparent",
+              )}
+            >
+              <Layers className="w-3.5 h-3.5 text-primary" />
+              <span>Additional Line Items</span>
+              {catalogCount > 0 && (
+                <span className="text-[10px] font-mono px-1.5 py-0.2 rounded-full bg-primary/10 text-primary font-bold">
+                  {catalogCount}
+                </span>
+              )}
+            </button>
+          </div>
+
+          <div className="flex items-center gap-1.5 pb-1">
+            {currentTab === "tokens" && (
+              <button
+                type="button"
+                onClick={() => setShowLegend(true)}
+                className={`p-1 rounded-full transition-colors cursor-pointer ${showLegend ? "bg-primary/10 text-primary" : "text-muted-foreground/40 hover:text-foreground hover:bg-muted/40"}`}
+                title="Token color guide"
+                aria-label="Token color guide"
+              >
+                <Info className="w-3.5 h-3.5" />
+              </button>
+            )}
+
+            <div className="flex items-center gap-1 border border-border rounded-md px-0.5 h-6 bg-background shadow-xs">
               <button
                 onClick={() => setTokenZoomLevel((z) => Math.max(z - 1, -4))}
-                className="h-5 w-5 flex items-center justify-center text-muted-foreground hover:text-foreground hover:bg-muted rounded transition-colors"
+                className="h-4 w-4 flex items-center justify-center text-muted-foreground hover:text-foreground hover:bg-muted rounded transition-colors"
                 title="Decrease Font Size"
               >
-                <span className="text-lg leading-none font-medium mb-1">-</span>
+                <span className="text-base leading-none font-medium mb-0.5">-</span>
               </button>
-              <span className="text-[10px] font-mono w-4 text-center select-none text-muted-foreground">
+              <span className="text-[10px] font-mono w-3.5 text-center select-none text-muted-foreground">
                 {tokenZoomLevel > 0 ? `+${tokenZoomLevel}` : tokenZoomLevel}
               </span>
               <button
                 onClick={() => setTokenZoomLevel((z) => Math.min(z + 1, 8))}
-                className="h-5 w-5 flex items-center justify-center text-muted-foreground hover:text-foreground hover:bg-muted rounded transition-colors"
+                className="h-4 w-4 flex items-center justify-center text-muted-foreground hover:text-foreground hover:bg-muted rounded transition-colors"
                 title="Increase Font Size"
               >
-                <span className="text-lg leading-none font-medium mb-1">+</span>
+                <span className="text-base leading-none font-medium mb-0.5">+</span>
               </button>
             </div>
           </div>
@@ -1197,55 +1259,64 @@ export function TemplateTokenPool({
           </DialogContent>
         </Dialog>
 
-        <div className="flex-1 overflow-y-auto py-3 space-y-5">
-          <GlobalConstantsSection
-            orgConfigs={orgConfigs}
+        {currentTab === "line-items" ? (
+          <AdditionalLineItemsPool
+            templateId={templateId}
+            draftId={draftId}
             tokenZoomLevel={tokenZoomLevel}
-            handleTokenClick={handleTokenClick}
-            setEditConfig={setEditConfig}
-            setIsConfigModalOpen={setIsConfigModalOpen}
-            setConfigToDelete={setConfigToDelete}
-            setShowLegend={setShowLegend}
+            onAddRowToSection={onAddRowToSection}
           />
-          <TemplateConstantsSection
-            templateConstants={templateConstants}
-            tokenZoomLevel={tokenZoomLevel}
-            handleTokenClick={handleTokenClick}
-            setEditConstant={setEditConstant}
-            setIsConstantModalOpen={setIsConstantModalOpen}
-            setConstantToDelete={setConstantToDelete}
-            setShowLegend={setShowLegend}
-          />
-          <FileDetailsSection
-            allFileFields={allFileFields}
-            getFileToken={getFileToken}
-            tokenZoomLevel={tokenZoomLevel}
-            handleTokenClick={handleTokenClick}
-            setShowLegend={setShowLegend}
-          />
-          <ExpenseCategoriesSection
-            categories={expenseCategories || []}
-            tokenZoomLevel={tokenZoomLevel}
-            handleTokenClick={handleTokenClick}
-            setShowLegend={setShowLegend}
-          />
-          <SectionsTree
-            sortedSections={sortedSections}
-            tokenMap={tokenMap}
-            tokenZoomLevel={tokenZoomLevel}
-            handleTokenClick={handleTokenClick}
-            setShowLegend={setShowLegend}
-          />
+        ) : (
+          <div className="flex-1 overflow-y-auto py-3 space-y-5">
+            <GlobalConstantsSection
+              orgConfigs={orgConfigs}
+              tokenZoomLevel={tokenZoomLevel}
+              handleTokenClick={handleTokenClick}
+              setEditConfig={setEditConfig}
+              setIsConfigModalOpen={setIsConfigModalOpen}
+              setConfigToDelete={setConfigToDelete}
+              setShowLegend={setShowLegend}
+            />
+            <TemplateConstantsSection
+              templateConstants={templateConstants}
+              tokenZoomLevel={tokenZoomLevel}
+              handleTokenClick={handleTokenClick}
+              setEditConstant={setEditConstant}
+              setIsConstantModalOpen={setIsConstantModalOpen}
+              setConstantToDelete={setConstantToDelete}
+              setShowLegend={setShowLegend}
+            />
+            <FileDetailsSection
+              allFileFields={allFileFields}
+              getFileToken={getFileToken}
+              tokenZoomLevel={tokenZoomLevel}
+              handleTokenClick={handleTokenClick}
+              setShowLegend={setShowLegend}
+            />
+            <ExpenseCategoriesSection
+              categories={expenseCategories || []}
+              tokenZoomLevel={tokenZoomLevel}
+              handleTokenClick={handleTokenClick}
+              setShowLegend={setShowLegend}
+            />
+            <SectionsTree
+              sortedSections={sortedSections}
+              tokenMap={tokenMap}
+              tokenZoomLevel={tokenZoomLevel}
+              handleTokenClick={handleTokenClick}
+              setShowLegend={setShowLegend}
+            />
 
-          <div className="border-t-2 border-border mx-3 pt-2 pb-2">
-            <div className="flex items-center justify-between gap-2 px-2 py-1">
-              <span className="text-xs font-bold text-foreground">Grand Total</span>
-              <span className="font-mono text-sm font-bold text-foreground tabular-nums">
-                {fmt(grandTotal)}
-              </span>
+            <div className="border-t-2 border-border mx-3 pt-2 pb-2">
+              <div className="flex items-center justify-between gap-2 px-2 py-1">
+                <span className="text-xs font-bold text-foreground">Grand Total</span>
+                <span className="font-mono text-sm font-bold text-foreground tabular-nums">
+                  {fmt(grandTotal)}
+                </span>
+              </div>
             </div>
           </div>
-        </div>
+        )}
       </div>
 
       <AddEditOrgConfigModal

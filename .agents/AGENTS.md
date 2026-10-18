@@ -175,3 +175,27 @@ stateDiagram-v2
   - Route middleware `requireOrgPermission` in `@starter/api` and UI gate `<Can I={...}>` in `@starter/web` strictly accept `AppPermission | AppPermission[]`. Magic string literals outside the registry are rejected at compile time.
   - Refer to `.agents/skills/permission-lifecycle-management/SKILL.md` for complete lifecycle protocols.
 
+## 20. Token Capsule Formula Editor Architecture & UX Conventions (`formula-bar/token-capsule.tsx`, `formula-bar/index.tsx`)
+- **Minimalist Aesthetic**: Token capsules render concise token keys with zero icons, zero borders, zero boundaries, and zero padding (`px-0 py-0`). They expand to human-friendly metadata on hover.
+- **Quick Swap Pill Menu**: Clicking an active capsule opens a non-modal quick swap menu displaying its siblings (`[ Base ]`, `[ Charges ]`, `[ Total ]`), enabling 1-click variant switching without typing.
+- **Hierarchical Smart Backspace**: Deleting backward through a token deletes segment-by-segment back to the previous underscore (`_`), stripping known variant suffixes atomically or deleting the full token cleanly.
+- **Autocomplete Value Placement & Highlighting**: In the formula bar autocomplete dropdown, live evaluated token values are rendered immediately adjacent to the token name in the exact matching token semantic color with `shrink-0`, guaranteeing that long token names truncate cleanly without ever hiding or truncating values.
+- **File Details Field Insertion**: Elements dispatching `insert-token` from header tables (e.g. `FileDetailsHeaderBox`) MUST carry `.insertable-token` class and invoke `e.preventDefault()` on `mousedown` when formula mode is active, preventing formula input blur and unwanted outside-click auto-save triggers.
+- **Expense Category Dropdown Standardization**: Dropdowns in `ExpenseCategoriesSection` follow the unified right-aligned caret pattern matching `sections-tree.tsx`, where clicking the container header toggles expand/collapse and clicking the token chip independently inserts `EXP_TOTAL`.
+
+## 21. Row Charge DAG Cycle Isolation & Zero-Compounding Security (`dag-validator.service.ts`, `builder-context.tsx`)
+- **Row Base Isolation for Row Charges**: When editing a row charge (`selectedCell.chargeId`), the parent row's base token (`ROW_BASE`) MUST NEVER be seeded as an invalid dependent or hidden in PBAC/builder contexts. Only the charge's own token and row charge sum/total are restricted.
+- **Zero-Compounding Security**: Row charges must strictly reference parent row base (`<PARENT>_BASE * <RATE>%`). Referencing the row's total token (`<PARENT>`) is strictly rejected with `CHARGE_SCOPE_VIOLATION` to prevent compounding loops.
+- **AST Functions Whitelist**: `FLOOR` and `CEIL` are first-class mathematical primitives registered across `dag-validator.service.ts`, `ast-evaluator.service.ts`, `formula-validator.ts`, and frontend `formula-evaluator.ts`.
+
+## 22. Additional Line Items Studio & Bidirectional Grab-and-Drag Architecture (`token-pool/index.tsx`, `additional-line-items-pool.tsx`, `page.tsx`)
+- **Adobe Illustrator-Type Tab UI**: The right-hand studio sidebar toggles seamlessly between `Token Pool` and `Additional Line Items` via top panel tab buttons (`[ Token Pool ]` and `[ Additional Line Items (N) ]`).
+- **Table-Body Consistent Aesthetic**: The Additional Line Items catalog matches the 4-column layout of the table body (Grip, Label & Token pill, USD / Rate cell with fx formula badges, Action buttons).
+- **Bidirectional Drag-and-Drop (DND)**:
+  - Users can grab any line item from the Additional Line Items catalog in the sidebar and drop it directly into any table section (`rows-${sectionId}`).
+  - Users can grab any row from a table section and drop it into the Additional Line Items sidebar (`additional-line-items`) to save it to the catalog and remove it from the table.
+  - A 1-click alternative "Move to Line Items" is provided in row action dropdown menus.
+- **DND Hierarchy & Shared Context**: To avoid `@hello-pangea/dnd` nested `DragDropContext` fatal errors, the studio uses a shared top-level `DragDropContext` with child components (`TemplateBuilderWorkspace`, `FileDetailsHeaderBox`, `TemplateSectionCard`, `TemplateRowList`) accepting `isSharedDnd: true`.
+- **DAG Token Collision Prevention**: When dragging or instantiating catalog items into table sections, existing template tokens are scanned and incremental suffixes (`_2`, `_3`) are appended automatically to prevent token collision.
+
+

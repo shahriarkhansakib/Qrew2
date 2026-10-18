@@ -12,18 +12,23 @@ export default function OrgAdminPage() {
         {[
           {
             title: "Staff Management",
-            description: "Provision accounts and manage team access.",
+            description: "Provision accounts, manage team access, and view balances.",
             href: "/org-admin/staff",
           },
           {
             title: "Roles & Permissions",
-            description: "Create custom roles and assign granular permissions.",
+            description: "Create custom roles and assign granular PBAC permissions.",
             href: "/org-admin/roles",
           },
           {
-            title: "Billing & Plans",
-            description: "Manage subscription, invoices, and payment methods.",
-            href: "/org-admin/billing",
+            title: "Customize Fields",
+            description: "Configure system fields, custom field schemas, and project workflows.",
+            href: "/org-admin/customize-fields",
+          },
+          {
+            title: "Invoice Templates",
+            description: "Design calculation formulas, row rates, and billing structures.",
+            href: "/org-admin/invoice-templates",
           },
         ].map((card) => (
           <a

@@ -73,7 +73,12 @@ function AppShellInner({
 
   return (
     <TooltipProvider delayDuration={0}>
-      <div className="flex flex-col md:flex-row h-screen w-full bg-background overflow-hidden">
+      <div
+        className={cn(
+          "flex flex-col md:flex-row h-screen w-full bg-background overflow-hidden",
+          session?.session?.impersonatedBy && "pt-10",
+        )}
+      >
         {/* Desktop Sidebar: Animated Width */}
         <div
           className={cn(
@@ -141,10 +146,22 @@ function AppShellInner({
               <OrganizationSwitcher isCollapsed={isCollapsed} />
             ) : (
               !isCollapsed && (
-                <div className="flex items-center gap-2 px-2 py-1.5 rounded-md bg-accent/10 border border-amber-500/20">
-                  <div className="h-2 w-2 rounded-full bg-accent animate-pulse" />
-                  <span className="text-xs font-semibold text-accent-foreground uppercase tracking-wider">
-                    Admin Mode
+                <div
+                  className={cn(
+                    "flex items-center gap-2 px-2 py-1.5 rounded-md",
+                    theme === "destructive"
+                      ? "bg-destructive/10 border border-destructive/20 text-destructive"
+                      : "bg-accent/10 border border-amber-500/20 text-accent-foreground",
+                  )}
+                >
+                  <div
+                    className={cn(
+                      "h-2 w-2 rounded-full animate-pulse",
+                      theme === "destructive" ? "bg-destructive" : "bg-accent",
+                    )}
+                  />
+                  <span className="text-xs font-semibold uppercase tracking-wider">
+                    {theme === "destructive" ? "Root Admin Mode" : "Admin Mode"}
                   </span>
                 </div>
               )

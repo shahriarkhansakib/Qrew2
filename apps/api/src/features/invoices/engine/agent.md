@@ -167,3 +167,23 @@ Before any evaluation occurs, templates pass through `DagValidatorService.valida
 | `UNRESOLVED_REFERENCE` | Warning / Notice | Token referenced in formula does not exist in template (zero-filled during preview) |
 | `EVALUATION_FAILED` | `500` | MathJS evaluation threw a runtime arithmetic error (e.g. division by zero) |
 | `REORDER_VIOLATION` | `422` | Moving a row to a new index creates an illegal forward/circular reference |
+
+---
+
+## 7. Exhaustive Engine Test Suite (`comprehensive-formula-engine.test.ts`)
+
+The invoice formula engine is continuously verified by a dedicated test suite (`apps/api/src/features/invoices/engine/comprehensive-formula-engine.test.ts`) covering 7 distinct verification tiers:
+
+1. **Type 1: AST Math Functions**: Tests `MIN`, `MAX`, `ROUND`, `CLAMP`, `ABS`, `FLOOR`, and `CEIL` for correct mathematical outputs and BigNumber precision (20 decimal places).
+2. **Type 2: Operators & Syntactic Sugar**: Verifies `+`, `-`, `*`, `/`, `%`, `//`, `50%`, `15.5%`, negative numbers, and deeply nested parentheses.
+3. **Type 3: External Dynamic Tokens**: Verifies `FILE_*`, `GBL_*`, `EXP_*`, and `EXP_TOTAL` token injection and evaluation.
+4. **Type 4: Row Charges & Rates**: Verifies that row charges can compute rates from `<PARENT>_BASE` and sum correctly into row totals without compounding.
+5. **Type 5: Cross-Row & Cross-Section Chains**: Validates multi-step topological evaluation cascades.
+6. **Type 6: DAG Cycle & Violation Rejections**:
+   - Self-referencing row formulas (`ROW_A = ROW_A + 10`).
+   - Mutual 2-row cycles (`ROW_A <-> ROW_B`).
+   - 3-row cyclic chains (`ROW_A -> ROW_B -> ROW_C -> ROW_A`).
+   - Cross-section forward cyclic references.
+   - Illegal row charge references violating zero-compounding (`CHARGE_SCOPE_VIOLATION`).
+   - Duplicate token declarations (`DUPLICATE_TOKEN`).
+7. **Type 7: Strict Formula Syntax Validation**: Validates rejection of trailing operators, unmatched parentheses, and invalid characters.

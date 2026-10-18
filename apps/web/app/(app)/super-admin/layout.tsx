@@ -13,6 +13,7 @@ export default function SuperAdminLayout({ children }: { children: React.ReactNo
       navItems={NAV_CONFIG.superAdmin}
       settingsItem={NAV_CONFIG.superAdminSettings}
       theme="destructive"
+      showOrgSwitcher={false}
     >
       <div className="theme-destructive h-full">{children}</div>
     </AppShell>

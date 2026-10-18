@@ -6,7 +6,15 @@
 /** Valid character regex for a preprocessed formula (includes commas for function arguments) */
 const VALID_CHAR_RE = /^[A-Z0-9_.+\-*/%,\s()]+$/;
 
-export const MATH_FUNCTION_NAMES = new Set(["MIN", "MAX", "ROUND", "CLAMP", "ABS"]);
+export const MATH_FUNCTION_NAMES = new Set([
+  "MIN",
+  "MAX",
+  "ROUND",
+  "CLAMP",
+  "ABS",
+  "FLOOR",
+  "CEIL",
+]);
 
 /**
  * Validate a formula string for character allowlist and basic syntax.
@@ -96,7 +104,7 @@ export function validateFormulaChars(
 
 /**
  * Strict validator for rate charge formulas.
- * Enforces: <PARENT_TOKEN>_BASE * <RATE>%
+ * Enforces: <PARENT_TOKEN>_BASE * <RATE>% or <PARENT_TOKEN> * <RATE>%
  * Desugared representations like: <PARENT_TOKEN>_BASE * (<RATE>/100) or <PARENT_TOKEN>_BASE * 0.XX are also accepted.
  */
 export function validateRateChargeFormula(

@@ -70,6 +70,8 @@ type BuilderContextValue = {
   clipboardToken: string | null;
   setClipboardToken: (token: string | null) => void;
   getTokenColor: (token: string) => string;
+  sidebarTab: "tokens" | "line-items";
+  setSidebarTab: (tab: "tokens" | "line-items") => void;
   draftId?: string;
   templateId?: string;
 };
@@ -94,6 +96,8 @@ const BuilderContext = createContext<BuilderContextValue>({
   tokenDisabledReasons: new Map(),
   getTokenDisabledReason: () => undefined,
   tokenPoolOpen: false,
+  sidebarTab: "tokens",
+  setSidebarTab: () => {},
   apiBasePath: "",
   mode: "template",
   invalidateKey: [],
@@ -127,6 +131,7 @@ export function BuilderProvider({
   const [tokenMap, setTokenMapState] = useState<TokenMap>({});
   const [sections, setSectionsState] = useState<any[]>([]);
   const [clipboardToken, setClipboardToken] = useState<string | null>(null);
+  const [sidebarTab, setSidebarTab] = useState<"tokens" | "line-items">("tokens");
   const [externalTokens, setExternalTokensState] =
     useState<ExternalTokens>(DEFAULT_EXTERNAL_TOKENS);
 
@@ -224,8 +229,7 @@ export function BuilderProvider({
       if (["MIN", "MAX", "ROUND", "CLAMP", "ABS", "FLOOR", "CEIL"].includes(token))
         return "text-amber-400 font-semibold";
       if (token === "EXP_TOTAL") return "text-rose-400 font-semibold";
-      if (externalTokens.category?.has(token) || token.startsWith("EXP_"))
-        return "text-rose-400";
+      if (externalTokens.category?.has(token) || token.startsWith("EXP_")) return "text-rose-400";
       if (externalTokens.global.has(token) || token.startsWith("GBL_")) return "text-indigo-400";
       if (externalTokens.template.has(token) || token.startsWith("TPL_")) return "text-blue-400";
       if (externalTokens.file.has(token) || token.startsWith("FILE_")) return "text-sky-400";
@@ -299,40 +303,58 @@ export function BuilderProvider({
 
     // 2. Self and own row/section charge exclusions
     if (selectedCell.token) {
-      const clean = selectedCell.token.replace(/_(BASE|TOTAL|CHARGES)$/, "");
-      const selfTokens = [
-        selectedCell.token,
-        clean,
-        `${clean}_BASE`,
-        `${clean}_CHARGES`,
-        `${clean}_TOTAL`,
-      ];
-      for (const t of selfTokens) {
-        set.add(t);
-        reasons.set(t, "Cannot reference the active cell's own token");
+      if (selectedCell.chargeId) {
+        // Active cell is a row charge: only the charge itself is a self-reference!
+        set.add(selectedCell.token);
+        reasons.set(selectedCell.token, "Cannot reference the active charge's own token");
+      } else {
+        const isCanonicalRowToken = selectedCell.row?.rowToken === selectedCell.token;
+        const clean = isCanonicalRowToken
+          ? selectedCell.token
+          : selectedCell.token.replace(/_(BASE|TOTAL|CHARGES)$/, "");
+        const selfTokens = [
+          selectedCell.token,
+          clean,
+          `${clean}_BASE`,
+          `${clean}_CHARGES`,
+          `${clean}_TOTAL`,
+        ];
+        for (const t of selfTokens) {
+          set.add(t);
+          reasons.set(t, "Cannot reference the active cell's own token");
+        }
       }
     }
 
-    // If editing a row (base or charge):
+    // If editing a row:
     if (selectedCell.row) {
       const rowToken = selectedCell.row.rowToken;
       const rowLabel = selectedCell.row.label || rowToken || "active row";
       if (rowToken) {
-        const rowTokens = [
-          rowToken,
-          `${rowToken}_BASE`,
-          `${rowToken}_CHARGES`,
-          `${rowToken}_TOTAL`,
-        ];
-        for (const t of rowTokens) {
-          set.add(t);
-          if (!reasons.has(t)) {
-            reasons.set(t, `Cannot reference tokens of active row "${rowLabel}"`);
+        if (selectedCell.chargeId) {
+          // Editing a row charge:
+          // CAN reference rowToken and rowToken_BASE.
+          // CANNOT reference rowToken_CHARGES or rowToken_TOTAL.
+          set.add(`${rowToken}_CHARGES`);
+          reasons.set(`${rowToken}_CHARGES`, `Row charge cannot reference row charges sum`);
+          set.add(`${rowToken}_TOTAL`);
+          reasons.set(`${rowToken}_TOTAL`, `Row charge cannot reference row total`);
+        } else {
+          // Editing row base itself:
+          const rowTokens = [
+            rowToken,
+            `${rowToken}_BASE`,
+            `${rowToken}_CHARGES`,
+            `${rowToken}_TOTAL`,
+          ];
+          for (const t of rowTokens) {
+            set.add(t);
+            if (!reasons.has(t)) {
+              reasons.set(t, `Cannot reference tokens of active row "${rowLabel}"`);
+            }
           }
-        }
 
-        // If editing row base, also exclude all charges of that row
-        if (!selectedCell.chargeId) {
+          // If editing row base, also exclude all charges of that row
           for (const c of selectedCell.row.charges || []) {
             if (c.chargeToken) {
               set.add(c.chargeToken);
@@ -409,6 +431,8 @@ export function BuilderProvider({
       clipboardToken,
       setClipboardToken,
       getTokenColor,
+      sidebarTab,
+      setSidebarTab,
       draftId,
       templateId,
     }),
@@ -425,6 +449,7 @@ export function BuilderProvider({
       tokenDisabledReasons,
       getTokenDisabledReason,
       tokenPoolOpen,
+      sidebarTab,
       apiBasePath,
       mode,
       invalidateKey,

@@ -216,6 +216,7 @@ export function TemplateSectionCard({
   sectionColor,
   tokenMap,
   zoomLevel = 0,
+  isSharedDnd = false,
 }: {
   templateId: string;
   draftId?: string;
@@ -227,6 +228,7 @@ export function TemplateSectionCard({
   sectionColor: SectionColor;
   tokenMap: TokenMap;
   zoomLevel?: number;
+  isSharedDnd?: boolean;
 }) {
   const queryClient = useQueryClient();
   const { apiBasePath, invalidateKey, mode, selectedCell } = useBuilderContext();
@@ -392,6 +394,7 @@ export function TemplateSectionCard({
         tokenMap={tokenMap}
         allSections={allSections}
         zoomLevel={zoomLevel}
+        isSharedDnd={isSharedDnd}
       />
 
       {/* ── Section charges — visually distinct (section color, bolder) ── */}

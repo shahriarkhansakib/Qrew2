@@ -10,6 +10,7 @@ import { useBuilderContext } from "../builder-context";
 import { renderHighlightedToken, SyntaxOverlay } from "../formula-bar-syntax";
 import {
   getChunkAtCursor,
+  getSmartBackspaceResult,
   isValidTokenPrefix,
   MATH_FUNCTIONS,
   validateFormulaSave,
@@ -31,6 +32,8 @@ export function TemplateFormulaBar() {
     invalidTokens,
     getTokenDisabledReason,
     mode,
+    sections,
+    externalTokens,
   } = useBuilderContext();
   const { canAny } = usePermissionStore();
 
@@ -361,7 +364,8 @@ export function TemplateFormulaBar() {
         target.closest(".formula-bar-container") ||
         target.closest(".token-pool-container") ||
         target.closest(".row-action-trigger") ||
-        target.closest(".insertable-token")
+        target.closest(".insertable-token") ||
+        target.closest(".file-details-header-box")
       ) {
         return;
       }
@@ -463,6 +467,15 @@ export function TemplateFormulaBar() {
     const cursor = cursorPosRef.current;
     if (cursor === 0) return;
 
+    const smart = getSmartBackspaceResult(inputValue, cursor, allTokensRef.current);
+    if (smart) {
+      setInputValue(smart.newVal);
+      isDirty.current = true;
+      inputRef.current?.focus();
+      setTimeout(() => inputRef.current?.setSelectionRange(smart.newCursor, smart.newCursor), 0);
+      return;
+    }
+
     // We are deleting the character at `cursor - 1`.
     const charToDelete = inputValue[cursor - 1];
 
@@ -545,6 +558,27 @@ export function TemplateFormulaBar() {
     inputRef.current?.focus();
   };
 
+  const handleSwapToken = useCallback(
+    (oldToken: string, newToken: string, startIndex: number, endIndex: number) => {
+      setInputValue((prev) => {
+        const newVal = prev.slice(0, startIndex) + newToken + prev.slice(endIndex);
+        const newCursor = startIndex + newToken.length;
+        setTimeout(() => {
+          inputRef.current?.focus();
+          inputRef.current?.setSelectionRange(newCursor, newCursor);
+        }, 0);
+        return newVal;
+      });
+      isDirty.current = true;
+    },
+    [],
+  );
+
+  const handleTokenClick = useCallback((cursorPos: number) => {
+    inputRef.current?.focus();
+    inputRef.current?.setSelectionRange(cursorPos, cursorPos);
+  }, []);
+
   return (
     <div className="flex flex-col w-full sticky top-0 z-30 formula-bar-container">
       <FormulaActions
@@ -600,10 +634,21 @@ export function TemplateFormulaBar() {
             {isActive && isFormulaInput && (
               <div
                 ref={overlayRef}
-                className="absolute inset-0 px-3 py-1.5 pointer-events-none whitespace-pre-wrap break-all overflow-hidden font-mono text-sm leading-normal"
+                className="absolute inset-0 px-3 py-1.5 pointer-events-none whitespace-pre-wrap break-all overflow-hidden font-mono text-sm leading-normal z-20"
                 aria-hidden="true"
               >
-                <SyntaxOverlay value={inputValue} getTokenColor={getTokenColor} />
+                <SyntaxOverlay
+                  value={inputValue}
+                  getTokenColor={getTokenColor}
+                  tokenMap={tokenMap}
+                  sections={sections}
+                  externalTokens={externalTokens}
+                  selectedCell={selectedCell}
+                  isActive={isActive}
+                  disabled={isLocked}
+                  onSwapToken={handleSwapToken}
+                  onTokenClick={handleTokenClick}
+                />
               </div>
             )}
 
@@ -797,7 +842,7 @@ export function TemplateFormulaBar() {
             />
 
             {acVisible && ac.items.length > 0 && (
-              <div className="absolute top-full left-0 z-50 w-80 bg-popover border border-border rounded-b-md shadow-xl overflow-hidden">
+              <div className="absolute top-full left-0 z-50 w-88 sm:w-96 max-w-[calc(100vw-2rem)] bg-popover border border-border rounded-b-md shadow-xl overflow-hidden">
                 <div className="px-3 py-1 border-b border-border/40 bg-muted/20 flex items-center justify-between">
                   <span className="text-[10px] font-mono text-muted-foreground/50 select-none">
                     ↑↓ navigate · Tab/Enter insert · Esc close
@@ -822,7 +867,7 @@ export function TemplateFormulaBar() {
                         type="button"
                         title={disabledReason}
                         className={cn(
-                          "w-full flex items-center justify-between gap-3 px-3 py-1.5 text-left transition-colors relative group/item",
+                          "w-full flex items-center justify-between gap-2 px-3 py-1.5 text-left transition-colors relative group/item",
                           isInvalid
                             ? "opacity-50 cursor-not-allowed bg-muted/10"
                             : "hover:bg-muted/20",
@@ -836,7 +881,7 @@ export function TemplateFormulaBar() {
                           if (!isInvalid) setActiveIdx(i);
                         }}
                       >
-                        <div className="flex items-center gap-2 overflow-hidden flex-1">
+                        <div className="flex items-center gap-1.5 min-w-0 flex-1">
                           <span
                             className={cn(
                               "w-1.5 h-1.5 rounded-full shrink-0",
@@ -845,7 +890,7 @@ export function TemplateFormulaBar() {
                           />
                           <span
                             className={cn(
-                              "font-mono text-xs truncate min-w-0",
+                              "font-mono text-xs truncate shrink min-w-0",
                               isInvalid
                                 ? "text-muted-foreground line-through"
                                 : getTokenColor(token),
@@ -853,23 +898,31 @@ export function TemplateFormulaBar() {
                           >
                             {renderHighlightedToken(token, lastWord)}
                           </span>
-                          {isInvalid && (
-                            <div
-                              title={disabledReason}
-                              className="text-yellow-500 flex items-center shrink min-w-0 gap-1.5"
-                            >
-                              <AlertTriangle className="h-3.5 w-3.5 shrink-0" />
-                              <span className="text-[10px] text-yellow-600/80 truncate font-sans">
-                                {disabledReason
-                                  ?.replace(/^Creates circular dependency:\s*/i, "")
-                                  .replace(/^Disabled:\s*/i, "") || "Creates circular dependency"}
-                              </span>
-                            </div>
-                          )}
+                          <span
+                            className={cn(
+                              "font-mono text-[11px] font-semibold tabular-nums px-1 py-0.2 rounded shrink-0",
+                              isInvalid
+                                ? "text-muted-foreground/50 bg-muted/20"
+                                : cn(getTokenColor(token), "bg-muted/40"),
+                            )}
+                          >
+                            {display}
+                          </span>
                         </div>
-                        <span className="font-mono text-xs text-muted-foreground/50 shrink-0">
-                          {display}
-                        </span>
+
+                        {isInvalid && (
+                          <div
+                            title={disabledReason}
+                            className="text-yellow-500 flex items-center shrink-0 min-w-0 gap-1 ml-2 max-w-[140px]"
+                          >
+                            <AlertTriangle className="h-3.5 w-3.5 shrink-0" />
+                            <span className="text-[10px] text-yellow-600/80 truncate font-sans">
+                              {disabledReason
+                                ?.replace(/^Creates circular dependency:\s*/i, "")
+                                ?.replace(/^Disabled:\s*/i, "") || "Circular dependency"}
+                            </span>
+                          </div>
+                        )}
                       </button>
                     );
                   })}

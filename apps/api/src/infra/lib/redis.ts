@@ -121,6 +121,15 @@ export const redis = {
       return [];
     }
   },
+  keys: async (pattern: string): Promise<string[]> => {
+    try {
+      if (hasUpstash) return (await prodRedis!.keys(pattern)) as string[];
+      if (hasIoredis) return await localRedis!.keys(pattern);
+      return [];
+    } catch {
+      return [];
+    }
+  },
   ping: async (): Promise<string> => {
     try {
       if (hasUpstash) return await prodRedis!.ping();

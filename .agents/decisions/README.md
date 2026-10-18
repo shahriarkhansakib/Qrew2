@@ -18,6 +18,8 @@ Each record documents the context, alternatives considered, exact decision taken
 | [**0006**](./0006-optional-period-billing-and-backend-engine-isolation.md) | **Optional Period Billing, Backend Engine Isolation, and Multi-Draft Lifecycle** | 2026-10-17 | Accepted | Invoices, Drafts, Scope, Bundles |
 | [**0007**](./0007-prebuilt-optional-service-rows-and-granular-pbac.md) | **Prebuilt Optional Service Rows and Granular Invoicing PBAC Architecture** | 2026-10-17 | Accepted | Templates, Drafts, PBAC, Services |
 | [**0008**](./0008-embedded-api-primary-and-optional-standalone-runner.md) | **Next.js Embedded API Primary Execution and Purely Optional Standalone Server Runner** | 2026-10-17 | Accepted | Monorepo, API, Next.js, DX |
+| [**0009**](./0009-token-capsule-formula-editor-and-engine-hardening.md) | **Token Capsule Formula Editor, Quick Swap Menu, Autocomplete Layout, and DAG Engine Hardening** | 2026-10-18 | Accepted | Formula Editor, UX, DAG, Math Engine, Tests |
+| [**0010**](./0010-adobe-illustrator-tabbed-studio-and-bidirectional-line-items-pool.md) | **Adobe Illustrator Tabbed Studio Sidebar and Bidirectional Grab-and-Drag Line Items Pool** | 2026-10-18 | Accepted | Invoices, Templates, Additional Line Items, DND, UX |
 
 ---
 

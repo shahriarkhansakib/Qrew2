@@ -25,7 +25,11 @@ export function createDynamicZodSchema(definitions: CustomFieldDefinition[]) {
         break;
 
       case "date":
-        fieldSchema = z.string().datetime({ offset: true }).or(z.date());
+        fieldSchema = z
+          .string()
+          .datetime({ offset: true })
+          .or(z.date())
+          .or(z.string().regex(/^\d{4}-\d{2}-\d{2}$/, "Must be a valid date (YYYY-MM-DD)"));
         if (!def.isRequired) {
           fieldSchema = fieldSchema.optional().or(z.literal(""));
         }

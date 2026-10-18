@@ -3,17 +3,14 @@
 import { useCallback } from "react";
 import { toast } from "sonner";
 import type { SelectedCell } from "./builder-context";
-import { getChunkAtCursor, getLastWord, isValidTokenPrefix } from "./formula-bar-utils";
+import {
+  getChunkAtCursor,
+  getLastWord,
+  getSmartBackspaceResult,
+  isValidTokenPrefix,
+} from "./formula-bar-utils";
 
-export const MATH_FUNCTIONS = [
-  "MIN",
-  "MAX",
-  "ROUND",
-  "CLAMP",
-  "ABS",
-  "FLOOR",
-  "CEIL",
-] as const;
+export const MATH_FUNCTIONS = ["MIN", "MAX", "ROUND", "CLAMP", "ABS", "FLOOR", "CEIL"] as const;
 
 export function isTokenOrFnPrefix(cand: string, tokens: string[]): boolean {
   return (
@@ -138,57 +135,27 @@ export function useFormulaKeyDown({
       )
         return;
 
-      // Smart Backspace: delete spaced operators as a single block
+      // Smart Backspace: delete spaced operators as a single block or token suffixes/tokens atomically
       if (e.key === "Backspace") {
         const target = e.target as HTMLInputElement;
         const selStart = target.selectionStart ?? 0;
         const selEnd = target.selectionEnd ?? 0;
         if (selStart === selEnd && selStart > 0) {
+          const smart = getSmartBackspaceResult(inputValue, selStart, allTokens);
+          if (smart) {
+            e.preventDefault();
+            setInputValue(smart.newVal);
+            isDirty.current = true;
+            setTimeout(
+              () => inputRef.current?.setSelectionRange(smart.newCursor, smart.newCursor),
+              0,
+            );
+            return;
+          }
+
           const before = inputValue.slice(0, selStart);
-          const after = inputValue.slice(selEnd);
 
-          // 1. Match a full spaced operator block " + " / " - " / " * " / " / " / " // " before cursor
-          const matchSpaced = before.match(/ (\+|-|\*|\/|\/\/) $/);
-          if (matchSpaced) {
-            e.preventDefault();
-            const toRemove = matchSpaced[0].length;
-            const newVal = before.slice(0, -toRemove) + after;
-            setInputValue(newVal);
-            isDirty.current = true;
-            setTimeout(
-              () => inputRef.current?.setSelectionRange(selStart - toRemove, selStart - toRemove),
-              0,
-            );
-            return;
-          }
-
-          // 2. Match a partial operator (cursor right after operator, trailing space not yet typed)
-          const matchPartial = before.match(/ (\+|-|\*|\/|\/\/)$/);
-          if (matchPartial) {
-            e.preventDefault();
-            const toRemove = matchPartial[0].length;
-            const newVal = before.slice(0, -toRemove) + after;
-            setInputValue(newVal);
-            isDirty.current = true;
-            setTimeout(
-              () => inputRef.current?.setSelectionRange(selStart - toRemove, selStart - toRemove),
-              0,
-            );
-            return;
-          }
-
-          // 3. Trailing space after ) — delete both the space and the ) as a pair
-          if (before.endsWith(") ")) {
-            e.preventDefault();
-            const newVal = before.slice(0, -2) + after;
-            setInputValue(newVal);
-            isDirty.current = true;
-            setTimeout(() => inputRef.current?.setSelectionRange(selStart - 2, selStart - 2), 0);
-            return;
-          }
-
-          // 4. Any other trailing space — let native backspace handle it!
-          // This allows users to delete anomalous spaces (e.g. from old formulas) without getting stuck.
+          // Any trailing space — let native backspace handle it!
           if (before.endsWith(" ")) {
             return;
           }

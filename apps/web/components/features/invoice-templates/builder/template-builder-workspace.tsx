@@ -118,10 +118,12 @@ export interface FileDetailsHeaderBoxProps {
   templateHeaderFields?: Array<{
     id: string;
     label: string;
-    fileFieldKey: string;
+    tokenKey?: string;
+    fileFieldKey?: string;
     fieldType: string;
     columnPosition: "left" | "right";
     sortOrder: number;
+    isFormulaInjectable?: boolean;
   }>;
   project?: any; // The actual project data to populate values
   onDelete?: (id: string) => void;
@@ -129,6 +131,7 @@ export interface FileDetailsHeaderBoxProps {
   onAdd?: () => void;
   onReorder?: (updates: any[], optimisticState: any[]) => void;
   isTemplateMode?: boolean;
+  isSharedDnd?: boolean;
 }
 
 export function FileDetailsHeaderBox({
@@ -139,6 +142,7 @@ export function FileDetailsHeaderBox({
   onAdd,
   onReorder,
   isTemplateMode = false,
+  isSharedDnd = false,
   zoomLevel = 0,
 }: FileDetailsHeaderBoxProps & { zoomLevel?: number }) {
   const { selectedCell } = useBuilderContext();
@@ -174,16 +178,32 @@ export function FileDetailsHeaderBox({
     return val;
   };
 
+  const getCleanToken = (field: any) => {
+    if (field.tokenKey) {
+      return field.tokenKey.toUpperCase().replace(/^FILE_/, "").replace(/^(GBL_|ORG_)/, "");
+    }
+    if (field.fileFieldKey) {
+      return field.fileFieldKey.toUpperCase().replace(/^FILE_/, "");
+    }
+    if (field.orgConfigKey) {
+      return field.orgConfigKey.toUpperCase().replace(/^(GBL_|ORG_)/, "");
+    }
+    return (field.label || "")
+      .toUpperCase()
+      .replace(/[^A-Z0-9_]/g, "_")
+      .replace(/^FILE_/, "");
+  };
+
   const renderFieldRow = (field: any) => {
-    const isSelectable = field.isFormulaInjectable;
-    const cleanToken = (field.fileFieldKey || "").toUpperCase().replace(/^FILE_/, "");
+    const isSelectable = field.isFormulaInjectable === true;
+    const cleanToken = getCleanToken(field);
 
     return (
       <div className="flex justify-between items-center group relative h-6 w-full">
         <div
           className={cn(
             "flex gap-2 w-full items-center",
-            isSelectable && "transition-colors select-none",
+            isSelectable && "transition-colors select-none insertable-token",
             isSelectable &&
               isFormulaMode &&
               "cursor-pointer text-primary hover:bg-primary/5 rounded-md -ml-1 pl-1",
@@ -191,7 +211,16 @@ export function FileDetailsHeaderBox({
               !isFormulaMode &&
               "cursor-pointer hover:text-foreground hover:bg-muted/10 rounded-md -ml-1 pl-1",
           )}
-          onClick={(e) => isSelectable && field.fileFieldKey && handleTokenClick(e, cleanToken)}
+          onMouseDown={(e) => {
+            if (isFormulaMode && isSelectable) {
+              e.preventDefault();
+            }
+          }}
+          onClick={(e) => {
+            if (isSelectable && cleanToken) {
+              handleTokenClick(e, cleanToken);
+            }
+          }}
           title={
             isSelectable
               ? isFormulaMode
@@ -243,8 +272,8 @@ export function FileDetailsHeaderBox({
   const handleDragEnd = (result: DropResult) => {
     if (!result.destination || !onReorder) return;
 
-    const sourceCol = result.source.droppableId;
-    const destCol = result.destination.droppableId;
+    const sourceCol = result.source.droppableId.replace(/^header-/, "");
+    const destCol = result.destination.droppableId.replace(/^header-/, "");
 
     const leftFields = Array.from(
       templateHeaderFields.filter((f) => f.columnPosition === "left"),
@@ -340,15 +369,26 @@ export function FileDetailsHeaderBox({
     </Droppable>
   );
 
+  const leftDroppableId = isSharedDnd ? "header-left" : "left";
+  const rightDroppableId = isSharedDnd ? "header-right" : "right";
+
+  const dndContent = (
+    <div className="grid grid-cols-2 gap-x-12">
+      {renderDroppable(leftDroppableId, leftFields)}
+      {renderDroppable(rightDroppableId, rightFields)}
+    </div>
+  );
+
   return (
-    <div className="relative group mt-3">
+    <div className="relative group mt-3 file-details-header-box">
       <div className="border border-border rounded-lg bg-card shadow-sm px-6 py-5">
-        <DragDropContext onDragEnd={handleDragEnd}>
-          <div className="grid grid-cols-2 gap-x-12">
-            {renderDroppable("left", leftFields)}
-            {renderDroppable("right", rightFields)}
-          </div>
-        </DragDropContext>
+        {isSharedDnd ? (
+          dndContent
+        ) : (
+          <DragDropContext onDragEnd={handleDragEnd}>
+            {dndContent}
+          </DragDropContext>
+        )}
       </div>
 
       {isTemplateMode && onAdd && (
@@ -372,12 +412,14 @@ function WorkspaceInner({
   zoomLevel = 0,
   onZoomChange,
   project,
+  isSharedDnd = false,
 }: {
   templateId?: string;
   draftId?: string;
   zoomLevel?: number;
   onZoomChange?: React.Dispatch<React.SetStateAction<number>>;
   project?: any;
+  isSharedDnd?: boolean;
 }) {
   const {
     setTokenMap,
@@ -667,6 +709,7 @@ function WorkspaceInner({
         project={project}
         zoomLevel={zoomLevel}
         isTemplateMode={!draftId}
+        isSharedDnd={isSharedDnd}
         onDelete={(fieldId) => setFieldToDelete(fieldId)}
         onReorder={async (updates, optimisticState) => {
           if (draftId) return;
@@ -726,6 +769,7 @@ function WorkspaceInner({
                   slOffset={sectionSlOffsets[idx]}
                   sectionColor={sectionColor}
                   tokenMap={tokenMap}
+                  isSharedDnd={isSharedDnd}
                 />
                 {mode !== "fill" && (
                   <AddSectionDivider onClick={() => setInsertAtIndex(section.sortOrder + 1)} />
@@ -796,12 +840,14 @@ export function TemplateBuilderWorkspace({
   zoomLevel = 0,
   onZoomChange,
   project,
+  isSharedDnd = false,
 }: {
   templateId?: string;
   draftId?: string;
   zoomLevel?: number;
   onZoomChange?: React.Dispatch<React.SetStateAction<number>>;
   project?: any;
+  isSharedDnd?: boolean;
 }) {
   return (
     <WorkspaceInner
@@ -810,6 +856,7 @@ export function TemplateBuilderWorkspace({
       zoomLevel={zoomLevel}
       onZoomChange={onZoomChange}
       project={project}
+      isSharedDnd={isSharedDnd}
     />
   );
 }

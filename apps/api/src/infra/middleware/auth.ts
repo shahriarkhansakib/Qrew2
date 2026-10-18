@@ -45,6 +45,30 @@ export const requireAuth = createMiddleware<{ Variables: AuthVariables }>(
     c.set("user", session.user);
     c.set("session", session.session);
 
+    // Guard against banned or suspended accounts on all protected endpoints
+    const user = session.user as any;
+    if (user?.status === "banned" && !c.req.path.endsWith("/stop-impersonation")) {
+      return c.json(
+        {
+          error: "Forbidden",
+          code: "ACCOUNT_BANNED",
+          message: "This account has been permanently banned.",
+        },
+        403,
+      );
+    }
+
+    if (user?.status === "suspended" && !c.req.path.endsWith("/stop-impersonation")) {
+      return c.json(
+        {
+          error: "Forbidden",
+          code: "ACCOUNT_SUSPENDED",
+          message: "This account is temporarily suspended. Please contact support.",
+        },
+        403,
+      );
+    }
+
     await next();
   },
 );

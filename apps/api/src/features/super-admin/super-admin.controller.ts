@@ -3,6 +3,8 @@ import { and, count, desc, eq, ilike, ne } from "drizzle-orm";
 import { Context } from "hono";
 import { z } from "zod";
 import { logger } from "../../infra/lib/logger";
+import { redis } from "../../infra/lib/redis";
+import { PermissionService } from "../permissions/permission.service";
 
 const superAdminControllerLog = logger.child({ module: "super-admin-controller" });
 
@@ -69,15 +71,21 @@ export class SuperAdminController {
       // Instead of complex joins, we can query users separately or use Drizzle relational API
       const enrichedData = await Promise.all(
         dataResult.map(async (log) => {
+          const adminId = log.adminId;
+          const targetUserId = log.targetUserId;
           const [admin, target] = await Promise.all([
-            db.query.users.findFirst({
-              where: eq(users.id, log.adminId),
-              columns: { email: true, name: true },
-            }),
-            db.query.users.findFirst({
-              where: eq(users.id, log.targetUserId),
-              columns: { email: true, name: true },
-            }),
+            adminId
+              ? db.query.users.findFirst({
+                  where: eq(users.id, adminId),
+                  columns: { email: true, name: true },
+                })
+              : Promise.resolve(null),
+            targetUserId
+              ? db.query.users.findFirst({
+                  where: eq(users.id, targetUserId),
+                  columns: { email: true, name: true },
+                })
+              : Promise.resolve(null),
           ]);
           return {
             ...log,
@@ -176,6 +184,21 @@ export class SuperAdminController {
       // Delete all sessions EXCEPT the one belonging to the current super admin
       // Using 'ne' (not equal)
       await db.delete(sessions).where(ne(sessions.userId, adminUser.id));
+
+      // Invalidate secondaryStorage/Redis session keys to prevent ghost session reuse
+      try {
+        const sessionKeys = await redis.keys("*session*");
+        const currentSession = c.get("session") as any;
+        const currentToken = currentSession?.token;
+        const keysToDelete = sessionKeys.filter(
+          (key) => !currentToken || !key.includes(currentToken),
+        );
+        for (const key of keysToDelete) {
+          await redis.del(key);
+        }
+      } catch (cacheErr) {
+        c.get("logger")?.warn?.({ err: cacheErr }, "Failed to purge Redis sessions on nuke");
+      }
 
       const auditPromise = db
         .insert(auditLogs)
@@ -360,6 +383,13 @@ export class SuperAdminController {
       if (!existing) return c.json({ error: "Member not found in workspace" }, 404);
 
       await db.delete(members).where(eq(members.id, memberId));
+
+      // Purge Redis permissions cache so member loses access immediately
+      try {
+        await PermissionService.invalidateCache(existing.userId, workspaceId);
+      } catch (cacheErr) {
+        c.get("logger")?.warn?.({ err: cacheErr }, "Failed to invalidate permission cache");
+      }
 
       // Audit Log
       const auditPromise = db
