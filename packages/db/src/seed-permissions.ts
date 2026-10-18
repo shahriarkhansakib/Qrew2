@@ -123,6 +123,17 @@ const INITIAL_PERMISSIONS = [
   },
   // Aliases for broad access roles
   {
+    key: "invoice:create",
+    category: "Invoicing",
+    description: "Create new invoices and drafts (legacy alias for invoice:create_draft)",
+  },
+  {
+    key: "invoice:edit",
+    category: "Invoicing",
+    description:
+      "Edit invoice drafts and line items (legacy alias for invoice:fill_values and invoice:edit_line_labels)",
+  },
+  {
     key: "finance:manage_invoices",
     category: "Invoicing",
     description: "Full administrative access to manage all invoices and drafts",
