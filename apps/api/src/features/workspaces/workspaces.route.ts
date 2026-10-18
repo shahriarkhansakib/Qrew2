@@ -88,4 +88,3 @@ workspacesRouter.delete(
   requireOrgPermission(["role:delete", "role:manage"]),
   RolesController.deleteRole,
 );
-

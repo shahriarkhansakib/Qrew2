@@ -1,5 +1,6 @@
 import { and, eq } from "drizzle-orm";
 import { v4 as uuidv4 } from "uuid";
+import { type AppPermission, PERMISSIONS_CATALOG } from "./permissions-registry";
 import {
   expenseCategories,
   orgRolePermissions,
@@ -8,8 +9,6 @@ import {
   projectStatusTransitions,
   tokens,
 } from "./schema";
-import { type AppPermission, PERMISSIONS_CATALOG } from "./permissions-registry";
-
 
 export async function seedOrganizationDefaults(db: any, orgId: string, userId: string) {
   // 1. Seed Expense Categories

@@ -7,6 +7,7 @@
  * The distinction is made at render time in app-shell.tsx.
  */
 
+import type { AppPermission } from "@starter/db/permissions-registry";
 import {
   ArrowLeft,
   BarChart3,
@@ -27,7 +28,6 @@ import {
   Wallet,
   Warehouse,
 } from "lucide-react";
-import type { AppPermission } from "@starter/db/permissions-registry";
 import type { NavChild } from "@/components/layout/sidebar-nav-group";
 
 // ─── Shared type definitions ──────────────────────────────────────────────────
@@ -48,7 +48,6 @@ export interface NavGroup {
   permission?: AppPermission; // Strongly-typed PBAC gate on the entire group
   children: (NavChild & { permission?: AppPermission })[];
 }
-
 
 export type AnyNavItem = NavItem | NavGroup;
 

@@ -531,9 +531,7 @@ export type AppPermission = (typeof PERMISSIONS_CATALOG)[number]["key"];
 /**
  * Lookup set for O(1) runtime validation.
  */
-export const APP_PERMISSIONS_SET = new Set<string>(
-  PERMISSIONS_CATALOG.map((p) => p.key),
-);
+export const APP_PERMISSIONS_SET = new Set<string>(PERMISSIONS_CATALOG.map((p) => p.key));
 
 /**
  * Type-guard to verify whether an arbitrary string is a valid AppPermission.

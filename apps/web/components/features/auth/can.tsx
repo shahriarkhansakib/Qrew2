@@ -1,7 +1,7 @@
 "use client";
 
-import { ReactNode } from "react";
 import type { AppPermission } from "@starter/db/permissions-registry";
+import { ReactNode } from "react";
 import { usePermissionStore } from "@/store/use-permission-store";
 
 interface CanProps {
@@ -10,7 +10,6 @@ interface CanProps {
   fallback?: ReactNode; // Optional UI to show if they DON'T have permission
   not?: boolean; // If true, renders children when they DON'T have permission
 }
-
 
 export function Can({ I, children, fallback = null, not = false }: CanProps) {
   const { can, canAny, isLoaded } = usePermissionStore();
