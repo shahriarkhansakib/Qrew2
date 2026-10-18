@@ -5,7 +5,15 @@ import { toast } from "sonner";
 import type { SelectedCell } from "./builder-context";
 import { getChunkAtCursor, getLastWord, isValidTokenPrefix } from "./formula-bar-utils";
 
-export const MATH_FUNCTIONS = ["MIN", "MAX", "ROUND", "CLAMP", "ABS"] as const;
+export const MATH_FUNCTIONS = [
+  "MIN",
+  "MAX",
+  "ROUND",
+  "CLAMP",
+  "ABS",
+  "FLOOR",
+  "CEIL",
+] as const;
 
 export function isTokenOrFnPrefix(cand: string, tokens: string[]): boolean {
   return (

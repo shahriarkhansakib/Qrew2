@@ -73,7 +73,7 @@ export function ExpenseCategoriesSection({
             <span
               className={cn(
                 "inline-flex items-center gap-1.5 font-mono truncate select-none rounded px-1.5 py-0.5 leading-none",
-                "bg-rose-500/15 text-rose-500 font-bold border border-rose-500/30",
+                "bg-rose-500/10 text-rose-400 font-semibold border border-rose-500/20",
                 isTotalInvalid ? "line-through opacity-70" : "",
               )}
               style={{ fontSize: 13 + tokenZoomLevel }}
@@ -84,14 +84,14 @@ export function ExpenseCategoriesSection({
                   e.stopPropagation();
                   setShowLegend(true);
                 }}
-                className="w-1.5 h-1.5 rounded-full shrink-0 bg-rose-500"
+                className="w-1.5 h-1.5 rounded-full shrink-0 bg-rose-400"
                 title="Expense Category Token"
               />
               {expTotalToken}
             </span>
           </div>
           <span
-            className="font-mono shrink-0 tabular-nums text-rose-500 font-bold"
+            className="font-mono shrink-0 tabular-nums text-rose-400 font-semibold"
             style={{ fontSize: 14 + tokenZoomLevel }}
           >
             0

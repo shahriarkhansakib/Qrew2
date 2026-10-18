@@ -2,7 +2,6 @@
 
 import { useEffect, useMemo, useState } from "react";
 import { getLastWord, lastSegmentIsNumeric } from "./formula-bar-utils";
-import { MATH_FUNCTIONS } from "./use-formula-keydown";
 
 export function useFormulaAutocomplete(
   inputValue: string,
@@ -24,7 +23,7 @@ export function useFormulaAutocomplete(
   const lastWord = getLastWord(valueUpToCursor);
   const numericOnly = lastSegmentIsNumeric(valueUpToCursor);
 
-  // Sorted full token list, including all independent categories/fields, constants, row tokens, and math functions
+  // Sorted full token list, including all independent categories/fields, constants, and row tokens
   const allTokens = useMemo(() => {
     const rawTokens = Object.keys(tokenMap).filter((t) => {
       if (hiddenTokens.has(t)) return false;
@@ -44,7 +43,7 @@ export function useFormulaAutocomplete(
       return true;
     });
 
-    return [...new Set([...rawTokens, ...MATH_FUNCTIONS])].sort();
+    return [...new Set(rawTokens)].sort();
   }, [tokenMap, currentToken, hiddenTokens]);
 
   // Reset forceHidden whenever input value or cursor position changes

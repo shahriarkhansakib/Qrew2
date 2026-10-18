@@ -48,7 +48,7 @@ export const EXPENSE_CATEGORIES_INFO: SectionInfoData = {
       name: "EXP_TOTAL",
       role: "Total Expenses",
       description: "Sum of all recorded expenses across every category for this project.",
-      badgeClass: "text-rose-500 bg-rose-500/15 font-bold",
+      badgeClass: "text-rose-400 bg-rose-500/10 font-semibold",
     },
     {
       name: "<CATEGORY>",

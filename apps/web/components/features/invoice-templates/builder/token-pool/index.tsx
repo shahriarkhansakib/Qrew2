@@ -1151,11 +1151,11 @@ export function TemplateTokenPool({
                     </p>
 
                     <div className="flex items-start gap-3 p-3 rounded-lg border border-border/40 bg-muted/10">
-                      <span className="w-2.5 h-2.5 rounded-full shrink-0 mt-1 bg-rose-500" />
+                      <span className="w-2.5 h-2.5 rounded-full shrink-0 mt-1 bg-rose-400" />
                       <div className="min-w-0 flex-1">
                         <div className="flex items-center gap-2 flex-wrap">
-                          <span className="text-xs font-bold text-rose-500">EXP_TOTAL</span>
-                          <span className="font-mono text-[11px] px-1.5 py-0.5 rounded border bg-rose-500/15 text-rose-500 font-bold border-rose-500/30">
+                          <span className="text-xs font-semibold text-rose-400">EXP_TOTAL</span>
+                          <span className="font-mono text-[11px] px-1.5 py-0.5 rounded border bg-rose-500/10 text-rose-400 font-semibold border-rose-500/20">
                             EXP_TOTAL
                           </span>
                         </div>
