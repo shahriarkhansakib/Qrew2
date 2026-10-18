@@ -139,6 +139,9 @@ importers:
       '@starter/api':
         specifier: workspace:*
         version: link:../api
+      '@starter/db':
+        specifier: workspace:*
+        version: link:../../packages/db
       '@tanstack/react-form':
         specifier: ^1.32.0
         version: 1.32.0(react-dom@19.2.5(react@19.2.5))(react@19.2.5)

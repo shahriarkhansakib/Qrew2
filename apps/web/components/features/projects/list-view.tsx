@@ -394,7 +394,7 @@ export function ListView({
                   <div className="flex items-center justify-end gap-2">
                     {!isArchivedView ? (
                       <>
-                        <Can I="projects:edit">
+                        <Can I="file:edit">
                           <Button
                             variant="ghost"
                             size="icon"
@@ -408,7 +408,7 @@ export function ListView({
                             <Edit className="h-4 w-4" />
                           </Button>
                         </Can>
-                        <Can I="projects:edit">
+                        <Can I="file:archive">
                           <Button
                             variant="ghost"
                             size="icon"
@@ -425,7 +425,7 @@ export function ListView({
                       </>
                     ) : (
                       <>
-                        <Can I="projects:edit">
+                        <Can I="file:restore">
                           <Button
                             variant="ghost"
                             size="icon"
@@ -439,7 +439,7 @@ export function ListView({
                             <ArchiveRestore className="h-4 w-4" />
                           </Button>
                         </Can>
-                        <Can I="projects:delete">
+                        <Can I="file:delete">
                           <Button
                             variant="ghost"
                             size="icon"

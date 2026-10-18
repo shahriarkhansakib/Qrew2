@@ -46,7 +46,7 @@ invoicesRouter.get(
 
 invoicesRouter.post(
   "/drafts",
-  requireOrgPermission(["invoice:create_draft", "invoice:create", "finance:manage_invoices"]),
+  requireOrgPermission(["invoice:create_draft", "finance:manage_invoices"]),
   DraftsController.createDraft,
 );
 

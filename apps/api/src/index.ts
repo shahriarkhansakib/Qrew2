@@ -118,3 +118,4 @@ app.onError((err, c) => {
 });
 
 export default app;
+export type { AppPermission } from "@starter/db";

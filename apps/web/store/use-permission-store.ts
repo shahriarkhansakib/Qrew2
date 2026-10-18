@@ -1,4 +1,5 @@
 import { create } from "zustand";
+import type { AppPermission } from "@starter/db/permissions-registry";
 
 interface PermissionState {
   permissions: string[];
@@ -9,10 +10,11 @@ interface PermissionState {
   clearPermissions: () => void;
 
   // Evaluators
-  can: (permission: string) => boolean;
-  canAny: (permissions: string[]) => boolean;
-  canAll: (permissions: string[]) => boolean;
+  can: (permission: AppPermission | string) => boolean;
+  canAny: (permissions: (AppPermission | string)[]) => boolean;
+  canAll: (permissions: (AppPermission | string)[]) => boolean;
 }
+
 
 export const usePermissionStore = create<PermissionState>((set, get) => ({
   permissions: [],

@@ -67,7 +67,7 @@ export function WalletsTab() {
       </div>
 
       {/* Admin View: All Staff Wallets */}
-      <Can I="financials:manage">
+      <Can I={["finance:manage_wallets", "finance:view_wallets"]}>
         <div>
           <h3 className="text-lg font-semibold mb-4">Organization Wallets</h3>
           <div className="rounded-md border bg-card">
@@ -117,7 +117,7 @@ export function WalletsTab() {
       </Can>
 
       {/* User View: Own Transactions (Only if not admin OR if they explicitly want to see their own. For simplicity, just list them below the card for non-admins) */}
-      <Can not I="financials:manage">
+      <Can not I={["finance:manage_wallets", "finance:view_wallets"]}>
         <div>
           <h3 className="text-lg font-semibold mb-4">My Transaction History</h3>
           <div className="rounded-md border bg-card">

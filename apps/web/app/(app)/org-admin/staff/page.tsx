@@ -19,7 +19,7 @@ export default function StaffPage() {
           </p>
         </div>
         <div className="flex items-center gap-3">
-          <Can I="staff:provision">
+          <Can I="staff:invite">
             <InviteStaffModal />
           </Can>
         </div>

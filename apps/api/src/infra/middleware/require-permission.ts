@@ -1,10 +1,10 @@
-import { db, members } from "@starter/db";
+import { type AppPermission, db, members } from "@starter/db";
 import { and, eq } from "drizzle-orm";
 import { Context, Next } from "hono";
 import { PermissionService } from "../../features/permissions/permission.service";
 import { auth } from "../lib/auth";
 
-export const requireOrgPermission = (requiredPermission: string | string[]) => {
+export const requireOrgPermission = (requiredPermission: AppPermission | AppPermission[]) => {
   return async (c: Context, next: Next) => {
     // 1. Validate Session
     const sessionData = await auth.api.getSession({ headers: c.req.raw.headers });

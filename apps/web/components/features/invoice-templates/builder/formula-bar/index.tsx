@@ -39,8 +39,8 @@ export function TemplateFormulaBar() {
     canAny([
       "invoice:author_formulas",
       "finance:manage_invoices",
-      "invoice_templates:edit",
-      "org:manage",
+      "template:edit",
+      "workspace:manage_settings",
     ]);
 
   const canFillValues =
@@ -48,8 +48,8 @@ export function TemplateFormulaBar() {
     canAny([
       "invoice:fill_values",
       "finance:manage_invoices",
-      "invoice_templates:edit",
-      "org:manage",
+      "template:edit",
+      "workspace:manage_settings",
     ]);
 
   const saveMutation = useSaveCellMutation();

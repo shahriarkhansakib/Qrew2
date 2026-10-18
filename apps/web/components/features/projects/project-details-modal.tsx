@@ -664,7 +664,7 @@ export function ProjectDetailsModal({ project, onClose }: ProjectDetailsModalPro
           </div>
 
           <div className="flex items-center gap-3 shrink-0 pr-8">
-            <Can I="org:manage">
+            <Can I={["workflow:manage", "workspace:manage_settings"]}>
               <Button
                 variant="outline"
                 size="sm"
@@ -1055,7 +1055,7 @@ export function ProjectDetailsModal({ project, onClose }: ProjectDetailsModalPro
                     <Receipt className="w-4 h-4" />
                     Financials
                   </h3>
-                  <Can I="finance:edit_expenses">
+                  <Can I="finance:record_expense">
                     <Button
                       size="sm"
                       variant="ghost"

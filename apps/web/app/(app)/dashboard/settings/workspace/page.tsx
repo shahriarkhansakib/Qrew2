@@ -97,7 +97,7 @@ export default function WorkspaceSettingsPage() {
   );
 
   return (
-    <Can I="org:manage" fallback={AccessDenied}>
+    <Can I="workspace:manage_settings" fallback={AccessDenied}>
       <div className="space-y-6 max-w-2xl">
         <div>
           <h1 className="text-2xl font-bold tracking-tight mb-2">Workspace Settings</h1>

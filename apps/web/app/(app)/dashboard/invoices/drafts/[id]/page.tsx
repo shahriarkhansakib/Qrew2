@@ -427,7 +427,7 @@ export default function DraftBuilderPage() {
             </Button>
           </div>
           {draft.sourceTemplateId && (
-            <Can I={["invoice_templates:edit", "org:manage"]}>
+            <Can I={["template:edit", "workspace:manage_settings"]}>
               <Link
                 href={`/org-admin/invoice-templates/${draft.sourceTemplateId}`}
                 target="_blank"

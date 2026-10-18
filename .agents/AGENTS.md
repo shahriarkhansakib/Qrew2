@@ -161,3 +161,17 @@ stateDiagram-v2
   - **Tier 3 (Clerk)**: Holds `invoice:fill_values`, `invoice:manage_optional_rows`. Can attach optional services and input numbers, but both formula authoring and label editing are strictly locked.
 - **Automated Cache Invalidation**:
   - Role updates in `roles.controller.ts` automatically invalidate Redis permission caches (`permission:*`) to prevent stale permissions from persisting.
+
+## 19. Canonical PBAC Permission Registry & Zero Dangling Aliases (`permissions-registry.ts`)
+- **Single Source of Truth**: All platform permissions MUST be declared in `packages/db/src/permissions-registry.ts` inside `PERMISSIONS_CATALOG`. The TypeScript union type `AppPermission` is derived directly from this catalog.
+- **Zero Dangling Aliases**:
+  - Legacy permissions (e.g. `invoice:create`, `invoice:edit`, `staff:provision`) are permanently banned and eradicated from database schemas, seeders, route guards, and UI components.
+  - Whenever any global permission is altered or replaced, all occurrences across both frontend and backend MUST be audited and migrated atomically.
+- **Foreign Key Violation Prevention (`23503`)**:
+  - Role permission arrays in `packages/db/src/org-initializer.ts` (`ownerPerms`, `managerPerms`, `staffPerms`) MUST be strictly typed as `AppPermission[]`.
+  - Owner permissions default to `PERMISSIONS_CATALOG.map((p) => p.key)`.
+  - It is mathematically impossible for an unregistered permission string to enter the database seeder or trigger a PostgreSQL foreign key violation.
+- **Compiler-Enforced Authorization**:
+  - Route middleware `requireOrgPermission` in `@starter/api` and UI gate `<Can I={...}>` in `@starter/web` strictly accept `AppPermission | AppPermission[]`. Magic string literals outside the registry are rejected at compile time.
+  - Refer to `.agents/skills/permission-lifecycle-management/SKILL.md` for complete lifecycle protocols.
+

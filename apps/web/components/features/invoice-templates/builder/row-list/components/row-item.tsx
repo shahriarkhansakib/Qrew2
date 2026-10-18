@@ -40,8 +40,8 @@ export function LabelCell({
     canAny([
       "invoice:edit_line_labels",
       "finance:manage_invoices",
-      "invoice_templates:edit",
-      "org:manage",
+      "template:edit",
+      "workspace:manage_settings",
     ]);
 
   useEffect(() => {

@@ -1,4 +1,4 @@
-import { type CustomFieldDefinition, customFieldDefinitions, db, organizations } from "@starter/db";
+import { type AppPermission, type CustomFieldDefinition, customFieldDefinitions, db, organizations } from "@starter/db";
 import { and, eq } from "drizzle-orm";
 import { type Context } from "hono";
 
@@ -83,8 +83,22 @@ export function scrubEntityData<T extends Record<string, any>>(
     }
   }
 
+  const sensitivePerm: AppPermission =
+    entityType === "client"
+      ? "client:view_sensitive"
+      : entityType === "staff"
+        ? "staff:view_sensitive"
+        : "file:view_sensitive";
+
+  const detailedPerm: AppPermission =
+    entityType === "client"
+      ? "client:view_details"
+      : entityType === "staff"
+        ? "staff:view_details"
+        : "file:view_details";
+
   // B. Scrub Sensitive System Fields
-  if (!permissions.has("file:view_sensitive") && settings.sysSensitiveFields?.length) {
+  if (!permissions.has(sensitivePerm) && settings.sysSensitiveFields?.length) {
     for (const fieldId of settings.sysSensitiveFields) {
       const key = getSystemFieldKey(fieldId, entityType);
       if (key && key in result) {
@@ -94,7 +108,7 @@ export function scrubEntityData<T extends Record<string, any>>(
   }
 
   // C. Scrub Detailed System Fields
-  if (!permissions.has("file:view_detailed") && settings.sysDetailedFields?.length) {
+  if (!permissions.has(detailedPerm) && settings.sysDetailedFields?.length) {
     for (const fieldId of settings.sysDetailedFields) {
       const key = getSystemFieldKey(fieldId, entityType);
       if (key && key in result) {
@@ -121,9 +135,9 @@ export function scrubEntityData<T extends Record<string, any>>(
 
         if (def.isPrivate) {
           shouldScrub = true; // We already know they aren't owner from the early return
-        } else if (def.isSensitive && !permissions.has("file:view_sensitive")) {
+        } else if (def.isSensitive && !permissions.has(sensitivePerm)) {
           shouldScrub = true;
-        } else if (def.isDetailed && !permissions.has("file:view_detailed")) {
+        } else if (def.isDetailed && !permissions.has(detailedPerm)) {
           shouldScrub = true;
         }
 

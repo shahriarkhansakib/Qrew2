@@ -107,11 +107,16 @@ When `isFormulaInjectable = true`, the numeric value of that field becomes avail
 | Action | Required Permission |
 |---|---|
 | View Invoices section in File Modal | `invoice:view` |
-| Generate Invoice (open modal) | `invoice:create` |
+| Generate Invoice (open modal) | `invoice:create_draft` |
 | View Draft page | `invoice:view` |
-| Edit Draft (enter edit mode) | `invoice:edit` |
+| Fill manual values | `invoice:fill_values` |
+| Edit line labels | `invoice:edit_line_labels` |
+| Manage optional services | `invoice:manage_optional_rows` |
+| Author formulas in draft builder | `invoice:author_formulas` |
 | Finalize Invoice | `invoice:finalize` |
-| Delete Draft | `invoice:create` (own draft only) |
+| Revert Invoice to Draft | `invoice:revert` |
+| Void Invoice | `invoice:void` |
+| Delete Draft | `invoice:delete` |
 
 ---
 
