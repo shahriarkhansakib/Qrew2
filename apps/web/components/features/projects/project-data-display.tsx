@@ -8,9 +8,15 @@ interface ProjectDataDisplayProps {
   project: any;
   customFields: any[];
   status: any | null; // The currently selected status from the graph
+  historicalSnapshot?: { timestamp: string; fields: Record<string, any> } | null;
 }
 
-export function ProjectDataDisplay({ project, customFields, status }: ProjectDataDisplayProps) {
+export function ProjectDataDisplay({
+  project,
+  customFields,
+  status,
+  historicalSnapshot,
+}: ProjectDataDisplayProps) {
   const getStatusFieldIds = (statusNode: any): Set<string> | null => {
     if (!statusNode) return null;
     const mappings: any[] = statusNode.statusFields || [];
@@ -19,7 +25,8 @@ export function ProjectDataDisplay({ project, customFields, status }: ProjectDat
   };
 
   const renderFieldValue = (field: any) => {
-    const val = project.customFields?.[field.fieldKey];
+    const dataSource = historicalSnapshot ? historicalSnapshot.fields : project.customFields;
+    const val = dataSource?.[field.fieldKey];
     if (val === undefined || val === null || val === "")
       return <span className="text-muted-foreground italic">Not set</span>;
     if (field.fieldType === "date") {
@@ -43,6 +50,16 @@ export function ProjectDataDisplay({ project, customFields, status }: ProjectDat
 
   return (
     <div className="space-y-4">
+      {historicalSnapshot && (
+        <div className="rounded-lg border border-primary/20 bg-primary/5 px-4 py-2.5 text-xs text-muted-foreground flex items-center justify-between">
+          <span className="font-medium text-foreground">
+            Stage Snapshot: {status?.name || "Historical Stage"}
+          </span>
+          <span>
+            Captured on {format(new Date(historicalSnapshot.timestamp), "MMM d, yyyy h:mm a")}
+          </span>
+        </div>
+      )}
       {/* System Fields styled like custom fields */}
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
         {/* File No */}

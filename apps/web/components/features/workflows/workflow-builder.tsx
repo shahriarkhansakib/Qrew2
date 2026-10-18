@@ -1,7 +1,7 @@
 "use client";
 
 import { useMutation, useQueryClient } from "@tanstack/react-query";
-import { AlertTriangle, Loader2, Plus, Trash2 } from "lucide-react";
+import { AlertTriangle, Loader2, Plus, Redo2, Trash2, Undo2 } from "lucide-react";
 import { useEffect, useState } from "react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
@@ -216,7 +216,39 @@ export function WorkflowBuilder({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [queryClient.invalidateQueries]);
 
-  // ── Move and Swap ──────────────────────────────────────────────────────────
+  // ── Move, Swap, and History ───────────────────────────────────────────────
+
+  type HistoryAction =
+    | {
+        type: "MOVE_NODE";
+        nodeId: string;
+        from: { col: number; row: number };
+        to: { col: number; row: number };
+      }
+    | {
+        type: "SWAP_NODES";
+        sourceId: string;
+        targetId: string;
+      }
+    | {
+        type: "CONNECT_NODES";
+        fromId: string;
+        toId: string;
+      }
+    | {
+        type: "DELETE_EDGE";
+        fromId: string;
+        toId: string;
+      };
+
+  const [undoStack, setUndoStack] = useState<HistoryAction[]>([]);
+  const [redoStack, setRedoStack] = useState<HistoryAction[]>([]);
+  const [isExecutingHistory, setIsExecutingHistory] = useState(false);
+
+  const pushHistory = (action: HistoryAction) => {
+    setUndoStack((prev) => [...prev, action]);
+    setRedoStack([]);
+  };
 
   const moveNodeMutation = useMutation({
     mutationFn: async ({
@@ -244,7 +276,25 @@ export function WorkflowBuilder({
     onError: (err: any) => toast.error(err.message),
   });
 
-  const handleMoveNode = (id: string, col: number, row: number) => {
+  const handleMoveNode = (
+    id: string,
+    col: number,
+    row: number,
+    prevCol?: number,
+    prevRow?: number,
+  ) => {
+    if (
+      prevCol !== undefined &&
+      prevRow !== undefined &&
+      (prevCol !== col || prevRow !== row)
+    ) {
+      pushHistory({
+        type: "MOVE_NODE",
+        nodeId: id,
+        from: { col: prevCol, row: prevRow },
+        to: { col, row },
+      });
+    }
     moveNodeMutation.mutate({ id, gridColumn: col, gridRow: row });
   };
 
@@ -290,6 +340,11 @@ export function WorkflowBuilder({
     if (!swapRequest) return;
     try {
       await swapNodesMutation.mutateAsync({
+        sourceId: swapRequest.sourceId,
+        targetId: swapRequest.targetId,
+      });
+      pushHistory({
+        type: "SWAP_NODES",
         sourceId: swapRequest.sourceId,
         targetId: swapRequest.targetId,
       });
@@ -410,6 +465,7 @@ export function WorkflowBuilder({
       toast.error("Nothing can connect back to the starting stage.");
       return;
     }
+    pushHistory({ type: "CONNECT_NODES", fromId, toId });
     connectNodesMutation.mutate({ fromId, toId });
   };
 
@@ -442,8 +498,126 @@ export function WorkflowBuilder({
   });
 
   const handleDeleteEdge = (fromId: string, toId: string) => {
+    pushHistory({ type: "DELETE_EDGE", fromId, toId });
     deleteEdgeMutation.mutate({ fromId, toId });
   };
+
+  // ── Undo / Redo Execution ─────────────────────────────────────────────────
+
+  const handleUndo = async () => {
+    if (undoStack.length === 0 || isExecutingHistory) return;
+    const action = undoStack[undoStack.length - 1];
+    setUndoStack((prev) => prev.slice(0, -1));
+    setIsExecutingHistory(true);
+
+    try {
+      if (action.type === "MOVE_NODE") {
+        await moveNodeMutation.mutateAsync({
+          id: action.nodeId,
+          gridColumn: action.from.col,
+          gridRow: action.from.row,
+        });
+        toast.success("Undid node move");
+      } else if (action.type === "SWAP_NODES") {
+        await swapNodesMutation.mutateAsync({
+          sourceId: action.sourceId,
+          targetId: action.targetId,
+        });
+        toast.success("Undid node swap");
+      } else if (action.type === "CONNECT_NODES") {
+        await deleteEdgeMutation.mutateAsync({
+          fromId: action.fromId,
+          toId: action.toId,
+        });
+        toast.success("Undid connection");
+      } else if (action.type === "DELETE_EDGE") {
+        await connectNodesMutation.mutateAsync({
+          fromId: action.fromId,
+          toId: action.toId,
+        });
+        toast.success("Restored connection");
+      }
+      setRedoStack((prev) => [...prev, action]);
+    } catch (_e) {
+      toast.error("Failed to undo action");
+    } finally {
+      setIsExecutingHistory(false);
+    }
+  };
+
+  const handleRedo = async () => {
+    if (redoStack.length === 0 || isExecutingHistory) return;
+    const action = redoStack[redoStack.length - 1];
+    setRedoStack((prev) => prev.slice(0, -1));
+    setIsExecutingHistory(true);
+
+    try {
+      if (action.type === "MOVE_NODE") {
+        await moveNodeMutation.mutateAsync({
+          id: action.nodeId,
+          gridColumn: action.to.col,
+          gridRow: action.to.row,
+        });
+        toast.success("Redid node move");
+      } else if (action.type === "SWAP_NODES") {
+        await swapNodesMutation.mutateAsync({
+          sourceId: action.sourceId,
+          targetId: action.targetId,
+        });
+        toast.success("Redid node swap");
+      } else if (action.type === "CONNECT_NODES") {
+        await connectNodesMutation.mutateAsync({
+          fromId: action.fromId,
+          toId: action.toId,
+        });
+        toast.success("Redid connection");
+      } else if (action.type === "DELETE_EDGE") {
+        await deleteEdgeMutation.mutateAsync({
+          fromId: action.fromId,
+          toId: action.toId,
+        });
+        toast.success("Redid connection deletion");
+      }
+      setUndoStack((prev) => [...prev, action]);
+    } catch (_e) {
+      toast.error("Failed to redo action");
+    } finally {
+      setIsExecutingHistory(false);
+    }
+  };
+
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      const target = e.target as HTMLElement | null;
+      if (
+        target &&
+        (target.tagName === "INPUT" ||
+          target.tagName === "TEXTAREA" ||
+          target.isContentEditable)
+      ) {
+        return;
+      }
+
+      const isMac =
+        typeof window !== "undefined" &&
+        navigator.platform.toUpperCase().indexOf("MAC") >= 0;
+      const modifier = isMac ? e.metaKey : e.ctrlKey;
+
+      if (modifier && e.key.toLowerCase() === "z" && !e.shiftKey) {
+        e.preventDefault();
+        handleUndo();
+      } else if (
+        (modifier && e.key.toLowerCase() === "y") ||
+        (modifier && e.shiftKey && e.key.toLowerCase() === "z")
+      ) {
+        e.preventDefault();
+        handleRedo();
+      }
+    };
+
+    window.addEventListener("keydown", handleKeyDown);
+    return () => window.removeEventListener("keydown", handleKeyDown);
+  }, [undoStack, redoStack, isExecutingHistory]);
 
   // ── Close modal ──────────────────────────────────────────────────────────
 
@@ -468,6 +642,33 @@ export function WorkflowBuilder({
           </p>
         </div>
         <div className="flex items-center gap-2">
+          {/* Undo / Redo Buttons */}
+          <div className="flex items-center border rounded-md p-0.5 bg-background shadow-xs">
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={handleUndo}
+              disabled={undoStack.length === 0 || isExecutingHistory || disabled}
+              className="h-8 px-2.5 gap-1.5 text-xs text-muted-foreground hover:text-foreground"
+              title="Undo (Ctrl+Z)"
+            >
+              <Undo2 className="h-3.5 w-3.5" />
+              <span className="hidden sm:inline">Undo</span>
+            </Button>
+            <div className="w-[1px] h-4 bg-border" />
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={handleRedo}
+              disabled={redoStack.length === 0 || isExecutingHistory || disabled}
+              className="h-8 px-2.5 gap-1.5 text-xs text-muted-foreground hover:text-foreground"
+              title="Redo (Ctrl+Y)"
+            >
+              <Redo2 className="h-3.5 w-3.5" />
+              <span className="hidden sm:inline">Redo</span>
+            </Button>
+          </div>
+
           {nonSystemStatuses.length > 0 && (
             <Button
               variant="outline"

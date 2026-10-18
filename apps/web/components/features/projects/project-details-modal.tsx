@@ -47,7 +47,15 @@ interface ProjectDetailsModalProps {
 }
 
 // ─── Invoices sub-section ──────────────────────────────────────────────────
-function ProjectInvoicesSection({ projectId, router }: { projectId: string; router: any }) {
+function ProjectInvoicesSection({
+  projectId,
+  router,
+  onOpenGenerateInvoice,
+}: {
+  projectId: string;
+  router: any;
+  onOpenGenerateInvoice?: () => void;
+}) {
   const { data: invoiceList, isLoading: invoicesLoading } = useQuery({
     queryKey: ["project-invoices", projectId],
     queryFn: async () => {
@@ -92,6 +100,19 @@ function ProjectInvoicesSection({ projectId, router }: { projectId: string; rout
           <FileStack className="w-4 h-4" />
           Invoices & Drafts
         </h3>
+        {onOpenGenerateInvoice && (
+          <Can I={["invoice:fill_values", "finance:manage_invoices"]}>
+            <Button
+              size="sm"
+              variant="outline"
+              className="h-7 text-xs gap-1 px-2.5 font-medium shadow-none hover:bg-primary/10 hover:text-primary"
+              onClick={onOpenGenerateInvoice}
+            >
+              <Plus className="w-3.5 h-3.5" />
+              New Invoice
+            </Button>
+          </Can>
+        )}
       </div>
 
       {isLoading ? (
@@ -195,8 +216,10 @@ export function ProjectDetailsModal({ project, onClose }: ProjectDetailsModalPro
   const [selectedStatusId, setSelectedStatusId] = useState<string | null>(null);
   const [editStageId, setEditStageId] = useState<string | null>(null);
   const [pendingStatusId, setPendingStatusId] = useState<string | null>(null);
-  const [requiredFieldValues, setRequiredFieldValues] = useState<Record<string, string>>({});
-  const [missingFields, setMissingFields] = useState<string[]>([]);
+  const [requiredFieldValues, setRequiredFieldValues] = useState<Record<string, any>>({});
+  const [missingFields, setMissingFields] = useState<
+    { fieldId?: string; fieldKey: string; fieldName: string }[]
+  >([]);
   const [isDownloadingAll, setIsDownloadingAll] = useState(false);
   const [isAddExpenseOpen, setIsAddExpenseOpen] = useState(false);
   const [isGenerateInvoiceOpen, setIsGenerateInvoiceOpen] = useState(false);
@@ -440,6 +463,13 @@ export function ProjectDetailsModal({ project, onClose }: ProjectDetailsModalPro
     return currentStatus;
   }, [selectedStatusId, currentStatus, sortedStatuses]);
 
+  const activeHistoricalSnapshot = useMemo(() => {
+    if (!selectedStatusId || selectedStatusId === liveProject?.status) return null;
+    const history: any[] = liveProject?.stageFieldHistory ?? [];
+    const matches = history.filter((h: any) => h.stageId === selectedStatusId);
+    return matches[matches.length - 1] ?? null;
+  }, [selectedStatusId, liveProject]);
+
   /**
    * pastStatuses — the actual ordered list of stages this file has been through,
    * read directly from liveProject.statusHistory (an ordered array of status IDs
@@ -624,6 +654,9 @@ export function ProjectDetailsModal({ project, onClose }: ProjectDetailsModalPro
                 : undefined,
           }}
         >
+          {isPast && (
+            <Check className="w-4 h-4 text-white" />
+          )}
           {isCurrent && isTerminal && !isNegativeTerminal && (
             <CheckCircle2 className="w-4 h-4 text-white" />
           )}
@@ -631,7 +664,7 @@ export function ProjectDetailsModal({ project, onClose }: ProjectDetailsModalPro
             <XCircle className="w-4 h-4 text-white" />
           )}
           {isCurrent && !isTerminal && (
-            <div className="w-2.5 h-2.5 rounded-full bg-white shadow-sm" />
+            <div className="w-2.5 h-2.5 rounded-full bg-white shadow-sm animate-pulse" />
           )}
         </div>
         <span
@@ -698,94 +731,148 @@ export function ProjectDetailsModal({ project, onClose }: ProjectDetailsModalPro
             {/* ── Main Left Content ── */}
             <div className="flex-1 flex flex-col overflow-hidden relative">
               {/* Top Graph Section */}
-              <div className="border-b bg-card/30 px-8 py-10 relative shrink-0 flex items-center">
-                {/* Connecting Line Background */}
-                <div className="absolute left-8 right-8 top-14 h-0.5 bg-muted-foreground/20 z-0" />
+              <div className="border-b bg-card/30 px-8 py-6 relative shrink-0 flex flex-col gap-4">
+                {/* Connecting Line Track */}
+                <div className="relative flex items-center py-4">
+                  {/* Connecting Line Background */}
+                  <div className="absolute left-6 right-6 top-1/2 -translate-y-1/2 h-0.5 bg-muted-foreground/20 z-0" />
 
-                <div className="flex items-center justify-between w-full relative z-10">
-                  {/* Past Statuses */}
-                  {pastStatuses.map((s: any) => renderStatusNode(s, "past"))}
+                  <div className="flex items-center justify-between w-full relative z-10">
+                    {/* Past Statuses */}
+                    {pastStatuses.map((s: any) => renderStatusNode(s, "past"))}
 
-                  {/* Current Status */}
-                  {currentStatus && renderStatusNode(currentStatus, "current")}
+                    {/* Current Status */}
+                    {currentStatus && renderStatusNode(currentStatus, "current")}
 
-                  {/* Next Stage or Terminated indicator */}
-                  {isEffectivelyTerminal ? (
-                    <div className="flex flex-col items-center gap-2 z-10 relative">
-                      <div
-                        className={cn(
-                          "w-8 h-8 rounded-full flex items-center justify-center border-2",
-                          currentStatus.name
+                    {/* Next Stage or Terminated indicator */}
+                    {isEffectivelyTerminal ? (
+                      <div className="flex flex-col items-center gap-2 z-10 relative">
+                        <div
+                          className={cn(
+                            "w-9 h-9 rounded-full flex items-center justify-center border-2 shadow-sm",
+                            currentStatus.name
+                              .toLowerCase()
+                              .match(/reject|cancel|fail|lost|declin|abort|close/)
+                              ? "border-destructive/40 bg-destructive/10 text-destructive"
+                              : "border-emerald-500/40 bg-emerald-500/10 text-emerald-500",
+                          )}
+                        >
+                          <Flag className="w-4 h-4" />
+                        </div>
+                        <span
+                          className={cn(
+                            "text-xs font-semibold absolute -bottom-6 whitespace-nowrap",
+                            currentStatus.name
+                              .toLowerCase()
+                              .match(/reject|cancel|fail|lost|declin|abort|close/)
+                              ? "text-destructive"
+                              : "text-emerald-500",
+                          )}
+                        >
+                          {currentStatus.name
                             .toLowerCase()
                             .match(/reject|cancel|fail|lost|declin|abort|close/)
-                            ? "border-destructive/40 bg-destructive/10 text-destructive"
-                            : "border-primary/40 bg-primary/10 text-primary",
-                        )}
-                      >
-                        <Flag className="w-3.5 h-3.5" />
+                            ? "Terminated"
+                            : "Completed"}
+                        </span>
                       </div>
-                      <span
-                        className={cn(
-                          "text-xs font-semibold absolute -bottom-6",
-                          currentStatus.name
-                            .toLowerCase()
-                            .match(/reject|cancel|fail|lost|declin|abort|close/)
-                            ? "text-destructive"
-                            : "text-primary",
-                        )}
-                      >
-                        Terminated
+                    ) : (
+                      <Popover>
+                        <PopoverTrigger asChild>
+                          <div className="flex flex-col items-center gap-2 z-10 relative group cursor-pointer">
+                            <div className="w-8 h-8 rounded-full flex items-center justify-center border-2 border-dashed border-muted-foreground text-muted-foreground bg-background hover:border-primary hover:text-primary hover:bg-primary/5 transition-all shadow-sm">
+                              <Plus className="w-4 h-4" />
+                            </div>
+                            <span className="text-xs font-medium text-muted-foreground absolute -bottom-6 whitespace-nowrap">
+                              Next Stage
+                            </span>
+                          </div>
+                        </PopoverTrigger>
+                        <PopoverContent className="w-56 p-2" align="center">
+                          <div className="space-y-1">
+                            <p className="text-xs font-medium text-muted-foreground px-2 py-1.5 uppercase tracking-wider">
+                              Allowed Transitions
+                            </p>
+                            {allowedNextStatuses.length === 0 ? (
+                              <div className="px-2 py-2 text-sm text-muted-foreground italic">
+                                No next stages configured.
+                              </div>
+                            ) : (
+                              allowedNextStatuses.map((ns: any) => {
+                                const isDynamicTerminal =
+                                  !ns.isInitial && ns.transitions?.length === 0;
+                                return (
+                                  <Button
+                                    key={ns.id}
+                                    variant="ghost"
+                                    className="w-full justify-start gap-2 h-9 text-sm"
+                                    onClick={() => handleAdvance(ns.id)}
+                                  >
+                                    <span
+                                      className="w-2 h-2 rounded-full"
+                                      style={{ backgroundColor: ns.color || "#94a3b8" }}
+                                    />
+                                    <span className="flex-1 text-left">{ns.name}</span>
+                                    {isDynamicTerminal && (
+                                      <CheckCircle2 className="w-3.5 h-3.5 text-primary/70" />
+                                    )}
+                                  </Button>
+                                );
+                              })
+                            )}
+                          </div>
+                        </PopoverContent>
+                      </Popover>
+                    )}
+                  </div>
+                </div>
+
+                {/* Direct Action Bar for Allowed Transitions or Completion Banner */}
+                {isEffectivelyTerminal ? (
+                  <div className="mt-5 pt-3 border-t border-border/40 flex items-center justify-between text-xs">
+                    <div className="flex items-center gap-2">
+                      <CheckCircle2 className="w-4 h-4 text-emerald-500" />
+                      <span className="font-semibold text-foreground">Workflow Finished:</span>
+                      <span className="text-muted-foreground">
+                        This file has reached the &quot;{currentStatus?.name}&quot; terminal stage.
                       </span>
                     </div>
-                  ) : (
-                    <Popover>
-                      <PopoverTrigger asChild>
-                        <div className="flex flex-col items-center gap-2 z-10 relative group cursor-pointer">
-                          <div className="w-8 h-8 rounded-full flex items-center justify-center border-2 border-dashed border-muted-foreground text-muted-foreground bg-background hover:border-primary hover:text-primary hover:bg-primary/5 transition-all">
-                            <Plus className="w-4 h-4" />
-                          </div>
-                          <span className="text-xs font-medium text-muted-foreground absolute -bottom-6">
-                            Next Stage
-                          </span>
-                        </div>
-                      </PopoverTrigger>
-                      <PopoverContent className="w-56 p-2" align="center">
-                        <div className="space-y-1">
-                          <p className="text-xs font-medium text-muted-foreground px-2 py-1.5 uppercase tracking-wider">
-                            Allowed Transitions
-                          </p>
-                          {allowedNextStatuses.length === 0 ? (
-                            <div className="px-2 py-2 text-sm text-muted-foreground italic">
-                              No next stages configured.
-                            </div>
-                          ) : (
-                            allowedNextStatuses.map((ns: any) => {
-                              const isDynamicTerminal =
-                                !ns.isInitial && ns.transitions?.length === 0;
-                              return (
-                                <Button
-                                  key={ns.id}
-                                  variant="ghost"
-                                  className="w-full justify-start gap-2 h-9 text-sm"
-                                  onClick={() => handleAdvance(ns.id)}
-                                >
-                                  <span
-                                    className="w-2 h-2 rounded-full"
-                                    style={{ backgroundColor: ns.color || "#94a3b8" }}
-                                  />
-                                  <span className="flex-1 text-left">{ns.name}</span>
-                                  {isDynamicTerminal && (
-                                    <CheckCircle2 className="w-3.5 h-3.5 text-primary/70" />
-                                  )}
-                                </Button>
-                              );
-                            })
-                          )}
-                        </div>
-                      </PopoverContent>
-                    </Popover>
-                  )}
-                </div>
+                  </div>
+                ) : allowedNextStatuses.length > 0 ? (
+                  <div className="mt-5 pt-3 border-t border-border/40 flex flex-wrap items-center justify-between gap-3 text-xs">
+                    <div className="flex items-center gap-2 text-muted-foreground">
+                      <span className="font-semibold text-foreground">Available Actions:</span>
+                      <span>Advance this file to next stage</span>
+                    </div>
+                    <div className="flex flex-wrap items-center gap-2">
+                      {allowedNextStatuses.map((ns: any) => {
+                        const reqFields = getRequiredFields(ns.id);
+                        return (
+                          <Button
+                            key={ns.id}
+                            size="sm"
+                            variant="outline"
+                            className="h-8 gap-2 text-xs border-primary/20 hover:border-primary hover:bg-primary/5 transition-all shadow-none"
+                            onClick={() => handleAdvance(ns.id)}
+                            disabled={advanceStatusMutation.isPending}
+                          >
+                            <span
+                              className="w-2 h-2 rounded-full shrink-0"
+                              style={{ backgroundColor: ns.color || "#94a3b8" }}
+                            />
+                            <span>{ns.name}</span>
+                            {reqFields.length > 0 && (
+                              <span className="text-[10px] font-semibold px-1.5 py-0.2 rounded-full bg-amber-500/15 text-amber-600 dark:text-amber-400 border border-amber-500/30">
+                                {reqFields.length} {reqFields.length === 1 ? "field" : "fields"}
+                              </span>
+                            )}
+                            <ArrowRight className="w-3 h-3 opacity-60" />
+                          </Button>
+                        );
+                      })}
+                    </div>
+                  </div>
+                ) : null}
               </div>
 
               {/* Required fields gate — shown when server returns 422 */}
@@ -798,26 +885,87 @@ export function ProjectDetailsModal({ project, onClose }: ProjectDetailsModalPro
                     </p>
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                       {getRequiredFields(pendingStatusId)
-                        .filter((m: any) => missingFields.includes(m.fieldId))
+                        .filter((m: any) => {
+                          const fieldDef = customFields?.find((cf: any) => cf.id === m.fieldId);
+                          if (!fieldDef) return false;
+                          return missingFields.some(
+                            (mf) => mf.fieldId === m.fieldId || mf.fieldKey === fieldDef.fieldKey,
+                          );
+                        })
                         .map((m: any) => {
                           const fieldDef = customFields?.find((cf: any) => cf.id === m.fieldId);
                           if (!fieldDef) return null;
+                          const fieldKey = fieldDef.fieldKey;
+
                           return (
                             <div key={m.fieldId} className="space-y-1.5">
-                              <label className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+                              <label className="text-xs font-semibold uppercase tracking-wider text-muted-foreground flex items-center gap-1">
                                 {fieldDef.fieldName}
+                                <span className="text-red-500">*</span>
                               </label>
-                              <input
-                                type={fieldDef.fieldType === "date" ? "date" : "text"}
-                                className="w-full rounded-md border-amber-500/30 bg-background px-3 py-2 text-sm shadow-sm focus:border-amber-500 focus:ring-amber-500/20"
-                                value={requiredFieldValues[m.fieldId] || ""}
-                                onChange={(e) =>
-                                  setRequiredFieldValues((prev) => ({
-                                    ...prev,
-                                    [m.fieldId]: e.target.value,
-                                  }))
-                                }
-                              />
+                              {fieldDef.fieldType === "single_select" &&
+                              fieldDef.options?.length ? (
+                                <select
+                                  className="w-full rounded-md border border-amber-500/30 bg-background px-3 py-2 text-sm shadow-sm focus:border-amber-500 focus:ring-amber-500/20"
+                                  value={requiredFieldValues[fieldKey] ?? ""}
+                                  onChange={(e) =>
+                                    setRequiredFieldValues((prev) => ({
+                                      ...prev,
+                                      [fieldKey]: e.target.value,
+                                    }))
+                                  }
+                                >
+                                  <option value="">Select an option...</option>
+                                  {fieldDef.options.map((opt: string) => (
+                                    <option key={opt} value={opt}>
+                                      {opt}
+                                    </option>
+                                  ))}
+                                </select>
+                              ) : fieldDef.fieldType === "boolean" ? (
+                                <select
+                                  className="w-full rounded-md border border-amber-500/30 bg-background px-3 py-2 text-sm shadow-sm focus:border-amber-500 focus:ring-amber-500/20"
+                                  value={
+                                    requiredFieldValues[fieldKey] !== undefined
+                                      ? String(requiredFieldValues[fieldKey])
+                                      : ""
+                                  }
+                                  onChange={(e) =>
+                                    setRequiredFieldValues((prev) => ({
+                                      ...prev,
+                                      [fieldKey]: e.target.value === "true",
+                                    }))
+                                  }
+                                >
+                                  <option value="">Select...</option>
+                                  <option value="true">Yes</option>
+                                  <option value="false">No</option>
+                                </select>
+                              ) : (
+                                <input
+                                  type={
+                                    fieldDef.fieldType === "date"
+                                      ? "date"
+                                      : fieldDef.fieldType === "number"
+                                        ? "number"
+                                        : "text"
+                                  }
+                                  className="w-full rounded-md border border-amber-500/30 bg-background px-3 py-2 text-sm shadow-sm focus:border-amber-500 focus:ring-amber-500/20"
+                                  value={requiredFieldValues[fieldKey] ?? ""}
+                                  placeholder={`Enter ${fieldDef.fieldName}...`}
+                                  onChange={(e) =>
+                                    setRequiredFieldValues((prev) => ({
+                                      ...prev,
+                                      [fieldKey]:
+                                        fieldDef.fieldType === "number"
+                                          ? e.target.value === ""
+                                            ? ""
+                                            : Number(e.target.value)
+                                          : e.target.value,
+                                    }))
+                                  }
+                                />
+                              )}
                             </div>
                           );
                         })}
@@ -865,6 +1013,7 @@ export function ProjectDetailsModal({ project, onClose }: ProjectDetailsModalPro
                   project={liveProject}
                   customFields={customFields || []}
                   status={activeStatusForFields}
+                  historicalSnapshot={activeHistoricalSnapshot}
                 />
               </div>
             </div>
@@ -1112,7 +1261,11 @@ export function ProjectDetailsModal({ project, onClose }: ProjectDetailsModalPro
 
               {/* Invoices Section */}
               <Can I="finance:view_invoices">
-                <ProjectInvoicesSection projectId={liveProject?.id} router={router} />
+                <ProjectInvoicesSection
+                  projectId={liveProject?.id}
+                  router={router}
+                  onOpenGenerateInvoice={() => setIsGenerateInvoiceOpen(true)}
+                />
               </Can>
             </div>
           </div>

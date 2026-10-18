@@ -586,7 +586,13 @@ export function WorkflowGraph({
   onAddBranch: (id: string) => void;
   onConnectNodes: (fromId: string, toId: string) => void;
   onDeleteEdge: (fromId: string, toId: string) => void;
-  onMoveNode?: (id: string, col: number, row: number) => void;
+  onMoveNode?: (
+    id: string,
+    col: number,
+    row: number,
+    prevCol?: number,
+    prevRow?: number,
+  ) => void;
   onSwapNodes?: (
     sourceId: string,
     targetId: string,
@@ -712,18 +718,23 @@ export function WorkflowGraph({
       (n) => n.col === newCol && n.row === newRow && n.status.id !== dragState.id,
     );
 
+    const sourceLayoutNode = layoutNodes.find((n) => n.status.id === dragState.id);
+    const prevCol = sourceLayoutNode ? sourceLayoutNode.col : 0;
+    const prevRow = sourceLayoutNode ? sourceLayoutNode.row : 0;
+
     if (collidedNode && onSwapNodes) {
-      const sourceLayoutNode = layoutNodes.find((n) => n.status.id === dragState.id);
       onSwapNodes(
         dragState.id,
         collidedNode.status.id,
         collidedNode.col,
         collidedNode.row,
-        sourceLayoutNode ? sourceLayoutNode.col : 0,
-        sourceLayoutNode ? sourceLayoutNode.row : 0,
+        prevCol,
+        prevRow,
       );
     } else if (onMoveNode) {
-      onMoveNode(dragState.id, newCol, newRow);
+      if (newCol !== prevCol || newRow !== prevRow) {
+        onMoveNode(dragState.id, newCol, newRow, prevCol, prevRow);
+      }
     }
 
     setDragState(null);
@@ -927,6 +938,71 @@ export function WorkflowGraph({
                 Row {t}
               </text>
             ))}
+
+            {/* Drag Ghost / Drop Target Indicator */}
+            {dragState && (() => {
+              const hoverCol = Math.max(0, Math.round((dragState.currentX - PAD - NODE_R) / 206));
+              const hoverRow = Math.round((dragState.currentY - y0) / 136);
+              const targetNode = layoutNodes.find(
+                (n) => n.col === hoverCol && n.row === hoverRow && n.status.id !== dragState.id,
+              );
+              const draggingNode = layoutNodes.find((n) => n.status.id === dragState.id);
+              const isSameAsOriginal =
+                draggingNode && draggingNode.col === hoverCol && draggingNode.row === hoverRow;
+
+              const cellCenterX = PAD + NODE_R + hoverCol * 206;
+              const cellCenterY = y0 + hoverRow * 136;
+              const cellX = cellCenterX - 100;
+              const cellY = cellCenterY - 65;
+
+              return (
+                <g className="pointer-events-none transition-all duration-75">
+                  <rect
+                    x={cellX}
+                    y={cellY}
+                    width={200}
+                    height={130}
+                    rx={12}
+                    fill={
+                      targetNode
+                        ? "rgba(245, 158, 11, 0.12)"
+                        : isSameAsOriginal
+                          ? "rgba(100, 116, 139, 0.08)"
+                          : "rgba(99, 102, 241, 0.12)"
+                    }
+                    stroke={
+                      targetNode
+                        ? "#f59e0b"
+                        : isSameAsOriginal
+                          ? "#64748b"
+                          : "#6366f1"
+                    }
+                    strokeWidth={2}
+                    strokeDasharray={isSameAsOriginal ? "3 3" : "6 4"}
+                  />
+                  <text
+                    x={cellCenterX}
+                    y={cellCenterY + 54}
+                    fill={
+                      targetNode
+                        ? "#f59e0b"
+                        : isSameAsOriginal
+                          ? "#94a3b8"
+                          : "#818cf8"
+                    }
+                    fontSize="11"
+                    fontWeight="600"
+                    textAnchor="middle"
+                  >
+                    {targetNode
+                      ? `Swap with "${targetNode.status.name}"`
+                      : isSameAsOriginal
+                        ? "Current position"
+                        : `Drop at [Col ${hoverCol}, Row ${hoverRow}]`}
+                  </text>
+                </g>
+              );
+            })()}
 
             {edgeData.map(({ edgeId, d }) => {
               const isHovered = hoveredEdge === edgeId;

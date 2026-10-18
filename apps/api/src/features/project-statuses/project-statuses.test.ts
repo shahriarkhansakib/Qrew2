@@ -24,6 +24,7 @@ const { mockSelect, mockInsert, mockUpdate, mockDelete, mockQuery } = vi.hoisted
     mockDelete: vi.fn(),
     mockQuery: {
       projectStatuses: { findFirst: vi.fn(), findMany: vi.fn() },
+      projectStatusTransitions: { findFirst: vi.fn() },
     },
   };
 });
@@ -34,9 +35,22 @@ vi.mock("@starter/db", () => ({
     insert: (...args: any[]) => mockInsert(...args),
     update: (...args: any[]) => mockUpdate(...args),
     delete: (...args: any[]) => mockDelete(...args),
+    transaction: (cb: any) =>
+      cb({
+        select: (...args: any[]) => mockSelect(...args),
+        insert: (...args: any[]) => mockInsert(...args),
+        update: (...args: any[]) => mockUpdate(...args),
+        delete: (...args: any[]) => mockDelete(...args),
+      }),
     query: mockQuery,
   },
-  projectStatuses: { id: "id", organizationId: "organization_id", name: "name" },
+  projectStatuses: {
+    id: "id",
+    organizationId: "organization_id",
+    name: "name",
+    gridColumn: "grid_column",
+    gridRow: "grid_row",
+  },
   projectStatusTransitions: {
     id: "id",
     organizationId: "organization_id",
@@ -462,3 +476,243 @@ describe("PUT /statuses/:id/fields", () => {
     expect(res.status).toBe(404);
   });
 });
+
+describe("PATCH /statuses/:id/position", () => {
+  beforeEach(() => vi.clearAllMocks());
+
+  it("updates grid coordinates when target cell is unoccupied", async () => {
+    const status = makeStatus({ id: STATUS_ID, gridColumn: 0, gridRow: 0 });
+    const updated = makeStatus({ id: STATUS_ID, gridColumn: 3, gridRow: -1 });
+
+    mockSelect
+      .mockReturnValueOnce({ from: () => ({ where: () => Promise.resolve([status]) }) }) // find existing
+      .mockReturnValueOnce({ from: () => ({ where: () => Promise.resolve([]) }) }); // collision check (empty)
+
+    mockUpdate.mockReturnValue({
+      set: () => ({ where: () => ({ returning: () => Promise.resolve([updated]) }) }),
+    });
+
+    const app = new Hono();
+    app.route("/", projectStatusesRoute);
+    const res = await app.fetch(
+      makeRequest("PATCH", `/${STATUS_ID}/position`, { gridColumn: 3, gridRow: -1 }),
+    );
+
+    expect(res.status).toBe(200);
+    const body = (await res.json()) as any;
+    expect(body.gridColumn).toBe(3);
+    expect(body.gridRow).toBe(-1);
+  });
+
+  it("returns 409 Conflict when target cell is already occupied", async () => {
+    const status = makeStatus({ id: STATUS_ID, gridColumn: 0, gridRow: 0 });
+    const occupyingStatus = makeStatus({
+      id: STATUS_ID_2,
+      name: "In Progress",
+      gridColumn: 1,
+      gridRow: 0,
+    });
+
+    mockSelect
+      .mockReturnValueOnce({ from: () => ({ where: () => Promise.resolve([status]) }) })
+      .mockReturnValueOnce({ from: () => ({ where: () => Promise.resolve([occupyingStatus]) }) });
+
+    const app = new Hono();
+    app.route("/", projectStatusesRoute);
+    const res = await app.fetch(
+      makeRequest("PATCH", `/${STATUS_ID}/position`, { gridColumn: 1, gridRow: 0 }),
+    );
+
+    expect(res.status).toBe(409);
+    const body = (await res.json()) as any;
+    expect(body.error).toContain('already occupied by "In Progress"');
+  });
+
+  it("returns 404 when status to move is not found", async () => {
+    mockSelect.mockReturnValueOnce({ from: () => ({ where: () => Promise.resolve([]) }) });
+
+    const app = new Hono();
+    app.route("/", projectStatusesRoute);
+    const res = await app.fetch(
+      makeRequest("PATCH", `/non-existent/position`, { gridColumn: 1, gridRow: 0 }),
+    );
+
+    expect(res.status).toBe(404);
+  });
+
+  it("returns 400 when gridColumn is negative", async () => {
+    const app = new Hono();
+    app.route("/", projectStatusesRoute);
+    const res = await app.fetch(
+      makeRequest("PATCH", `/${STATUS_ID}/position`, { gridColumn: -1, gridRow: 0 }),
+    );
+
+    expect(res.status).toBe(400);
+  });
+});
+
+describe("POST /statuses/:id/swap", () => {
+  beforeEach(() => vi.clearAllMocks());
+
+  it("atomically swaps coordinates of two statuses", async () => {
+    const sourceNode = makeStatus({ id: STATUS_ID, name: "Node A", gridColumn: 0, gridRow: 0 });
+    const targetNode = makeStatus({
+      id: STATUS_ID_2,
+      name: "Node B",
+      gridColumn: 2,
+      gridRow: 1,
+    });
+
+    mockSelect
+      .mockReturnValueOnce({ from: () => ({ where: () => Promise.resolve([sourceNode]) }) })
+      .mockReturnValueOnce({ from: () => ({ where: () => Promise.resolve([targetNode]) }) });
+
+    const updatedSource = { ...sourceNode, gridColumn: 2, gridRow: 1 };
+    const updatedTarget = { ...targetNode, gridColumn: 0, gridRow: 0 };
+
+    mockUpdate
+      .mockReturnValueOnce({
+        set: () => ({ where: () => ({ returning: () => Promise.resolve([updatedSource]) }) }),
+      })
+      .mockReturnValueOnce({
+        set: () => ({ where: () => ({ returning: () => Promise.resolve([updatedTarget]) }) }),
+      });
+
+    const app = new Hono();
+    app.route("/", projectStatusesRoute);
+    const res = await app.fetch(
+      makeRequest("POST", `/${STATUS_ID}/swap`, { targetId: STATUS_ID_2 }),
+    );
+
+    expect(res.status).toBe(200);
+    const body = (await res.json()) as any;
+    expect(body.success).toBe(true);
+    expect(body.nodes).toHaveLength(2);
+  });
+
+  it("returns 400 when attempting to swap node with itself", async () => {
+    const app = new Hono();
+    app.route("/", projectStatusesRoute);
+    const res = await app.fetch(
+      makeRequest("POST", `/${STATUS_ID}/swap`, { targetId: STATUS_ID }),
+    );
+
+    expect(res.status).toBe(400);
+    const body = (await res.json()) as any;
+    expect(body.error).toContain("Cannot swap node with itself");
+  });
+
+  it("returns 404 when one or both statuses are not found", async () => {
+    mockSelect
+      .mockReturnValueOnce({ from: () => ({ where: () => Promise.resolve([]) }) })
+      .mockReturnValueOnce({ from: () => ({ where: () => Promise.resolve([]) }) });
+
+    const app = new Hono();
+    app.route("/", projectStatusesRoute);
+    const res = await app.fetch(
+      makeRequest("POST", `/${STATUS_ID}/swap`, { targetId: STATUS_ID_2 }),
+    );
+
+    expect(res.status).toBe(404);
+  });
+});
+
+describe("POST /statuses with insertBump", () => {
+  beforeEach(() => vi.clearAllMocks());
+
+  it("shifts existing columns rightward when insertBump is true", async () => {
+    mockSelect.mockReturnValueOnce({ from: () => ({ where: () => Promise.resolve([]) }) }); // unique name check
+
+    mockUpdate.mockReturnValue({
+      set: () => ({ where: () => Promise.resolve() }),
+    });
+
+    const insertedNode = makeStatus({
+      id: "inserted-id",
+      name: "Review Gate",
+      gridColumn: 1,
+      gridRow: 0,
+    });
+    mockInsert.mockReturnValue({
+      values: () => ({ returning: () => Promise.resolve([insertedNode]) }),
+    });
+
+    const app = new Hono();
+    app.route("/", projectStatusesRoute);
+    const res = await app.fetch(
+      makeRequest("POST", "/", {
+        name: "Review Gate",
+        gridColumn: 1,
+        gridRow: 0,
+        insertBump: true,
+      }),
+    );
+
+    expect(res.status).toBe(201);
+    expect(mockUpdate).toHaveBeenCalledTimes(1);
+    const body = (await res.json()) as any;
+    expect(body.name).toBe("Review Gate");
+    expect(body.gridColumn).toBe(1);
+  });
+});
+
+describe("POST /migrate-defaults", () => {
+  beforeEach(() => vi.clearAllMocks());
+
+  it("ensures Completed and Created system properties and backfills null coordinates", async () => {
+    const createdNode = makeStatus({
+      id: "node-created",
+      name: "Created",
+      isInitial: true,
+      color: "#000000",
+      gridColumn: null,
+      gridRow: null,
+    });
+    const completedNode = makeStatus({
+      id: "node-completed",
+      name: "Completed",
+      isSystem: false,
+      color: "#000000",
+      gridColumn: null,
+      gridRow: null,
+    });
+
+    // 1. First select: statuses in org
+    mockSelect.mockReturnValueOnce({
+      from: () => ({
+        where: () => Promise.resolve([createdNode, completedNode]),
+      }),
+    });
+
+    // 2. Mock updates for fixing completed & created
+    mockUpdate.mockReturnValue({
+      set: () => ({ where: () => Promise.resolve() }),
+    });
+
+    // 3. Mock query for existing transition
+    mockQuery.projectStatusTransitions = {
+      findFirst: vi.fn().mockResolvedValueOnce(null),
+    } as any;
+    mockInsert.mockReturnValue({
+      values: () => Promise.resolve(),
+    });
+
+    // 4. Mock select transitions for layout seeding
+    mockSelect.mockReturnValueOnce({
+      from: () => ({
+        where: () => Promise.resolve([{ fromStatusId: "node-created", toStatusId: "node-completed" }]),
+      }),
+    });
+
+    const app = new Hono();
+    app.route("/", projectStatusesRoute);
+    const res = await app.fetch(makeRequest("POST", "/migrate-defaults"));
+
+    expect(res.status).toBe(200);
+    const body = (await res.json()) as any;
+    expect(body.success).toBe(true);
+    // At least 4 updates: completed fix, created fix, and position updates for the 2 nodes
+    expect(mockUpdate).toHaveBeenCalled();
+  });
+});
+

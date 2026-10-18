@@ -26,7 +26,7 @@ const baseProjectSchema = z.object({
 });
 
 export class ProjectsController {
-  static async listProjects(c: Context) {
+  static async listProjects(c: Context): Promise<any> {
     const orgId = c.get("organizationId");
     const clientId = c.req.query("clientId");
     const statusFilter = c.req.query("status"); // 'archived' or 'active'
@@ -122,7 +122,7 @@ export class ProjectsController {
     return c.json(scrubbedResult);
   }
 
-  static async createProject(c: Context) {
+  static async createProject(c: Context): Promise<any> {
     const orgId = c.get("organizationId");
     const body = await c.req.json();
 
@@ -198,7 +198,7 @@ export class ProjectsController {
     return c.json(newProject, 201);
   }
 
-  static async updateProject(c: Context) {
+  static async updateProject(c: Context): Promise<any> {
     const orgId = c.get("organizationId");
     const id = c.req.param("id");
     if (!id) {
@@ -237,21 +237,34 @@ export class ProjectsController {
       );
     }
 
+    if (baseValidation.data.status && baseValidation.data.status !== existing.status) {
+      return c.json(
+        {
+          error: "Direct status updates forbidden",
+          message:
+            "Project status cannot be changed directly via general updates. Use the advance-status workflow endpoint.",
+        },
+        400,
+      );
+    }
+
     const [updatedProject] = await db
       .update(projects)
       .set({
         clientId: baseValidation.data.clientId,
         name: baseValidation.data.name,
-        status: baseValidation.data.status,
+        status: existing.status,
         customFields: customFieldsValidation.data,
+        version: sql`${projects.version} + 1`,
+        updatedAt: new Date(),
       })
-      .where(eq(projects.id, id))
+      .where(and(eq(projects.id, id), eq(projects.organizationId, orgId)))
       .returning();
 
     return c.json(updatedProject);
   }
 
-  static async archiveProject(c: Context) {
+  static async archiveProject(c: Context): Promise<any> {
     const orgId = c.get("organizationId");
     const id = c.req.param("id");
     if (!id) {
@@ -279,7 +292,7 @@ export class ProjectsController {
     return c.json(updated);
   }
 
-  static async unarchiveProject(c: Context) {
+  static async unarchiveProject(c: Context): Promise<any> {
     const orgId = c.get("organizationId");
     const id = c.req.param("id");
     if (!id) {
@@ -307,7 +320,7 @@ export class ProjectsController {
     return c.json(updated);
   }
 
-  static async deleteProject(c: Context) {
+  static async deleteProject(c: Context): Promise<any> {
     const orgId = c.get("organizationId");
     const id = c.req.param("id");
     if (!id) {
@@ -344,7 +357,7 @@ export class ProjectsController {
     return c.json({ success: true });
   }
 
-  static async deleteAttachment(c: Context) {
+  static async deleteAttachment(c: Context): Promise<any> {
     const orgId = c.get("organizationId");
     const projectId = c.req.param("id");
     const attachmentId = c.req.param("attachmentId");
@@ -375,7 +388,7 @@ export class ProjectsController {
     return c.json({ success: true });
   }
 
-  static async getAttachmentUploadUrl(c: Context) {
+  static async getAttachmentUploadUrl(c: Context): Promise<any> {
     const orgId = c.get("organizationId");
     const projectId = c.req.param("id");
 
@@ -401,7 +414,7 @@ export class ProjectsController {
     return c.json({ ...result, fileId });
   }
 
-  static async saveAttachment(c: Context) {
+  static async saveAttachment(c: Context): Promise<any> {
     const orgId = c.get("organizationId");
     const projectId = c.req.param("id");
 
@@ -431,7 +444,7 @@ export class ProjectsController {
     return c.json(attachment, 201);
   }
 
-  static async listAttachments(c: Context) {
+  static async listAttachments(c: Context): Promise<any> {
     const orgId = c.get("organizationId");
     const projectId = c.req.param("id");
 
@@ -455,7 +468,7 @@ export class ProjectsController {
     return c.json(result);
   }
 
-  static async renameAttachment(c: Context) {
+  static async renameAttachment(c: Context): Promise<any> {
     const orgId = c.get("organizationId");
     const projectId = c.req.param("id");
     const attachmentId = c.req.param("attachmentId");
@@ -625,14 +638,21 @@ export class ProjectsController {
       );
 
     // Merge existing customFields with incoming overrides for this transition
-    const mergedFields = { ...project.customFields, ...incomingCustomFields };
+    const rawMergedFields = {
+      ...((project.customFields as Record<string, any>) ?? {}),
+      ...incomingCustomFields,
+    };
 
-    const missingFields: { fieldKey: string; fieldName: string }[] = [];
+    const missingFields: { fieldId: string; fieldKey: string; fieldName: string }[] = [];
     for (const rf of requiredFields) {
-      const value = mergedFields[rf.fieldKey];
+      const value = rawMergedFields[rf.fieldKey];
       const isEmpty = value === undefined || value === null || value === "";
       if (isEmpty) {
-        missingFields.push({ fieldKey: rf.fieldKey, fieldName: rf.fieldName });
+        missingFields.push({
+          fieldId: rf.fieldId,
+          fieldKey: rf.fieldKey,
+          fieldName: rf.fieldName,
+        });
       }
     }
 
@@ -647,27 +667,83 @@ export class ProjectsController {
       );
     }
 
+    // 5b. Validate custom fields schema against organization definitions
+    const definitions = await db.query.customFieldDefinitions.findMany({
+      where: and(
+        eq(customFieldDefinitions.organizationId, orgId),
+        eq(customFieldDefinitions.entityType, "project"),
+      ),
+    });
+
+    const dynamicSchema = createDynamicZodSchema(definitions);
+    const customFieldsValidation = dynamicSchema.safeParse(rawMergedFields);
+
+    if (!customFieldsValidation.success) {
+      return c.json(
+        {
+          error: "Custom Fields Validation Error",
+          message: "One or more custom fields have invalid data formats.",
+          details: customFieldsValidation.error.format(),
+        },
+        422,
+      );
+    }
+
     // 6. Execute the transition — update status, append previous status to history,
-    //    and merge any submitted field values.
+    //    and merge any validated submitted field values.
     const previousHistory: string[] = Array.isArray(project.statusHistory)
       ? project.statusHistory
       : [];
+    const previousStageFieldHistory: any[] = Array.isArray(project.stageFieldHistory)
+      ? project.stageFieldHistory
+      : [];
+
+    const stageSnapshot = {
+      stageId: project.status,
+      timestamp: new Date().toISOString(),
+      fields: { ...rawMergedFields },
+    };
+
+    const currentVersion = project.version ?? 1;
     const [updatedProject] = await db
       .update(projects)
       .set({
         status: toStatusId,
         statusHistory: [...previousHistory, project.status], // append the stage we're leaving
-        customFields: mergedFields,
+        stageFieldHistory: [...previousStageFieldHistory, stageSnapshot], // record stage field audit snapshot
+        customFields: customFieldsValidation.data,
+        version: sql`${projects.version} + 1`,
         updatedAt: new Date(),
       })
-      .where(eq(projects.id, id))
+      .where(
+        and(
+          eq(projects.id, id),
+          eq(projects.organizationId, orgId),
+          eq(projects.version, currentVersion),
+        ),
+      )
       .returning();
+
+    if (!updatedProject) {
+      return c.json(
+        {
+          error: "Concurrent update conflict",
+          message:
+            "This file was modified concurrently by another user or session. Please refresh and try again.",
+        },
+        409,
+      );
+    }
 
     log.info(
       { orgId, projectId: id, fromStatus: project.status, toStatus: toStatusId },
       "Project status advanced",
     );
 
-    return c.json(updatedProject);
+    const { scrubEntityData, getScrubberConfig } = await import("../../infra/lib/data-scrubber");
+    const scrubberConfig = await getScrubberConfig(c, "project");
+    const scrubbedProject = scrubEntityData(updatedProject, scrubberConfig, "project");
+
+    return c.json(scrubbedProject);
   }
 }

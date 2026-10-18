@@ -26,6 +26,7 @@ import { ProjectsController } from "./projects.controller";
 const { mockDbQuery, mockDbSelect, mockDbUpdate } = vi.hoisted(() => {
   const mockDbQuery = {
     projects: { findFirst: vi.fn() },
+    customFieldDefinitions: { findMany: vi.fn() },
   };
   const mockDbSelect = vi.fn();
   const mockDbUpdate = vi.fn();
@@ -44,6 +45,8 @@ vi.mock("@starter/db", () => ({
     status: "status",
     lifecycleState: "lifecycle_state",
     customFields: "custom_fields",
+    version: "version",
+    stageFieldHistory: "stage_field_history",
   },
   projectStatuses: { id: "id", organizationId: "organization_id" },
   projectStatusTransitions: {
@@ -68,7 +71,12 @@ vi.mock("../../infra/lib/logger", () => ({
 }));
 
 vi.mock("../custom-fields/custom-fields.service", () => ({
-  createDynamicZodSchema: () => ({ safeParse: (data: any) => ({ success: true, data }) }),
+  createDynamicZodSchema: vi.fn(() => ({ safeParse: (data: any) => ({ success: true, data }) })),
+}));
+
+vi.mock("../../infra/lib/data-scrubber", () => ({
+  getScrubberConfig: vi.fn().mockResolvedValue({}),
+  scrubEntityData: vi.fn((entity: any) => entity),
 }));
 
 // ─── Helpers ──────────────────────────────────────────────────────────────
@@ -121,7 +129,10 @@ function updateChainable(result: any[]) {
 // ─── Tests ────────────────────────────────────────────────────────────────
 
 describe("advanceStatus — happy path", () => {
-  beforeEach(() => vi.clearAllMocks());
+  beforeEach(() => {
+    vi.clearAllMocks();
+    mockDbQuery.customFieldDefinitions.findMany.mockResolvedValue([]);
+  });
 
   it("transitions successfully when all required fields are present", async () => {
     const project = {
@@ -215,7 +226,10 @@ describe("advanceStatus — happy path", () => {
 });
 
 describe("advanceStatus — transition graph enforcement", () => {
-  beforeEach(() => vi.clearAllMocks());
+  beforeEach(() => {
+    vi.clearAllMocks();
+    mockDbQuery.customFieldDefinitions.findMany.mockResolvedValue([]);
+  });
 
   it("returns 422 when the transition is not in the workflow graph", async () => {
     const project = {
@@ -303,7 +317,10 @@ describe("advanceStatus — transition graph enforcement", () => {
 });
 
 describe("advanceStatus — Scenario A: pre-transition required fields", () => {
-  beforeEach(() => vi.clearAllMocks());
+  beforeEach(() => {
+    vi.clearAllMocks();
+    mockDbQuery.customFieldDefinitions.findMany.mockResolvedValue([]);
+  });
 
   it("returns 422 with missingFields list when required fields are not filled", async () => {
     const project = {
@@ -410,5 +427,133 @@ describe("advanceStatus — Scenario A: pre-transition required fields", () => {
     expect(res._status).toBe(422);
     expect(res._data.missingFields).toHaveLength(1);
     expect(res._data.missingFields[0].fieldKey).toBe(FIELD_KEY_B);
+    expect(res._data.missingFields[0].fieldId).toBe("f2");
+    expect(res._data.missingFields[0].fieldName).toBe("Vessel Name");
+  });
+
+  it("returns 422 when custom fields fail dynamic schema validation", async () => {
+    const project = {
+      id: PROJECT_ID,
+      organizationId: ORG_ID,
+      status: FROM_STATUS_ID,
+      lifecycleState: "open",
+      customFields: {},
+    };
+    const targetStatus = { id: TO_STATUS_ID, name: "Completed", organizationId: ORG_ID };
+    const allowedTransition = [{ id: "t1" }];
+
+    mockDbQuery.projects.findFirst.mockResolvedValueOnce(project);
+    mockDbSelect
+      .mockReturnValueOnce(selectChainable([targetStatus]))
+      .mockReturnValueOnce(selectChainable(allowedTransition))
+      .mockReturnValueOnce(selectChainable([{ id: "t1" }]))
+      .mockReturnValueOnce(selectChainable([])); // no required fields
+
+    const { createDynamicZodSchema } = await import("../custom-fields/custom-fields.service");
+    vi.mocked(createDynamicZodSchema).mockReturnValueOnce({
+      safeParse: () => ({
+        success: false,
+        error: { format: () => ({ [FIELD_KEY_A]: { _errors: ["Invalid date"] } }) },
+      }),
+    } as any);
+
+    const ctx = makeCtx({
+      toStatusId: TO_STATUS_ID,
+      customFields: { [FIELD_KEY_A]: "invalid-date" },
+    });
+    const res = await ProjectsController.advanceStatus(ctx as any);
+    expect(res._status).toBe(422);
+    expect(res._data.error).toContain("Custom Fields Validation Error");
+    expect(res._data.details[FIELD_KEY_A]._errors).toContain("Invalid date");
+  });
+
+  it("returns 409 Conflict when a concurrent modification occurs (optimistic locking)", async () => {
+    const project = {
+      id: PROJECT_ID,
+      organizationId: ORG_ID,
+      status: FROM_STATUS_ID,
+      lifecycleState: "open",
+      customFields: {},
+      version: 2,
+    };
+    const targetStatus = { id: TO_STATUS_ID, name: "Completed", organizationId: ORG_ID };
+    const allowedTransition = [{ id: "t1" }];
+
+    mockDbQuery.projects.findFirst.mockResolvedValueOnce(project);
+    mockDbSelect
+      .mockReturnValueOnce(selectChainable([targetStatus]))
+      .mockReturnValueOnce(selectChainable(allowedTransition))
+      .mockReturnValueOnce(selectChainable([{ id: "t1" }]))
+      .mockReturnValueOnce(selectChainable([])); // no required fields
+
+    // Concurrent request changed the row's version before our update resolved
+    mockDbUpdate.mockReturnValueOnce(updateChainable([]));
+
+    const ctx = makeCtx({ toStatusId: TO_STATUS_ID });
+    const res = await ProjectsController.advanceStatus(ctx as any);
+    expect(res._status).toBe(409);
+    expect(res._data.error).toContain("Concurrent update conflict");
   });
 });
+
+describe("updateProject — status bypassing guard and concurrency", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    mockDbQuery.customFieldDefinitions.findMany.mockResolvedValue([]);
+  });
+
+  it("rejects direct status modification with 400 when attempting to bypass workflow", async () => {
+    const existingProject = {
+      id: PROJECT_ID,
+      organizationId: ORG_ID,
+      name: "Existing Project",
+      clientId: "client-001",
+      status: FROM_STATUS_ID,
+      customFields: {},
+      version: 1,
+    };
+    mockDbQuery.projects.findFirst.mockResolvedValueOnce(existingProject);
+
+    const ctx = makeCtx({
+      name: "Renamed Project",
+      clientId: "client-001",
+      status: TO_STATUS_ID, // Attempting to change status directly!
+      customFields: {},
+    });
+
+    const res = await ProjectsController.updateProject(ctx as any);
+    expect(res._status).toBe(400);
+    expect((res._data as any).error).toBe("Direct status updates forbidden");
+  });
+
+  it("allows general updates when status is omitted or matches existing status", async () => {
+    const existingProject = {
+      id: PROJECT_ID,
+      organizationId: ORG_ID,
+      name: "Existing Project",
+      clientId: "client-001",
+      status: FROM_STATUS_ID,
+      customFields: {},
+      version: 1,
+    };
+    const updatedProject = {
+      ...existingProject,
+      name: "Renamed Project",
+      version: 2,
+    };
+    mockDbQuery.projects.findFirst.mockResolvedValueOnce(existingProject);
+    mockDbUpdate.mockReturnValueOnce(updateChainable([updatedProject]));
+
+    const ctx = makeCtx({
+      name: "Renamed Project",
+      clientId: "client-001",
+      status: FROM_STATUS_ID, // same status
+      customFields: {},
+    });
+
+    const res = await ProjectsController.updateProject(ctx as any);
+    expect(res._status).toBe(200);
+    expect((res._data as any).name).toBe("Renamed Project");
+  });
+});
+
