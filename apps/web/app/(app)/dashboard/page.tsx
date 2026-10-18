@@ -159,7 +159,7 @@ export default function DashboardPage() {
           </div>
 
           {/* Quick Actions Guarded by PBAC */}
-          <Can I="invoice:create">
+          <Can I="invoice:create_draft">
             <Link href="/dashboard/invoices">
               <Button size="sm" className="gap-1.5 shadow-sm">
                 <Plus className="h-4 w-4" />

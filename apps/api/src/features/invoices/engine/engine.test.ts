@@ -254,7 +254,7 @@ describe("Invoice Engine Engine & Security Hardening Unit Tests", () => {
       ];
 
       const dag = DagValidatorService.validate(sections);
-      const { errors } = AstEvaluatorService.evaluate(
+      const { evaluatedSections, notices } = AstEvaluatorService.evaluate(
         sections,
         {},
         {},
@@ -263,9 +263,12 @@ describe("Invoice Engine Engine & Security Hardening Unit Tests", () => {
         dag.topologicalOrder,
       );
 
-      expect(errors.length).toBeGreaterThan(0);
-      expect(errors[0].code).toBe("DIVISION_BY_ZERO");
-      expect(errors[0].message).toContain("Division by zero");
+      const row = evaluatedSections[0].rows[0];
+      expect(row.baseValue).toBe("0.000000");
+      expect(notices?.length).toBeGreaterThan(0);
+      expect(notices?.[0].code).toBe("DIVISION_BY_ZERO");
+      expect(notices?.[0].message).toContain("Division by zero");
+      expect(row.notices?.[0].code).toBe("DIVISION_BY_ZERO");
     });
 
     it("preserves exact decimal math without floating-point precision loss", () => {
@@ -315,7 +318,7 @@ describe("Invoice Engine Engine & Security Hardening Unit Tests", () => {
           limit: vi
             .fn()
             .mockResolvedValue([
-              { documentPrefix: "PDA", numberingFormat: "{PREFIX}-{YYYY}-{MM}-{SEQ:4}" },
+              { documentPrefix: "INV", numberingFormat: "{PREFIX}-{YYYY}-{MM}-{SEQ:4}" },
             ]),
         })),
         insert: vi.fn(() => ({
@@ -340,7 +343,7 @@ describe("Invoice Engine Engine & Security Hardening Unit Tests", () => {
       const YYYY = now.getFullYear().toString();
       const MM = (now.getMonth() + 1).toString().padStart(2, "0");
 
-      expect(docNum).toBe(`PDA-${YYYY}-${MM}-0008`);
+      expect(docNum).toBe(`INV-${YYYY}-${MM}-0008`);
     });
   });
 });

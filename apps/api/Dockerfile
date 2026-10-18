@@ -107,4 +107,4 @@ WORKDIR /app/apps/api
 # The command that runs when Render starts the container.
 # We use tsx to run the compiled JS because Node strictly requires .js extensions
 # for relative ESM imports, which tsc does not emit. tsx resolves this automatically.
-CMD ["pnpm", "exec", "tsx", "dist/index.js"]
+CMD ["pnpm", "exec", "tsx", "dist/server.js"]

@@ -54,16 +54,77 @@ const math: MathJsInstance = create(all, {
 const ZERO = math.bignumber("0");
 const FIXED_SCALE = 6;
 
+export const MATH_FUNCTION_NAMES = new Set(["MIN", "MAX", "ROUND", "CLAMP", "ABS"]);
+
+const origMin = math.min;
+const origMax = math.max;
+const origRound = math.round;
+const origAbs = math.abs;
+
+math.import(
+  {
+    MIN: (...args: any[]) => origMin(...args.map(safeBN)),
+    min: (...args: any[]) => origMin(...args.map(safeBN)),
+    MAX: (...args: any[]) => origMax(...args.map(safeBN)),
+    max: (...args: any[]) => origMax(...args.map(safeBN)),
+    ROUND: (val: any, decimals: any = 0) => {
+      const dec = typeof decimals === "number" ? decimals : parseInt(String(decimals || 0), 10);
+      return origRound(safeBN(val), dec);
+    },
+    round: (val: any, decimals: any = 0) => {
+      const dec = typeof decimals === "number" ? decimals : parseInt(String(decimals || 0), 10);
+      return origRound(safeBN(val), dec);
+    },
+    ABS: (val: any) => origAbs(safeBN(val)),
+    abs: (val: any) => origAbs(safeBN(val)),
+    CLAMP: (val: any, minVal: any, maxVal: any) => {
+      const bnVal = safeBN(val);
+      const bnMin = safeBN(minVal);
+      const bnMax = safeBN(maxVal);
+      if (math.smaller(bnVal, bnMin)) return bnMin;
+      if (math.larger(bnVal, bnMax)) return bnMax;
+      return bnVal;
+    },
+    clamp: (val: any, minVal: any, maxVal: any) => {
+      const bnVal = safeBN(val);
+      const bnMin = safeBN(minVal);
+      const bnMax = safeBN(maxVal);
+      if (math.smaller(bnVal, bnMin)) return bnMin;
+      if (math.larger(bnVal, bnMax)) return bnMax;
+      return bnVal;
+    },
+  },
+  { override: true },
+);
+
 function toFixed(val: BigNumber): string {
   return math.format(val, { notation: "fixed", precision: FIXED_SCALE });
 }
 
-function safeBN(val: string | number | null | undefined): BigNumber {
+function safeBN(val: BigNumber | string | number | null | undefined): BigNumber {
   try {
     if (val == null || val === "") return ZERO;
+    if (typeof val === "object" && val !== null && "isBigNumber" in val) return val as BigNumber;
     return math.bignumber(String(val));
   } catch {
     return ZERO;
+  }
+}
+
+/**
+ * Formats a BigNumber or numeric string to standard commercial 2-decimal currency format
+ * with ROUND_HALF_UP rounding.
+ */
+export function roundToCurrency(val: BigNumber | string | number | null | undefined): string {
+  if (val == null || val === "") return "0.00";
+  try {
+    const bn =
+      typeof val === "object" && val !== null && "toFixed" in val
+        ? (val as BigNumber)
+        : math.bignumber(String(val));
+    return bn.toFixed(2);
+  } catch {
+    return "0.00";
   }
 }
 
@@ -75,14 +136,15 @@ function safeBN(val: string | number | null | undefined): BigNumber {
  * Evaluates a bare-token formula expression against the current scope.
  * Returns the BigNumber result or throws an EngineError on failure.
  *
- * @param noticeCollector - If provided, unknown tokens are zero-filled and
- *   an UNRESOLVED_REFERENCE notice is pushed here instead of throwing.
+ * @param noticeCollector - If provided, unknown tokens and division by zero are treated
+ *   non-fatally (zero-filled with a diagnostic notice pushed here instead of throwing).
  */
 function evalFormula(
   formula: string,
   scope: EngineContext,
   contextLabel: string,
   noticeCollector?: EngineError[],
+  rowToken?: string,
 ): BigNumber {
   const TOKEN_RE = /\b([A-Z_][A-Z0-9_]*)\b/g;
   let resolvedFormula = formula;
@@ -92,6 +154,7 @@ function evalFormula(
     TOKEN_RE.lastIndex = 0;
     while ((m = TOKEN_RE.exec(formula)) !== null) {
       const tok = m[1];
+      if (MATH_FUNCTION_NAMES.has(tok)) continue;
       if (!(tok in scope)) unknownTokens.add(tok);
     }
     for (const tok of unknownTokens) {
@@ -99,6 +162,7 @@ function evalFormula(
         code: "UNRESOLVED_REFERENCE",
         message: `Token "${tok}" is not yet defined — treated as 0.`,
         token: tok,
+        rowToken,
         formula,
       } as EngineError);
       resolvedFormula = resolvedFormula.replace(new RegExp(`\\b${tok}\\b`, "g"), "0");
@@ -118,11 +182,21 @@ function evalFormula(
       err?.message?.includes("Division by zero") ||
       err?.message?.includes("Infinity") ||
       err?.code === "DIVISION_BY_ZERO";
+    if (isDivZero && noticeCollector !== undefined) {
+      noticeCollector.push({
+        code: "DIVISION_BY_ZERO",
+        message: `Division by zero in ${contextLabel}: "${formula}" — evaluated to 0.`,
+        rowToken,
+        formula,
+      } as EngineError);
+      return ZERO;
+    }
     throw {
       code: isDivZero ? "DIVISION_BY_ZERO" : "EVALUATION_FAILED",
       message: isDivZero
         ? `Division by zero in ${contextLabel}: "${formula}".`
         : `Failed to evaluate formula in ${contextLabel}: "${formula}". Error: ${err?.message ?? String(err)}`,
+      rowToken,
       formula,
     } as EngineError;
   }
@@ -144,6 +218,7 @@ export class AstEvaluatorService {
     evaluatedSections: EvaluatedSection[];
     grandTotal: string;
     errors: EngineError[];
+    notices?: EngineError[];
   } {
     const errors: EngineError[] = [];
     const notices: EngineError[] = [];
@@ -222,7 +297,7 @@ export class AstEvaluatorService {
                 secIdToToken,
                 tplIdToToken,
               );
-              baseValue = evalFormula(decoded, scope, `row "${row.label}"`, notices);
+              baseValue = evalFormula(decoded, scope, `row "${row.label}"`, notices, row.rowToken);
             } catch (err: any) {
               errors.push({ ...(err as EngineError), rowToken: row.rowToken });
             }
@@ -275,7 +350,7 @@ export class AstEvaluatorService {
               secIdToToken,
               tplIdToToken,
             );
-            val = evalFormula(decoded, scope, `row charge "${charge.label}"`, notices);
+            val = evalFormula(decoded, scope, `row charge "${charge.label}"`, notices, rowToken);
           } catch (err: any) {
             errors.push({ ...(err as EngineError), rowToken });
           }
@@ -446,6 +521,7 @@ export class AstEvaluatorService {
       evaluatedSections,
       grandTotal: toFixed(grandTotal),
       errors,
+      notices,
     };
   }
 }

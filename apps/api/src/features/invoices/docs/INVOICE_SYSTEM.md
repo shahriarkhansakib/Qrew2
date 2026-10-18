@@ -323,11 +323,17 @@ All routes are mounted under `/api` (see `invoices.route.ts` and `invoice-templa
 | Action | Required Permission |
 |---|---|
 | View invoices list | `invoice:view` |
-| Generate invoice / create draft | `invoice:create` |
+| Generate invoice / create draft | `invoice:create_draft` |
 | View draft page | `invoice:view` |
-| Enter edit mode on draft | `invoice:edit` |
-| Finalize invoice | `invoice:finalize` |
-| Manage templates | `template:manage` (admin/billing manager) |
+| Fill manual rates & quantities | `invoice:fill_values` |
+| Customize line item labels | `invoice:edit_line_labels` |
+| Manage optional service items | `invoice:manage_optional_rows` |
+| Author formulas in draft builder | `invoice:author_formulas` |
+| Finalize invoice (Ready to Bill) | `invoice:finalize` |
+| Revert invoice to draft | `invoice:revert` |
+| Void invoice | `invoice:void` |
+| Delete draft | `invoice:delete` |
+| Manage templates | `template:edit` / `template:create` |
 
 ---
 

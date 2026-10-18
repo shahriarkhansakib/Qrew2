@@ -41,7 +41,7 @@ export function StaffTabs() {
           Active Staff
         </TabsTrigger>
 
-        <Can I="staff:provision" fallback={<></>}>
+        <Can I="staff:invite" fallback={<></>}>
           <TabsTrigger
             value="pending"
             className="flex-none w-auto rounded-md data-[state=active]:bg-muted px-4 py-1.5 transition-colors hover:bg-muted/50 data-[state=active]:shadow-none data-[state=active]:text-foreground text-muted-foreground font-medium text-sm flex items-center gap-2"
@@ -66,7 +66,7 @@ export function StaffTabs() {
         </div>
       </TabsContent>
 
-      <Can I="staff:provision" fallback={<></>}>
+      <Can I="staff:invite" fallback={<></>}>
         <TabsContent
           value="pending"
           className="mt-0 focus-visible:outline-none focus-visible:ring-0"

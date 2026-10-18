@@ -37,7 +37,31 @@ The engine maintains a strict, decoupled token taxonomy:
 | `<SEC_CHARGE_TOKEN>` | Individual Section Charge | Section-level charge value |
 | `TPL_<CONSTANT>` | Template Constant | Defined per template |
 | `GBL_<CONSTANT>` | Global Constant | System / Organization constant |
-| `FILE_<FIELD>` | File / Vessel Field | Vessel specification (e.g. `GRT`, `LOA`, `BEAM`) |
+| `FILE_<FIELD>` | Project Custom Field | Stored in `projects.customFields` (e.g. `HOURS`, `RETAINER_RATE`) |
+| `EXP_<CATEGORY>` | Expense Category Total | Real-time sum of project expenses matching category `tokenKey` |
+| `EXP_TOTAL` | Total Project Expenses | Real-time sum of all recorded project expenses |
+| `PERIOD_START` | Billing Period Start | Invoicing period start timestamp or boundary |
+| `PERIOD_END` | Billing Period End | Invoicing period end timestamp or boundary |
+
+---
+
+## 2.1 AST Math Functions & Extensions (`ast-evaluator.service.ts`)
+
+The evaluation engine natively supports the following financial and mathematical functions via `mathjs`:
+
+| Function | Signature | Description |
+| :--- | :--- | :--- |
+| `CLAMP` | `CLAMP(value, min, max)` | Constrains `value` to lie between `min` and `max` (inclusive) |
+| `MIN` | `MIN(a, b, ...)` | Returns the smallest value among the arguments |
+| `MAX` | `MAX(a, b, ...)` | Returns the largest value among the arguments |
+| `ROUND` | `ROUND(value, [decimals])` | Rounds to the specified number of decimal places (default: 0) |
+| `FLOOR` | `FLOOR(value)` | Rounds down to the nearest integer |
+| `CEIL` | `CEIL(value)` | Rounds up to the nearest integer |
+| `ABS` | `ABS(value)` | Returns the absolute value |
+
+### Period Scoping & Live Dynamic Sync
+- When `periodStart` and `periodEnd` are `null`, the engine dynamically aggregates **all** recorded expenses for the project (`EXP_*`, `EXP_TOTAL`), ensuring live recalculation as new expenses are logged.
+- When `periodStart` and `periodEnd` are provided, the engine scopes `EXP_*` and `EXP_TOTAL` strictly to expense entries matching `e.spentAt >= periodStart AND e.spentAt <= periodEnd`.
 
 ---
 

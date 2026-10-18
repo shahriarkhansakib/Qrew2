@@ -91,7 +91,7 @@ describe("Data Scrubber", () => {
   it("should scrub private Category 1 system fields if not owner", () => {
     const config: ScrubberContext = {
       isOwner: false,
-      userPermissions: new Set(["file:view_sensitive", "file:view_detailed"]),
+      userPermissions: new Set(["file:view_sensitive", "file:view_details"]),
       orgSettings: {
         sysPrivateFields: ["sys-project-name"], // Project name is private
       },
@@ -123,7 +123,7 @@ describe("Data Scrubber", () => {
   it("should retain sensitive and detailed Category 1 fields if user has permission", () => {
     const config: ScrubberContext = {
       isOwner: false,
-      userPermissions: new Set(["file:view_sensitive", "file:view_detailed"]),
+      userPermissions: new Set(["file:view_sensitive", "file:view_details"]),
       orgSettings: {
         sysSensitiveFields: ["sys-project-status"],
         sysDetailedFields: ["sys-project-client"],
@@ -139,7 +139,7 @@ describe("Data Scrubber", () => {
   it("should scrub private/sensitive/detailed Category 2 custom fields based on permissions", () => {
     const config: ScrubberContext = {
       isOwner: false,
-      userPermissions: new Set(["file:view_detailed"]), // Has detailed, lacks sensitive
+      userPermissions: new Set(["file:view_details"]), // Has detailed, lacks sensitive
       orgSettings: {},
       customFieldDefinitions: customFieldDefinitions as any,
     };

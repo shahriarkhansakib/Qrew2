@@ -13,7 +13,7 @@ router.get("/", requisitionsController.listRequisitions);
 
 router.post(
   "/:id/action",
-  requireOrgPermission("finance:approve_requisition"),
+  requireOrgPermission("finance:approve_funds"),
   requisitionsController.actionRequisition,
 );
 

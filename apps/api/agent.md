@@ -16,7 +16,8 @@ This is an Enterprise B2B SaaS serving as a central operating system for organiz
 1. **Scale to 100k+:** Proactively design every API route and database schema assuming it will handle 100,000 concurrent users. 
 2. **O(log n) Reads:** All critical database queries MUST hit an index. Identify missing composite indexes or B-Tree indexes when designing new tables.
 3. **Schema Normalization:** Table names must be plural (e.g., `organizations`, `members`). Never use the Entity-Attribute-Value (EAV) pattern; utilize PostgreSQL's native `JSONB` for dynamic tenant metadata.
-4. **The PBAC Engine:** Never trust the client. Every protected route must pass through the `requireOrgPermission(permissionKey)` middleware. Validate the active tenant context (`session.activeOrganizationId`) mathematically against the requested resource.
+4. **The PBAC Engine:** Never trust the client. Every protected route must pass through the `requireOrgPermission(permissionKey: AppPermission | AppPermission[])` middleware using canonical permissions from `@starter/db`. Magic string literals and legacy aliases (e.g. `invoice:create`, `invoice:edit`) are strictly prohibited. Validate the active tenant context (`session.activeOrganizationId`) mathematically against the requested resource.
+
 
 ## Code Quality & Security
 1. **Merciless Reviews:** Prioritize finding Big-O performance bottlenecks and OWASP Top 10 vulnerabilities (e.g., IDOR, Privilege Escalation).

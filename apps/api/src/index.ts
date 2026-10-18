@@ -1,4 +1,5 @@
 import { Hono } from "hono";
+import { cors } from "hono/cors";
 import { adminRouter } from "./features/admin/admin.route";
 import { authRouter } from "./features/auth/auth.route";
 import { brandsRouter } from "./features/brands/brands.route";
@@ -30,6 +31,24 @@ const app = new Hono<{ Variables: AuthVariables }>();
 // ---------------------------------------------------------------
 // Global Middleware (The Core)
 // ---------------------------------------------------------------
+// Enable CORS for external/mobile clients & standalone server mode
+app.use(
+  "*",
+  cors({
+    origin: (origin) => origin || process.env.NEXT_PUBLIC_APP_URL || "http://localhost:5002",
+    allowHeaders: [
+      "Content-Type",
+      "Authorization",
+      "Cookie",
+      "x-organization-id",
+      "x-workspace-id",
+      "better-auth-agent",
+    ],
+    allowMethods: ["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
+    credentials: true,
+  }),
+);
+
 // Custom Pino request logger — replaces hono/logger with structured JSON
 app.use("*", async (c, next) => {
   c.set("logger" as any, apiLogger);
@@ -99,3 +118,4 @@ app.onError((err, c) => {
 });
 
 export default app;
+export type { AppPermission } from "@starter/db";

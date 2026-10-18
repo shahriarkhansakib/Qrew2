@@ -10,12 +10,16 @@ import {
   tokens,
 } from "@starter/db";
 import { and, eq } from "drizzle-orm";
+import { all, create, type MathJsInstance } from "mathjs";
 import { AstEvaluatorService } from "./ast-evaluator.service";
 import { DagValidatorService } from "./dag-validator.service";
 import { generateDocumentNumber } from "./document-number";
-import { resolveScope } from "./token-resolver.service";
+import { parseToBN, resolveScope } from "./token-resolver.service";
+
+const math: MathJsInstance = create(all, { number: "BigNumber", precision: 20 });
 
 interface FreezeParams {
+  draftId?: string;
   organizationId: string;
   projectId: string;
   clientId: string;
@@ -26,6 +30,8 @@ interface FreezeParams {
   issuedToClientName: string;
   currency?: string;
   notes?: string;
+  periodStart?: string | Date | null;
+  periodEnd?: string | Date | null;
 }
 
 /**
@@ -40,13 +46,11 @@ export async function freezeInvoice(params: FreezeParams) {
     // ─────────────────────────────────────────────────────────────────────
     // STEP 1: Load draft sections from invoice_drafts DB table
     // ─────────────────────────────────────────────────────────────────────
-    const [draft] = await tx
-      .select()
-      .from(invoiceDrafts)
-      .where(
-        and(eq(invoiceDrafts.projectId, params.projectId), eq(invoiceDrafts.userId, params.userId)),
-      )
-      .limit(1);
+    const draftCondition = params.draftId
+      ? eq(invoiceDrafts.id, params.draftId)
+      : and(eq(invoiceDrafts.projectId, params.projectId), eq(invoiceDrafts.userId, params.userId));
+
+    const [draft] = await tx.select().from(invoiceDrafts).where(draftCondition).limit(1);
 
     const draftSections: any[] = draft?.draftSections ?? [];
 
@@ -60,6 +64,8 @@ export async function freezeInvoice(params: FreezeParams) {
       templateId: params.sourceTemplateId ?? "",
       db: tx,
       headerFieldValues,
+      periodStart: params.periodStart,
+      periodEnd: params.periodEnd,
     });
 
     // Build lookup maps for formula decoding from draft and template
@@ -148,17 +154,17 @@ export async function freezeInvoice(params: FreezeParams) {
       );
     }
 
-    let totalBase = 0;
+    let totalBase = parseToBN(0);
     for (const section of evalResult.evaluatedSections) {
-      totalBase += parseFloat(section.sectionBase ?? "0");
+      totalBase = math.add(totalBase, parseToBN(section.sectionBase ?? "0")) as any;
     }
 
-    const grandTotalNum = parseFloat(evalResult.grandTotal ?? "0");
-    const totalChargesNum = grandTotalNum - totalBase;
+    const grandTotalBN = parseToBN(evalResult.grandTotal ?? "0");
+    const totalChargesBN = math.subtract(grandTotalBN, totalBase) as any;
 
-    const grandTotal = grandTotalNum.toFixed(6);
+    const grandTotal = grandTotalBN.toFixed(6);
     const totalBaseStr = totalBase.toFixed(6);
-    const totalChargesStr = totalChargesNum.toFixed(6);
+    const totalChargesStr = totalChargesBN.toFixed(6);
 
     // ─────────────────────────────────────────────────────────────────────
     // STEP 4: Insert invoice placeholder (status='draft')
@@ -327,11 +333,18 @@ export async function freezeInvoice(params: FreezeParams) {
     // ─────────────────────────────────────────────────────────────────────
     // STEP 9: Delete the draft
     // ─────────────────────────────────────────────────────────────────────
-    await tx
-      .delete(invoiceDrafts)
-      .where(
-        and(eq(invoiceDrafts.projectId, params.projectId), eq(invoiceDrafts.userId, params.userId)),
-      );
+    if (draft?.id) {
+      await tx.delete(invoiceDrafts).where(eq(invoiceDrafts.id, draft.id));
+    } else {
+      await tx
+        .delete(invoiceDrafts)
+        .where(
+          and(
+            eq(invoiceDrafts.projectId, params.projectId),
+            eq(invoiceDrafts.userId, params.userId),
+          ),
+        );
+    }
 
     return frozen;
   });

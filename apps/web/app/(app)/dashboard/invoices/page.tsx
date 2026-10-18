@@ -9,12 +9,14 @@ import {
   CornerUpLeft,
   Eye,
   FileText,
+  Loader2,
   MoreHorizontal,
   Pencil,
   Receipt,
   Send,
 } from "lucide-react";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { useState } from "react";
 import { toast } from "sonner";
 import { ClientDetailsModal } from "@/components/features/clients/client-details-modal";
@@ -63,6 +65,11 @@ const STATUS_META: Record<string, { label: string; color: string; icon: React.El
     label: "Issued",
     color: "bg-indigo-500/10 text-indigo-400 border-indigo-500/20",
     icon: Receipt,
+  },
+  disputed: {
+    label: "Disputed",
+    color: "bg-amber-500/10 text-amber-500 border-amber-500/20",
+    icon: AlertCircle,
   },
   paid: {
     label: "Paid",
@@ -126,6 +133,7 @@ function EmptyRow({ colSpan, message }: { colSpan: number; message: string }) {
 // ─── Page ─────────────────────────────────────────────────────────────────────
 
 export default function InvoicesPage() {
+  const router = useRouter();
   const [activeTab, setActiveTab] = useState("drafts");
   const [isGenerateModalOpen, setIsGenerateModalOpen] = useState(false);
   const [selectedProjectId, setSelectedProjectId] = useState<string | null>(null);
@@ -136,20 +144,36 @@ export default function InvoicesPage() {
   const [draftToDelete, setDraftToDelete] = useState<string | null>(null);
   const [isDeletingDraft, setIsDeletingDraft] = useState(false);
 
+  const [invoiceToRevert, setInvoiceToRevert] = useState<any | null>(null);
+  const [isReverting, setIsReverting] = useState(false);
+
   const queryClient = useQueryClient();
 
-  const handleAction = async (invoiceId: string, action: "unfreeze" | "mark-paid" | "issue") => {
+  const handleAction = async (
+    invoiceId: string,
+    action: "unfreeze" | "mark-paid" | "issue" | "dispute" | "void",
+  ) => {
     try {
       const res = await fetch(`${apiUrl}/api/invoices/${invoiceId}/${action}`, {
         method: "POST",
         credentials: "include",
       });
-      if (!res.ok) throw new Error("Action failed");
-      toast.success("Invoice updated successfully");
+      if (!res.ok) {
+        const data = await res.json().catch(() => ({}));
+        throw new Error(data.error || "Action failed");
+      }
+      const actionMessages: Record<string, string> = {
+        unfreeze: "Invoice reverted to draft for corrections",
+        dispute: "Invoice marked as disputed",
+        void: "Invoice marked as void",
+        issue: "Invoice marked as issued",
+        "mark-paid": "Invoice marked as paid",
+      };
+      toast.success(actionMessages[action] || "Invoice updated successfully");
       queryClient.invalidateQueries({ queryKey: ["invoices"] });
       queryClient.invalidateQueries({ queryKey: ["invoice-drafts"] });
-    } catch (_err) {
-      toast.error("Failed to update invoice");
+    } catch (err: any) {
+      toast.error(err.message || "Failed to update invoice");
     }
   };
 
@@ -224,7 +248,8 @@ export default function InvoicesPage() {
             <Table>
               <TableHeader>
                 <TableRow className="bg-muted/40 hover:bg-muted/40">
-                  <TableHead className="w-[50%]">Invoice / File</TableHead>
+                  <TableHead className="w-[38%]">Invoice / File</TableHead>
+                  <TableHead>Created By</TableHead>
                   <TableHead>Last Saved</TableHead>
                   <TableHead className="text-right">Actions</TableHead>
                 </TableRow>
@@ -232,13 +257,13 @@ export default function InvoicesPage() {
               <TableBody>
                 {draftsLoading ? (
                   <TableRow>
-                    <TableCell colSpan={3} className="text-center h-24 text-muted-foreground">
+                    <TableCell colSpan={4} className="text-center h-24 text-muted-foreground">
                       Loading drafts…
                     </TableCell>
                   </TableRow>
                 ) : (drafts ?? []).length === 0 ? (
                   <EmptyRow
-                    colSpan={3}
+                    colSpan={4}
                     message="No drafts found. Generate an invoice from a file to create a draft."
                   />
                 ) : (
@@ -256,13 +281,35 @@ export default function InvoicesPage() {
                           </span>
                         </div>
                       </TableCell>
+                      {/* Created By */}
+                      <TableCell className="text-sm">
+                        <div className="flex flex-col">
+                          <span className="font-medium text-xs">
+                            {draft.user?.name || draft.user?.email || "Team Member"}
+                          </span>
+                          {draft.createdAt && (
+                            <span className="text-[11px] text-muted-foreground">
+                              {format(new Date(draft.createdAt), "MMM d, yyyy")}
+                            </span>
+                          )}
+                        </div>
+                      </TableCell>
                       {/* Last saved */}
                       <TableCell className="text-sm text-muted-foreground">
-                        {draft.lastAutoSavedAt
-                          ? format(new Date(draft.lastAutoSavedAt), "MMM d, yyyy h:mm a")
-                          : draft.updatedAt
-                            ? format(new Date(draft.updatedAt), "MMM d, yyyy h:mm a")
-                            : "—"}
+                        <div className="flex flex-col">
+                          <span>
+                            {draft.lastAutoSavedAt
+                              ? format(new Date(draft.lastAutoSavedAt), "MMM d, yyyy h:mm a")
+                              : draft.updatedAt
+                                ? format(new Date(draft.updatedAt), "MMM d, yyyy h:mm a")
+                                : "—"}
+                          </span>
+                          {Array.isArray(draft.editHistory) && draft.editHistory.length > 1 && (
+                            <span className="text-[10px] text-muted-foreground font-mono">
+                              {draft.editHistory.length} revisions
+                            </span>
+                          )}
+                        </div>
                       </TableCell>
                       {/* Actions */}
                       <TableCell className="text-right">
@@ -451,11 +498,19 @@ export default function InvoicesPage() {
                               </DropdownMenuItem>
                               <DropdownMenuSeparator />
                               <DropdownMenuItem
-                                onClick={() => handleAction(inv.id, "unfreeze")}
+                                onClick={() => setInvoiceToRevert(inv)}
                                 className="text-accent-foreground focus:text-accent-foreground"
                               >
                                 <CornerUpLeft className="w-4 h-4 mr-2" />
                                 Revert to Draft
+                              </DropdownMenuItem>
+                              <DropdownMenuSeparator />
+                              <DropdownMenuItem
+                                onClick={() => handleAction(inv.id, "void")}
+                                className="text-red-600 focus:text-red-600"
+                              >
+                                <AlertCircle className="w-4 h-4 mr-2" />
+                                Void Invoice
                               </DropdownMenuItem>
                             </DropdownMenuContent>
                           </DropdownMenu>
@@ -475,29 +530,27 @@ export default function InvoicesPage() {
             <Table>
               <TableHeader>
                 <TableRow className="bg-muted/40 hover:bg-muted/40">
-                  <TableHead className="w-[30%]">Invoice</TableHead>
+                  <TableHead className="w-[28%]">Invoice</TableHead>
                   <TableHead>File</TableHead>
                   <TableHead>Client</TableHead>
                   <TableHead>Status</TableHead>
                   <TableHead>Issued</TableHead>
-                  <TableHead className="text-right">Total Amount</TableHead>
+                  <TableHead>Total Amount</TableHead>
+                  <TableHead className="text-right">Actions</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
                 {allLoading ? (
                   <TableRow>
-                    <TableCell colSpan={6} className="text-center h-24 text-muted-foreground">
+                    <TableCell colSpan={7} className="text-center h-24 text-muted-foreground">
                       Loading…
                     </TableCell>
                   </TableRow>
                 ) : billedInvoices.length === 0 ? (
-                  <EmptyRow colSpan={6} message="No completed invoices yet." />
+                  <EmptyRow colSpan={7} message="No completed invoices yet." />
                 ) : (
                   billedInvoices.map((inv: any) => (
-                    <TableRow
-                      key={inv.id}
-                      className="hover:bg-muted/30 transition-colors cursor-pointer group"
-                    >
+                    <TableRow key={inv.id} className="hover:bg-muted/30 transition-colors group">
                       {/* Invoice */}
                       <TableCell>
                         <div className="flex flex-col gap-0.5">
@@ -550,12 +603,105 @@ export default function InvoicesPage() {
                         {inv.issuedAt ? format(new Date(inv.issuedAt), "MMM d, yyyy") : "—"}
                       </TableCell>
                       {/* Amount */}
-                      <TableCell className="text-right font-bold tabular-nums text-sm">
+                      <TableCell className="font-bold tabular-nums text-sm">
                         $
                         {Number(inv.grandTotalAmount ?? inv.totalAmount ?? 0).toLocaleString(
                           undefined,
                           { minimumFractionDigits: 2, maximumFractionDigits: 2 },
                         )}
+                      </TableCell>
+                      {/* Actions */}
+                      <TableCell className="text-right">
+                        <div className="flex justify-end items-center gap-2">
+                          <Button variant="outline" size="sm" className="gap-1.5" asChild>
+                            <Link href={`/dashboard/invoices/${inv.id}`}>
+                              <Eye className="h-3.5 w-3.5" />
+                              View
+                            </Link>
+                          </Button>
+                          {inv.status !== "void" && (
+                            <DropdownMenu>
+                              <DropdownMenuTrigger asChild>
+                                <Button variant="ghost" size="icon" className="h-8 w-8">
+                                  <MoreHorizontal className="h-4 w-4" />
+                                </Button>
+                              </DropdownMenuTrigger>
+                              <DropdownMenuContent align="end">
+                                {inv.status === "issued" && (
+                                  <>
+                                    <DropdownMenuItem
+                                      onClick={() => handleAction(inv.id, "mark-paid")}
+                                    >
+                                      <CheckCircle2 className="w-4 h-4 mr-2" />
+                                      Mark as Paid
+                                    </DropdownMenuItem>
+                                    <DropdownMenuItem
+                                      onClick={() => handleAction(inv.id, "dispute")}
+                                    >
+                                      <AlertCircle className="w-4 h-4 mr-2 text-amber-500" />
+                                      Mark as Disputed
+                                    </DropdownMenuItem>
+                                    <DropdownMenuSeparator />
+                                    <DropdownMenuItem
+                                      onClick={() => setInvoiceToRevert(inv)}
+                                      className="text-accent-foreground focus:text-accent-foreground"
+                                    >
+                                      <CornerUpLeft className="w-4 h-4 mr-2" />
+                                      Revert to Draft (Correct)
+                                    </DropdownMenuItem>
+                                    <DropdownMenuSeparator />
+                                    <DropdownMenuItem
+                                      onClick={() => handleAction(inv.id, "void")}
+                                      className="text-red-600 focus:text-red-600"
+                                    >
+                                      <AlertCircle className="w-4 h-4 mr-2" />
+                                      Void Invoice
+                                    </DropdownMenuItem>
+                                  </>
+                                )}
+                                {inv.status === "disputed" && (
+                                  <>
+                                    <DropdownMenuItem onClick={() => handleAction(inv.id, "issue")}>
+                                      <Send className="w-4 h-4 mr-2" />
+                                      Resolve Dispute (Re-Issue)
+                                    </DropdownMenuItem>
+                                    <DropdownMenuItem
+                                      onClick={() => handleAction(inv.id, "mark-paid")}
+                                    >
+                                      <CheckCircle2 className="w-4 h-4 mr-2" />
+                                      Mark as Paid
+                                    </DropdownMenuItem>
+                                    <DropdownMenuSeparator />
+                                    <DropdownMenuItem
+                                      onClick={() => setInvoiceToRevert(inv)}
+                                      className="text-accent-foreground focus:text-accent-foreground"
+                                    >
+                                      <CornerUpLeft className="w-4 h-4 mr-2" />
+                                      Revert to Draft (Correct)
+                                    </DropdownMenuItem>
+                                    <DropdownMenuSeparator />
+                                    <DropdownMenuItem
+                                      onClick={() => handleAction(inv.id, "void")}
+                                      className="text-red-600 focus:text-red-600"
+                                    >
+                                      <AlertCircle className="w-4 h-4 mr-2" />
+                                      Void Invoice
+                                    </DropdownMenuItem>
+                                  </>
+                                )}
+                                {inv.status === "paid" && (
+                                  <DropdownMenuItem
+                                    onClick={() => handleAction(inv.id, "void")}
+                                    className="text-red-600 focus:text-red-600"
+                                  >
+                                    <AlertCircle className="w-4 h-4 mr-2" />
+                                    Void Invoice
+                                  </DropdownMenuItem>
+                                )}
+                              </DropdownMenuContent>
+                            </DropdownMenu>
+                          )}
+                        </div>
                       </TableCell>
                     </TableRow>
                   ))
@@ -565,6 +711,72 @@ export default function InvoicesPage() {
           </div>
         </TabsContent>
       </Tabs>
+
+      {/* ── Revert to Draft (Correction) Confirmation Dialog ── */}
+      <AlertDialog
+        open={!!invoiceToRevert}
+        onOpenChange={(open) => !open && !isReverting && setInvoiceToRevert(null)}
+      >
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Revert Invoice to Editable Draft?</AlertDialogTitle>
+            <AlertDialogDescription>
+              This will unlock invoice{" "}
+              <strong className="text-foreground">
+                {invoiceToRevert?.documentNumber && invoiceToRevert?.documentNumber !== "PENDING"
+                  ? invoiceToRevert.documentNumber
+                  : invoiceToRevert?.sourceTemplateName || "Invoice"}
+              </strong>{" "}
+              and convert it back into an active draft. You will be able to modify line items,
+              re-evaluate dynamic formulas, and correct values before re-finalizing. The draft will
+              open immediately for editing.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={isReverting}>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              disabled={isReverting}
+              className="bg-amber-600 hover:bg-amber-700 text-white focus:ring-amber-600 gap-1.5"
+              onClick={async (e) => {
+                e.preventDefault();
+                if (!invoiceToRevert) return;
+                setIsReverting(true);
+                try {
+                  const res = await fetch(`${apiUrl}/api/invoices/${invoiceToRevert.id}/unfreeze`, {
+                    method: "POST",
+                    credentials: "include",
+                  });
+                  const data = await res.json().catch(() => ({}));
+                  if (!res.ok) {
+                    throw new Error(data.error || "Failed to revert invoice");
+                  }
+                  toast.success("Invoice reverted to draft for corrections");
+                  queryClient.invalidateQueries({ queryKey: ["invoices"] });
+                  queryClient.invalidateQueries({ queryKey: ["invoice-drafts"] });
+                  const draftId = data.draftId;
+                  setInvoiceToRevert(null);
+                  if (draftId) {
+                    router.push(`/dashboard/invoices/drafts/${draftId}`);
+                  }
+                } catch (err: any) {
+                  toast.error(err.message || "Failed to revert invoice");
+                } finally {
+                  setIsReverting(false);
+                }
+              }}
+            >
+              {isReverting ? (
+                <>
+                  <Loader2 className="w-4 h-4 animate-spin" />
+                  Reverting...
+                </>
+              ) : (
+                "Revert & Open Draft"
+              )}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
 
       {isGenerateModalOpen && selectedProjectId && (
         <GenerateInvoiceModal

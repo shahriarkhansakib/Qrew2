@@ -47,7 +47,7 @@ components/features/invoice-templates/
 ### A. Layout & Placement
 - The formula bar is rendered sticky at the top of the table builder (`sticky top-0 z-30`).
 - Consists of:
-  1. **Quick Operator Bar** (`+`, `-`, `*`, `/`, `(`, `)`, `%`, `//`) rendered directly above the formula row.
+  1. **Quick Operator Bar** (`+`, `-`, `*`, `/`, `(`, `)`, `%`, `//`) rendered directly above the formula row, plus a collapsible "Functions" drawer exposing AST math helpers (`CLAMP`, `MIN`, `MAX`, `ROUND`, `FLOOR`, `CEIL`, `ABS`).
   2. **fx Breadcrumb**: Shows the currently selected cell hierarchy (e.g. `Section > Row > Base`).
   3. **Monospace Input with Overlay**: Monospace transparent input placed over an aligned `SyntaxOverlay`.
 
@@ -56,7 +56,8 @@ components/features/invoice-templates/
 - **Allowed Keystrokes**:
   - Operators: `+`, `-`, `*`, `/`, `%`, `//`, `(`, `)`.
   - Digits & Decimals: `0-9`, `.`.
-  - Tokens: Letters and underscores matching active token prefixes.
+  - Tokens & Functions: Letters and underscores matching active token prefixes or supported AST functions (`CLAMP`, `MIN`, `MAX`, `ROUND`, `FLOOR`, `CEIL`, `ABS`).
+  - Function Invocations: Typing `(` directly following a recognized function name is permitted without requiring an operator (e.g. `CLAMP(`).
   - All letters are automatically capitalized (`UPPER_SNAKE_CASE`).
 - **Strict Spacing Rules**:
   - Literal spaces CANNOT be manually typed or deleted.
@@ -94,3 +95,16 @@ Before saving on Enter, button click, or outside blur, `handleSave` strictly enf
 | Percentage | `50%` or `.5%` | `(50/100)` or `(0.5/100)` |
 | Modulo / Remainder | `//` | `%` |
 | Row Reference | `ROW_TOKEN` | Internal DB UUID `{{$row:UUID}}` via codec |
+
+---
+
+## 5. Prebuilt Optional Services Catalog (`TemplateOptionalRowsModal`)
+
+- **Location**: Master Template Builder header (`/org-admin/invoice-templates/:id`).
+- **Trigger**: "Optional Services" button in the template header bar.
+- **Functionality**:
+  - Architects define reusable optional line items (`TemplateOptionalRow`) associated with the template.
+  - Form fields: Token name (`CRANE_RENTAL`), display label (`Crane Rental / Operational Lift`), default rate/value (`numeric(20, 6)`), description/sub-description.
+  - Saved to `invoice_templates.optional_rows` JSONB column.
+  - Invoices generated or drafted from this template can browse, select, customize label/rate, and attach these services to any destination section.
+

@@ -1,4 +1,4 @@
-import { relations } from "drizzle-orm";
+import { relations, sql } from "drizzle-orm";
 import {
   AnyPgColumn,
   boolean,
@@ -8,6 +8,7 @@ import {
   text,
   timestamp,
   unique,
+  uniqueIndex,
 } from "drizzle-orm/pg-core";
 import { organizations } from "./auth";
 import { configValueTypeEnum, tokenDomainEnum } from "./invoice-enums";
@@ -41,7 +42,9 @@ export const tokens = pgTable(
   },
   (t) => [
     unique("tokens_template_key_unique").on(t.templateId, t.tokenKey),
-    unique("tokens_org_key_unique").on(t.organizationId, t.tokenKey, t.domain),
+    uniqueIndex("tokens_org_global_key_unique")
+      .on(t.organizationId, t.tokenKey, t.domain)
+      .where(sql`template_id IS NULL`),
     index("tokens_template_domain_idx").on(t.templateId, t.domain),
     index("tokens_org_domain_idx").on(t.organizationId, t.domain),
   ],

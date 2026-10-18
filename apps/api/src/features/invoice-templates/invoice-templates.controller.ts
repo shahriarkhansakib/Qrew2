@@ -1,4 +1,4 @@
-import { db, invoiceDocumentSequences, invoiceTemplates } from "@starter/db";
+import { db, invoiceDocumentSequences, invoiceTemplates, TemplateOptionalRow } from "@starter/db";
 import { and, eq } from "drizzle-orm";
 import { Context } from "hono";
 import { z } from "zod";
@@ -17,6 +17,7 @@ const updateTemplateSchema = z.object({
   description: z.string().optional(),
   documentPrefix: z.string().optional(),
   numberingFormat: z.string().optional(),
+  optionalRows: z.array(z.any()).optional(),
 });
 
 export class InvoiceTemplatesController {
@@ -190,6 +191,81 @@ export class InvoiceTemplatesController {
       .returning();
 
     if (!deleted) return c.json({ error: "Not found" }, 404);
+
+    return c.json({ success: true });
+  }
+
+  static async listOptionalRows(c: Context) {
+    const id = c.req.param("id") as string;
+    const organizationId = c.get("organizationId");
+    if (!organizationId) return c.json({ error: "Unauthorized" }, 401);
+
+    const [tpl] = await db
+      .select({ optionalRows: invoiceTemplates.optionalRows })
+      .from(invoiceTemplates)
+      .where(and(eq(invoiceTemplates.id, id), eq(invoiceTemplates.organizationId, organizationId)))
+      .limit(1);
+
+    if (!tpl) return c.json({ error: "Template not found" }, 404);
+    return c.json(tpl.optionalRows || []);
+  }
+
+  static async addOptionalRow(c: Context) {
+    const id = c.req.param("id") as string;
+    const organizationId = c.get("organizationId");
+    if (!organizationId) return c.json({ error: "Unauthorized" }, 401);
+
+    const body = await c.req.json();
+    const rowToken = toSnakeCase(body.rowToken || body.label || "OPTIONAL_ROW");
+    const newRow: TemplateOptionalRow = {
+      id: crypto.randomUUID(),
+      rowToken,
+      label: body.label || "Optional Service",
+      subDescription: body.subDescription || null,
+      valueType: body.valueType === "formula" ? "formula" : "normal",
+      formula: body.formula || null,
+      initialValue: body.initialValue ? String(body.initialValue) : null,
+      suggestedSectionToken: body.suggestedSectionToken || null,
+    };
+
+    const [tpl] = await db
+      .select({ optionalRows: invoiceTemplates.optionalRows })
+      .from(invoiceTemplates)
+      .where(and(eq(invoiceTemplates.id, id), eq(invoiceTemplates.organizationId, organizationId)))
+      .limit(1);
+
+    if (!tpl) return c.json({ error: "Template not found" }, 404);
+    const currentRows = (tpl.optionalRows as TemplateOptionalRow[]) || [];
+    const updatedRows = [...currentRows, newRow];
+
+    await db
+      .update(invoiceTemplates)
+      .set({ optionalRows: updatedRows })
+      .where(and(eq(invoiceTemplates.id, id), eq(invoiceTemplates.organizationId, organizationId)));
+
+    return c.json(newRow, 201);
+  }
+
+  static async deleteOptionalRow(c: Context) {
+    const id = c.req.param("id") as string;
+    const optionalRowId = c.req.param("optionalRowId") as string;
+    const organizationId = c.get("organizationId");
+    if (!organizationId) return c.json({ error: "Unauthorized" }, 401);
+
+    const [tpl] = await db
+      .select({ optionalRows: invoiceTemplates.optionalRows })
+      .from(invoiceTemplates)
+      .where(and(eq(invoiceTemplates.id, id), eq(invoiceTemplates.organizationId, organizationId)))
+      .limit(1);
+
+    if (!tpl) return c.json({ error: "Template not found" }, 404);
+    const currentRows = (tpl.optionalRows as TemplateOptionalRow[]) || [];
+    const updatedRows = currentRows.filter((r) => r.id !== optionalRowId);
+
+    await db
+      .update(invoiceTemplates)
+      .set({ optionalRows: updatedRows })
+      .where(and(eq(invoiceTemplates.id, id), eq(invoiceTemplates.organizationId, organizationId)));
 
     return c.json({ success: true });
   }

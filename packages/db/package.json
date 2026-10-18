@@ -5,15 +5,16 @@
   "exports": {
     ".": "./src/index.ts",
     "./schema": "./src/schema/index.ts",
-    "./formula-codec": "./src/formula-codec.ts"
+    "./formula-codec": "./src/formula-codec.ts",
+    "./seed-agency-templates": "./src/seed-agency-templates.ts",
+    "./permissions-registry": "./src/permissions-registry.ts"
   },
   "scripts": {
     "generate": "drizzle-kit generate --config=drizzle.config.ts",
     "push": "drizzle-kit push --config=drizzle.config.ts",
     "migrate": "drizzle-kit migrate --config=drizzle.config.ts",
-    "studio": "drizzle-kit studio --config=drizzle.config.ts",
-    "seed": "tsx src/seed.ts",
-    "seed:sst": "tsx src/seed-sst.ts"
+    "studio": "drizzle-kit studio --config=drizzle.config.ts --port=5558",
+    "seed": "tsx src/seed.ts"
   },
   "dependencies": {
     "@neondatabase/serverless": "^0.10.4",

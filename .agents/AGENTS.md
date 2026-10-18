@@ -78,6 +78,100 @@ When implementing new features, tables, or data fields across this platform, you
 - **Leftward Overlap Expansion**: When hovered, if a formula is truncated in its allocated space (`max-w-[12rem]`), the badge expands **towards the left** (`absolute right-0 top-1`), overlaying table cells (USD2, USD1, label).
 - **Multiline Downward Overflow**: If the formula exceeds the expanded max width (`max-w-xl`), it wraps to multiple lines and extends downward over the next row with `z-50`, shadow elevation, and backdrop blur. Non-truncated formulas do not expand into the table on hover.
 
+## 11. Multi-Draft Collaboration & Edit Audit Trail (`invoice-instances.ts`, `drafts.controller.ts`)
+- **Unlimited Project Drafts**: Projects can have any number of drafts created by any authorized team member (`finance:manage_invoices`). Drafts are never restricted to 1-per-user-per-project.
+- **Organization-Wide Shared Editing**: All members with `finance:manage_invoices` can collaborate on and edit any draft in the organization.
+- **Creator Attribution**: Creator user identity is preserved on draft creation and displayed across all views.
+- **Lightweight Audit Trail (`editHistory`)**: Every draft logs revisions in `editHistory` with user metadata, action description, and timestamp. Consecutive edits by the same user within 2 minutes coalesce into a single entry; capped at 50 entries.
 
+## 12. Invoice Lifecycle State Machine & Correction Workflow (`invoices.controller.ts`)
+```mermaid
+stateDiagram-v2
+    direction LR
+    [*] --> Draft: Created by team member
+    Draft --> Frozen: Finalize draft (Ready to Bill)
+    Frozen --> Draft: Revert to draft (Correct)
+    Frozen --> Issued: Send / Mark as Issued
+    Frozen --> Void: Void
+    
+    Issued --> Paid: Client pays
+    Issued --> Disputed: Client contests line items
+    Issued --> Draft: Revert to draft (Correct)
+    Issued --> Void: Void
 
+    Disputed --> Issued: Resolve dispute (Re-issue)
+    Disputed --> Paid: Settled & paid
+    Disputed --> Draft: Revert to draft (Correct)
+    Disputed --> Void: Void
+
+    Paid --> Void: Void
+    Void --> [*]
+```
+- **Disputed Status**: Halts automated collections without destroying sequence or legal audit trail.
+- **Revert to Draft (Correct)**: Permitted from `frozen`, `issued`, and `disputed` (never `paid` or `void`). Restores constants, draft rows, draft headers, sets draft name to `Correction: <DocNum>`, logs to audit history, and cleans up the previous invoice record to release sequence/doc number.
+
+## 13. Canonical Domain Tokens & Zero-Float Arithmetic (`token-resolver.service.ts`)
+- **Canonical Namespace**:
+  - `FILE_<KEY_UPPER>`: Dynamic project custom fields (`customFields`).
+  - `EXP_<KEY_UPPER>`: Real-time expense category aggregations.
+  - `EXP_TOTAL`: Total recorded project expenses.
+  - `PERIOD_START` / `PERIOD_END`: Invoicing billing scope boundaries.
+- **Maritime Legacy Purge**: All legacy maritime-specific aliases (`pda`, `fda`) are permanently purged from database schemas, validation schemas, controllers, and formula contexts.
+- **Arbitrary Precision (BigNumber)**: All monetary evaluations use `mathjs` BigNumber configured at **20 decimal digits of precision**, eliminating floating-point rounding errors (`0.1 + 0.2 === 0.300000`).
+
+## 14. AST Math Functions & Keystroke Gating (`ast-evaluator.service.ts`, `use-formula-keydown.ts`)
+- **Supported AST Functions**: `CLAMP(x, min, max)`, `MIN(...)`, `MAX(...)`, `ROUND(x, decimals)`, `FLOOR(x)`, `CEIL(x)`, `ABS(x)`.
+- **Gating Exception for Function Invocations**:
+  - Formulas allow a function token name to be followed immediately by `(` without an operator (e.g. `CLAMP(`, `MIN(`).
+  - Outside of function invocations, binary operators (`+`, `-`, `*`, `/`, `//`, `%`) strictly require enclosing spaces.
+- **Formula Bar Function Tray**: The formula bar provides a collapsible "Show more / less" function tray exposing all available AST math functions.
+
+## 15. Optional Period Billing & Live Dynamic Sync (`generate-invoice-modal.tsx`, `token-resolver.service.ts`)
+- **Default Scope (Full Project Lifetime)**:
+  - Period-based billing is strictly **optional**. The default mode is **"Full Project Timeline (Dynamic Live Sync)"** with `periodStart = null` and `periodEnd = null`.
+  - In dynamic mode, drafts never bake in static expense sums; reopening or previewing drafts evaluates current live expenses dynamically.
+- **Specific Billing Period**: When toggled, date pickers define `periodStart` and `periodEnd`, scoping `EXP_*` tokens to expenses within the range `[periodStart, periodEnd]`.
+- **Duplicate Expense Guard**: Org settings define `allowDuplicateExpenseBilling` (defaults to false), blocking or warning against re-billing expenses already frozen in prior invoices.
+
+## 16. Backend Math Engine Isolation
+- `mathjs` is strictly isolated on the backend Node.js server (`@starter/api`) and is never imported into `@starter/web`. The frontend bundle size impact is strictly **0 KB**.
+
+## 17. Prebuilt Optional Service Rows & Add-On Catalog (`draft-builder.controller.ts`, `invoice-templates.controller.ts`)
+- **Full Normal Row Behavior**: Optional service rows (`TemplateOptionalRow`) are mathematically, structurally, and visually normal rows. They are NOT row charges, taxes, or surcharges. They calculate via standard AST formulas or manual numeric rates, appear in standard USD1/USD2 table cells, and sum into section totals.
+- **No `ADDON_` Prefix**: Rows retain their canonical upper-snake tokens directly (e.g., `CRANE_RENTAL`). Collision avoidance appends incremental integer suffixes if multiple instances are attached to the same draft (`CRANE_RENTAL_2`, `CRANE_RENTAL_3`).
+- **Mathematical Token Immutability**: Staff can customize display labels and override manual values, but the allocated `rowToken` remains immutable so formula references (`ROW_CRANE_RENTAL`), DAG topological ordering, and snapshot schemas remain unbreakable.
+- **Template-Level Catalog (`optional_rows`)**: Prebuilt services are stored on `invoice_templates.optional_rows` JSONB column. Draft rows instantiated from this catalog carry `isOptional: true`.
+- **Guarded Removal**: The removal endpoint `DELETE /api/invoices/drafts/:id/optional-rows/:rowToken` only allows deletion of rows marked `isOptional: true`, safeguarding foundational core template rows from accidental deletion during drafting.
+
+## 18. Granular Invoicing PBAC Architecture & 3-Tier Hierarchy (`seed-permissions.ts`, `require-permission.ts`, `can.tsx`)
+- **Atomic Permissions**:
+  - `invoice:fill_values`: Enter numeric rates/quantities for manual and constant rows in drafts.
+  - `invoice:edit_line_labels`: Rename or tweak line item display labels in drafts.
+  - `invoice:manage_optional_rows`: Attach prebuilt optional service rows and delete optional service rows in drafts.
+  - `invoice:author_formulas`: Switch cells to formula mode and author/edit mathematical AST formulas.
+  - `invoice:finalize`: Freeze drafts into legally binding, immutable invoices (`Ready to Bill`).
+  - `invoice:revert`: Revert frozen/issued/disputed invoices back into draft sessions for correction.
+  - `invoice:void`: Retire invoice numbers and void finalized invoices.
+  - `invoice:delete`: Delete drafts or voided documents.
+- **Legacy Compatibility**:
+  - `finance:manage_invoices` and `finance:view_invoices` are automatically mapped to all respective atomic permissions for backwards compatibility (`seed-permissions.ts`, `requireOrgPermission([perm1, perm2])`, `<Can I={[...]} />`).
+- **3-Tier Hierarchy Mapping**:
+  - **Tier 1 (Architect / Admin)**: Holds `invoice:author_formulas` and `finance:manage_invoices`. Can edit master templates directly via `/org-admin/invoice-templates/:id` (linked directly from the draft page header), manage the template optional rows catalog, and enter arbitrary AST formulas in draft builder mode.
+  - **Tier 2 (Accountant / Staff)**: Holds `invoice:fill_values`, `invoice:edit_line_labels`, `invoice:manage_optional_rows`. Can attach optional service rows, customize labels, and input manual rates. Formula bar is locked from editing formulas.
+  - **Tier 3 (Clerk)**: Holds `invoice:fill_values`, `invoice:manage_optional_rows`. Can attach optional services and input numbers, but both formula authoring and label editing are strictly locked.
+- **Automated Cache Invalidation**:
+  - Role updates in `roles.controller.ts` automatically invalidate Redis permission caches (`permission:*`) to prevent stale permissions from persisting.
+
+## 19. Canonical PBAC Permission Registry & Zero Dangling Aliases (`permissions-registry.ts`)
+- **Single Source of Truth**: All platform permissions MUST be declared in `packages/db/src/permissions-registry.ts` inside `PERMISSIONS_CATALOG`. The TypeScript union type `AppPermission` is derived directly from this catalog.
+- **Zero Dangling Aliases**:
+  - Legacy permissions (e.g. `invoice:create`, `invoice:edit`, `staff:provision`) are permanently banned and eradicated from database schemas, seeders, route guards, and UI components.
+  - Whenever any global permission is altered or replaced, all occurrences across both frontend and backend MUST be audited and migrated atomically.
+- **Foreign Key Violation Prevention (`23503`)**:
+  - Role permission arrays in `packages/db/src/org-initializer.ts` (`ownerPerms`, `managerPerms`, `staffPerms`) MUST be strictly typed as `AppPermission[]`.
+  - Owner permissions default to `PERMISSIONS_CATALOG.map((p) => p.key)`.
+  - It is mathematically impossible for an unregistered permission string to enter the database seeder or trigger a PostgreSQL foreign key violation.
+- **Compiler-Enforced Authorization**:
+  - Route middleware `requireOrgPermission` in `@starter/api` and UI gate `<Can I={...}>` in `@starter/web` strictly accept `AppPermission | AppPermission[]`. Magic string literals outside the registry are rejected at compile time.
+  - Refer to `.agents/skills/permission-lifecycle-management/SKILL.md` for complete lifecycle protocols.
 

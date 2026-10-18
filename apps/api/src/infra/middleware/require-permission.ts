@@ -1,10 +1,10 @@
-import { db, members } from "@starter/db";
+import { type AppPermission, db, members } from "@starter/db";
 import { and, eq } from "drizzle-orm";
 import { Context, Next } from "hono";
 import { PermissionService } from "../../features/permissions/permission.service";
 import { auth } from "../lib/auth";
 
-export const requireOrgPermission = (requiredPermission: string) => {
+export const requireOrgPermission = (requiredPermission: AppPermission | AppPermission[]) => {
   return async (c: Context, next: Next) => {
     // 1. Validate Session
     const sessionData = await auth.api.getSession({ headers: c.req.raw.headers });
@@ -46,14 +46,19 @@ export const requireOrgPermission = (requiredPermission: string) => {
     c.set("isOwner", false);
     c.set("userPermissions", userPermissions);
 
-    if (!userPermissions.has(requiredPermission)) {
-      console.warn(
-        `[PBAC] Blocked: User ${sessionData.user.id} attempted to access ${requiredPermission}`,
-      );
+    const hasPermission = Array.isArray(requiredPermission)
+      ? requiredPermission.some((perm) => userPermissions.has(perm))
+      : userPermissions.has(requiredPermission);
+
+    if (!hasPermission) {
+      const permDesc = Array.isArray(requiredPermission)
+        ? requiredPermission.join(" or ")
+        : requiredPermission;
+      console.warn(`[PBAC] Blocked: User ${sessionData.user.id} attempted to access ${permDesc}`);
       return c.json(
         {
           error: "Forbidden",
-          message: `You do not have the required permission: ${requiredPermission}`,
+          message: `You do not have the required permission: ${permDesc}`,
         },
         403,
       );

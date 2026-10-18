@@ -16,7 +16,6 @@ import { decimal, index, pgTable, text, timestamp, unique } from "drizzle-orm/pg
 import { organizations, users } from "./auth";
 import { clients } from "./clients";
 import { documentStatusEnum, stockStateEnum } from "./inventory-enums";
-import { inventoryTransactions } from "./inventory-transactions";
 import { products } from "./products";
 import { warehouses } from "./warehouses";
 
@@ -129,8 +128,6 @@ export const purchasesRelations = relations(purchases, ({ one, many }) => ({
     references: [users.id],
   }),
   items: many(purchaseItems),
-  // Ledger rows generated when this purchase is confirmed (or reversed on cancel).
-  transactions: many(inventoryTransactions),
 }));
 
 export const purchaseItemsRelations = relations(purchaseItems, ({ one }) => ({

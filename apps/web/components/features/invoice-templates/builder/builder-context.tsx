@@ -70,6 +70,8 @@ type BuilderContextValue = {
   clipboardToken: string | null;
   setClipboardToken: (token: string | null) => void;
   getTokenColor: (token: string) => string;
+  draftId?: string;
+  templateId?: string;
 };
 
 const DEFAULT_EXTERNAL_TOKENS: ExternalTokens = {
@@ -103,6 +105,8 @@ const BuilderContext = createContext<BuilderContextValue>({
 // ─── Provider ─────────────────────────────────────────────────────────────────
 
 export function BuilderProvider({
+  templateId,
+  draftId,
   tokenPoolOpen = false,
   apiBasePath,
   mode = "template",
@@ -217,6 +221,8 @@ export function BuilderProvider({
 
   const getTokenColor = useCallback(
     (token: string) => {
+      if (["MIN", "MAX", "ROUND", "CLAMP", "ABS"].includes(token))
+        return "text-amber-400 font-semibold";
       if (token === "EXP_TOTAL") return "text-rose-500 font-bold bg-rose-500/15";
       if (externalTokens.category?.has(token) || token.startsWith("EXP_"))
         return "text-rose-400 bg-rose-500/10";
@@ -403,6 +409,8 @@ export function BuilderProvider({
       clipboardToken,
       setClipboardToken,
       getTokenColor,
+      draftId,
+      templateId,
     }),
     [
       selectedCell,
@@ -423,6 +431,8 @@ export function BuilderProvider({
       validationErrors,
       clipboardToken,
       getTokenColor,
+      draftId,
+      templateId,
     ],
   );
 

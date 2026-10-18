@@ -62,13 +62,19 @@ export function getChunkAtCursor(
   return best;
 }
 
+export const MATH_FUNCTIONS = ["MIN", "MAX", "ROUND", "CLAMP", "ABS"] as const;
+
 /**
- * Returns true if the string is either a valid number, or it is a prefix of at least one valid token.
+ * Returns true if the string is either a valid number, or it is a prefix of at least one valid token or math function.
  */
 export function isValidTokenPrefix(str: string, allTokens: string[]): boolean {
   if (!str) return true; // empty is always valid prefix
   if (/^[0-9.]+$/.test(str)) return true;
-  return allTokens.some((token) => token.startsWith(str));
+  const upper = str.toUpperCase();
+  return (
+    allTokens.some((token) => token.startsWith(upper) || token.includes(`_${upper}`)) ||
+    (MATH_FUNCTIONS as readonly string[]).some((fn) => fn.startsWith(upper))
+  );
 }
 
 /**
@@ -76,7 +82,7 @@ export function isValidTokenPrefix(str: string, allTokens: string[]): boolean {
  * Returns an error message string if invalid, or null if valid.
  *
  * Checks (in order):
- * 1. Ends with an operator
+ * 1. Ends with an operator or comma
  * 2. Unbalanced parentheses
  * 3. Incomplete / invalid tokens
  * 4. Adjacent values without an operator
@@ -89,9 +95,9 @@ export function validateFormulaSave(
   invalidTokens?: Set<string>,
   hiddenTokens?: Set<string>,
 ): string | null {
-  // 1. Ends with operator
-  if (/[-+*/%]$/.test(trimmed) || trimmed.endsWith("//")) {
-    return "Formula cannot end with an operator.";
+  // 1. Ends with operator or comma
+  if (/[-+*/%,]$/.test(trimmed) || trimmed.endsWith("//")) {
+    return "Formula cannot end with an operator or comma.";
   }
 
   // 1.5. Circular dependency
@@ -105,6 +111,7 @@ export function validateFormulaSave(
     }
 
     for (const token of tokensInFormula) {
+      if ((MATH_FUNCTIONS as readonly string[]).includes(token)) continue;
       if (invalidTokens?.has(token)) {
         return `Circular reference: "${token}" depends on the current cell.`;
       }
@@ -121,9 +128,12 @@ export function validateFormulaSave(
     return `Mismatched parentheses: ${openCount} open, ${closeCount} closed.`;
   }
 
-  // 3. Incomplete / invalid tokens
+  // 3. Incomplete / invalid tokens (excluding registered math functions)
   const wordMatches = trimmed.match(/[A-Z][A-Z0-9_]*/g) || [];
   for (const word of wordMatches) {
+    if ((MATH_FUNCTIONS as readonly string[]).includes(word)) {
+      continue;
+    }
     const isLegacy = word.startsWith("GBL_") || word.startsWith("FILE_") || word.endsWith("_TOTAL");
     const canonicalEquivalent = word.replace(/^(GBL_|FILE_)/, "").replace(/_TOTAL$/, "");
     if (
@@ -135,8 +145,8 @@ export function validateFormulaSave(
   }
 
   // 4. Adjacent values without an operator
-  //    Split on operators and check each segment
-  const segments = trimmed.split(/\s*[+\-*/%()]+\s*/);
+  //    Split on operators, commas, parentheses and check each segment
+  const segments = trimmed.split(/\s*[+\-*/%(),]+\s*/);
   for (const seg of segments) {
     const items = seg.trim().split(/\s+/).filter(Boolean);
     if (items.length > 1) {
@@ -148,7 +158,7 @@ export function validateFormulaSave(
   //    Normalize `//` to a placeholder so it doesn't trigger a false positive
   const normalized = trimmed.replace(/\/\//g, "MODULO");
   // Match: operator, optional spaces, another operator
-  if (/[+\-*/%()]\s+[+\-*/%()]/.test(normalized)) {
+  if (/[+\-*/%]\s+[+\-*/%]/.test(normalized) || /[+\-*/%]\s*,/.test(normalized)) {
     return "Formula contains consecutive operators.";
   }
 

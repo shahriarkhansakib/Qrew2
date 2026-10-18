@@ -7,6 +7,7 @@
  * The distinction is made at render time in app-shell.tsx.
  */
 
+import type { AppPermission } from "@starter/db/permissions-registry";
 import {
   ArrowLeft,
   BarChart3,
@@ -36,7 +37,7 @@ export interface NavItem {
   name: string;
   href: string;
   icon: any;
-  permission?: string; // PBAC permission key; if set, hide when not granted
+  permission?: AppPermission; // Strongly-typed PBAC permission key; if set, hide when not granted
 }
 
 export interface NavGroup {
@@ -44,8 +45,8 @@ export interface NavGroup {
   name: string;
   icon: any;
   baseHref: string; // Used to detect active group
-  permission?: string; // PBAC gate on the entire group
-  children: (NavChild & { permission?: string })[];
+  permission?: AppPermission; // Strongly-typed PBAC gate on the entire group
+  children: (NavChild & { permission?: AppPermission })[];
 }
 
 export type AnyNavItem = NavItem | NavGroup;

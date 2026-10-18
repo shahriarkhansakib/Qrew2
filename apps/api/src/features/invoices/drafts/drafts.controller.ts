@@ -2,9 +2,11 @@ import { db, invoiceDrafts } from "@starter/db";
 import { and, eq } from "drizzle-orm";
 import { Context } from "hono";
 import { z } from "zod";
+import { appendAuditEntry } from "./draft-audit";
 import { DraftSeeder } from "./draft-seeder";
 
 const draftSchema = z.object({
+  id: z.string().optional(),
   projectId: z.string(),
   sourceTemplateId: z
     .string()
@@ -22,10 +24,26 @@ export class DraftsController {
   static async listDrafts(c: Context) {
     try {
       const organizationId = c.get("organizationId");
+      const projectId = c.req.query("projectId");
+
+      const whereClause = projectId
+        ? and(
+            eq(invoiceDrafts.organizationId, organizationId),
+            eq(invoiceDrafts.projectId, projectId),
+          )
+        : eq(invoiceDrafts.organizationId, organizationId);
 
       const drafts = await db.query.invoiceDrafts.findMany({
-        where: eq(invoiceDrafts.organizationId, organizationId),
-        with: { project: true },
+        where: whereClause,
+        with: {
+          project: {
+            with: {
+              client: true,
+              statusRelation: true,
+            },
+          },
+          user: true, // Attach creator user
+        },
         orderBy: (d, { desc }) => [desc(d.lastAutoSavedAt)],
       });
 
@@ -50,6 +68,7 @@ export class DraftsController {
               statusRelation: true, // Resolve status UUID → { name, color, … }
             },
           },
+          user: true, // Attach creator user
         },
       });
 
@@ -65,7 +84,7 @@ export class DraftsController {
   static async createDraft(c: Context) {
     try {
       const organizationId = c.get("organizationId");
-      const userId = (c.get("user") as any).id;
+      const user = c.get("user") as any;
       const body = await c.req.json();
       const parsed = draftSchema.safeParse(body);
 
@@ -74,6 +93,7 @@ export class DraftsController {
       }
 
       const payload = parsed.data;
+      const initialAudit = appendAuditEntry([], user, "Created draft");
 
       const [created] = await db
         .insert(invoiceDrafts)
@@ -81,11 +101,13 @@ export class DraftsController {
           id: crypto.randomUUID(),
           organizationId,
           projectId: payload.projectId,
-          userId,
+          userId: user.id,
           sourceTemplateId: payload.sourceTemplateId,
           draftHeaderValues: payload.draftHeaderValues || {},
           draftHeaderFields: payload.draftHeaderFields || [],
           draftSections: payload.draftSections || [],
+          draftConstants: payload.draftConstants || {},
+          editHistory: initialAudit,
           name: payload.name || "Draft",
           description: payload.description,
           lastAutoSavedAt: new Date(),
@@ -102,24 +124,49 @@ export class DraftsController {
   static async getDraft(c: Context) {
     try {
       const organizationId = c.get("organizationId");
-      const userId = (c.get("user") as any).id;
       const projectId = c.req.query("projectId");
+      const draftId = c.req.query("draftId");
 
-      if (!projectId) {
-        return c.json({ error: "projectId is required" }, 400);
+      if (draftId) {
+        const draft = await db.query.invoiceDrafts.findFirst({
+          where: and(
+            eq(invoiceDrafts.organizationId, organizationId),
+            eq(invoiceDrafts.id, draftId),
+          ),
+          with: {
+            user: true,
+            project: {
+              with: {
+                client: true,
+                statusRelation: true,
+              },
+            },
+          },
+        });
+        return c.json(draft || null);
       }
 
-      const [draft] = await db
-        .select()
-        .from(invoiceDrafts)
-        .where(
-          and(
-            eq(invoiceDrafts.organizationId, organizationId),
-            eq(invoiceDrafts.projectId, projectId),
-            eq(invoiceDrafts.userId, userId),
-          ),
-        )
-        .limit(1);
+      if (!projectId) {
+        return c.json({ error: "projectId or draftId is required" }, 400);
+      }
+
+      // Return the most recently updated draft for this project
+      const draft = await db.query.invoiceDrafts.findFirst({
+        where: and(
+          eq(invoiceDrafts.organizationId, organizationId),
+          eq(invoiceDrafts.projectId, projectId),
+        ),
+        with: {
+          user: true,
+          project: {
+            with: {
+              client: true,
+              statusRelation: true,
+            },
+          },
+        },
+        orderBy: (d, { desc }) => [desc(d.lastAutoSavedAt)],
+      });
 
       return c.json(draft || null);
     } catch (err: any) {
@@ -131,7 +178,7 @@ export class DraftsController {
   static async upsertDraft(c: Context) {
     try {
       const organizationId = c.get("organizationId");
-      const userId = (c.get("user") as any).id;
+      const user = c.get("user") as any;
       const body = await c.req.json();
       const parsed = draftSchema.safeParse(body);
 
@@ -141,23 +188,21 @@ export class DraftsController {
 
       const payload = parsed.data;
 
-      // Try to find existing
-      const [existing] = await db
-        .select()
-        .from(invoiceDrafts)
-        .where(
-          and(
+      // 1. Look up target draft if explicit id provided
+      let existing = null;
+      if (payload.id) {
+        existing = await db.query.invoiceDrafts.findFirst({
+          where: and(
             eq(invoiceDrafts.organizationId, organizationId),
-            eq(invoiceDrafts.projectId, payload.projectId),
-            eq(invoiceDrafts.userId, userId),
+            eq(invoiceDrafts.id, payload.id),
           ),
-        )
-        .limit(1);
+        });
+      }
 
       let { draftSections, draftConstants, draftHeaderValues, draftHeaderFields } = payload;
 
+      // 2. If generating a new draft from template (no existing draft targeted)
       if (!existing && (!draftSections || draftSections.length === 0)) {
-        // Only seed from template if creating a NEW draft
         const templateId = payload.sourceTemplateId;
         if (templateId) {
           const seeded = await DraftSeeder.hydrateFromTemplate(
@@ -173,6 +218,8 @@ export class DraftsController {
       }
 
       if (existing) {
+        const updatedAudit = appendAuditEntry(existing.editHistory, user, "Updated draft");
+
         const [updated] = await db
           .update(invoiceDrafts)
           .set({
@@ -193,24 +240,28 @@ export class DraftsController {
               : {}),
             ...(payload.name !== undefined ? { name: payload.name } : {}),
             ...(payload.description !== undefined ? { description: payload.description } : {}),
+            editHistory: updatedAudit,
             lastAutoSavedAt: new Date(),
           })
           .where(eq(invoiceDrafts.id, existing.id))
           .returning();
         return c.json(updated);
       } else {
+        const initialAudit = appendAuditEntry([], user, "Created draft");
+
         const [created] = await db
           .insert(invoiceDrafts)
           .values({
             id: crypto.randomUUID(),
             organizationId,
             projectId: payload.projectId,
-            userId,
+            userId: user.id,
             sourceTemplateId: payload.sourceTemplateId,
             draftHeaderValues: draftHeaderValues || {},
             draftHeaderFields: draftHeaderFields || [],
             draftSections: draftSections || [],
             draftConstants: draftConstants || {},
+            editHistory: initialAudit,
             name: payload.name || "Draft",
             description: payload.description,
             lastAutoSavedAt: new Date(),
@@ -220,8 +271,9 @@ export class DraftsController {
       }
     } catch (err: any) {
       console.error("[DraftsController.upsertDraft]", err);
+      // Item 1.2: Sanitize error response, no stack trace leak
       return c.json(
-        { error: "Failed to upsert draft", details: err.message, stack: err.stack },
+        { error: "Failed to save draft", details: err?.message || "Unknown error" },
         500,
       );
     }
@@ -230,18 +282,11 @@ export class DraftsController {
   static async deleteDraft(c: Context): Promise<Response> {
     try {
       const organizationId = c.get("organizationId");
-      const userId = (c.get("user") as any).id;
       const id = c.req.param("id");
 
       await db
         .delete(invoiceDrafts)
-        .where(
-          and(
-            eq(invoiceDrafts.id, id!),
-            eq(invoiceDrafts.organizationId, organizationId!),
-            eq(invoiceDrafts.userId, userId!),
-          ),
-        );
+        .where(and(eq(invoiceDrafts.id, id!), eq(invoiceDrafts.organizationId, organizationId!)));
 
       return new Response(null, { status: 204 });
     } catch (err: any) {

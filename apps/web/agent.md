@@ -15,7 +15,8 @@ This is an Enterprise B2B SaaS application serving as a central operating system
 
 ## Architectural Principles
 1. **Server Components by Default:** Assume all components are Server Components. Push `"use client"` directives as far down the render tree to the leaf nodes as possible.
-2. **PBAC UI Enforcement:** Never assume access. Use the granular permission engine (e.g., `<Can I="finance:request_funds">`) to conditionally render UI elements.
+2. **PBAC UI Enforcement:** Never assume access. Use the granular permission engine (e.g., `<Can I="finance:request_funds">`) with strongly-typed `AppPermission` from `@starter/db/permissions-registry` to conditionally render UI elements. Magic strings outside `PERMISSIONS_CATALOG` are banned.
+
 3. **Zero Layout Shift:** UI must be minimalist, premium, and strictly avoid layout jumps. **Absolutely NO layout shifting is permitted anywhere.** Use CSS `visibility: hidden` or `opacity-0 pointer-events-none`, fixed heights, or min-heights instead of conditionally rendering elements that alter the document flow. Use blur-background modals instead of expanding cards when requesting secondary input (like 2FA or passwords).
 4. **State Separation:** Zustand is ONLY for ephemeral client state (e.g., sidebar toggles, active tenant ID mirroring). TanStack Query is the exclusive owner of server data caching and invalidation.
 

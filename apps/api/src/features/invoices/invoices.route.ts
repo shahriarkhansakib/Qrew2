@@ -14,52 +14,75 @@ invoicesRouter.use("*", requireAuth);
 // Get tokens for token bridge
 invoicesRouter.get(
   "/tokens",
-  requireOrgPermission("finance:view_invoices"),
+  requireOrgPermission(["invoice:view", "finance:view_invoices"]),
   InvoicesController.getTokens,
 );
 
 // Math engine preview
 invoicesRouter.post(
   "/preview",
-  requireOrgPermission("finance:manage_invoices"),
+  requireOrgPermission(["invoice:view", "finance:manage_invoices"]),
   EngineController.previewInvoice,
 );
 
 // --- DRAFTS ---
 invoicesRouter.get(
   "/drafts/list",
-  requireOrgPermission("finance:manage_invoices"),
+  requireOrgPermission(["invoice:view", "finance:manage_invoices"]),
   DraftsController.listDrafts,
 );
 
 invoicesRouter.get(
   "/drafts",
-  requireOrgPermission("finance:manage_invoices"),
+  requireOrgPermission(["invoice:view", "finance:manage_invoices"]),
   DraftsController.getDraft,
 );
 
 invoicesRouter.get(
   "/drafts/:id",
-  requireOrgPermission("finance:manage_invoices"),
+  requireOrgPermission(["invoice:view", "finance:manage_invoices"]),
   DraftsController.getDraftById,
 );
 
 invoicesRouter.post(
   "/drafts",
-  requireOrgPermission("finance:manage_invoices"),
+  requireOrgPermission(["invoice:create_draft", "finance:manage_invoices"]),
   DraftsController.createDraft,
 );
 
 invoicesRouter.put(
   "/drafts",
-  requireOrgPermission("finance:manage_invoices"),
+  requireOrgPermission([
+    "invoice:fill_values",
+    "invoice:edit_line_labels",
+    "finance:manage_invoices",
+  ]),
   DraftsController.upsertDraft,
 );
 
 invoicesRouter.delete(
   "/drafts/:id",
-  requireOrgPermission("finance:manage_invoices"),
+  requireOrgPermission(["invoice:delete", "finance:manage_invoices"]),
   DraftsController.deleteDraft,
+);
+
+// --- DRAFT OPTIONAL SERVICE ROWS ---
+invoicesRouter.get(
+  "/drafts/:id/optional-rows",
+  requireOrgPermission(["invoice:view", "finance:view_invoices"]),
+  DraftBuilderController.listOptionalRows,
+);
+
+invoicesRouter.post(
+  "/drafts/:id/optional-rows",
+  requireOrgPermission(["invoice:manage_optional_rows", "finance:manage_invoices"]),
+  DraftBuilderController.addOptionalRow,
+);
+
+invoicesRouter.delete(
+  "/drafts/:id/optional-rows/:rowId",
+  requireOrgPermission(["invoice:manage_optional_rows", "finance:manage_invoices"]),
+  DraftBuilderController.removeOptionalRow,
 );
 
 // --- DRAFT BUILDER ---
@@ -207,44 +230,50 @@ invoicesRouter.delete(
 // --- GENERATION & MUTATION ---
 invoicesRouter.post(
   "/generate",
-  requireOrgPermission("finance:manage_invoices"),
+  requireOrgPermission(["invoice:finalize", "finance:manage_invoices"]),
   InvoicesController.generateInvoice,
 );
 
 invoicesRouter.post(
   "/:id/issue",
-  requireOrgPermission("finance:manage_invoices"),
+  requireOrgPermission(["invoice:finalize", "finance:manage_invoices"]),
   InvoicesController.issueInvoice,
 );
 
 invoicesRouter.post(
   "/:id/void",
-  requireOrgPermission("finance:manage_invoices"),
+  requireOrgPermission(["invoice:void", "finance:manage_invoices"]),
   InvoicesController.voidInvoice,
 );
 
 invoicesRouter.post(
   "/:id/unfreeze",
-  requireOrgPermission("finance:manage_invoices"),
+  requireOrgPermission(["invoice:revert", "finance:manage_invoices"]),
   InvoicesController.unfreezeInvoice,
 );
 
 invoicesRouter.post(
+  "/:id/dispute",
+  requireOrgPermission(["invoice:view", "finance:manage_invoices"]),
+  InvoicesController.disputeInvoice,
+);
+
+invoicesRouter.post(
   "/:id/mark-paid",
-  requireOrgPermission("finance:manage_invoices"),
+  requireOrgPermission(["invoice:finalize", "finance:manage_invoices"]),
   InvoicesController.markPaid,
 );
 
-// List invoices (requires finance:view_invoices)
+// List invoices
 invoicesRouter.get(
   "/",
-  requireOrgPermission("finance:view_invoices"),
+  requireOrgPermission(["invoice:view", "finance:view_invoices"]),
   InvoicesController.listInvoices,
 );
 
 // Get single invoice
 invoicesRouter.get(
   "/:id",
-  requireOrgPermission("finance:view_invoices"),
+  requireOrgPermission(["invoice:view", "finance:view_invoices"]),
   InvoicesController.getInvoice,
 );

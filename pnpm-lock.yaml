@@ -35,6 +35,9 @@ importers:
       '@aws-sdk/s3-request-presigner':
         specifier: ^3.1041.0
         version: 3.1041.0
+      '@hono/node-server':
+        specifier: ^2.1.5
+        version: 2.1.5(hono@4.12.16)
       '@hono/zod-validator':
         specifier: ^0.7.6
         version: 0.7.6(hono@4.12.16)(zod@4.4.2)
@@ -47,6 +50,9 @@ importers:
       better-auth:
         specifier: ^1.2.7
         version: 1.6.9(drizzle-orm@0.39.3(@neondatabase/serverless@0.10.4)(@types/pg@8.11.6)(kysely@0.28.17)(postgres@3.4.9))(next@15.5.15(@playwright/test@1.63.0)(react-dom@19.2.5(react@19.2.5))(react@19.2.5))(react-dom@19.2.5(react@19.2.5))(react@19.2.5)(vitest@4.1.8)
+      dotenv:
+        specifier: ^16.6.1
+        version: 16.6.1
       drizzle-orm:
         specifier: ^0.39.3
         version: 0.39.3(@neondatabase/serverless@0.10.4)(@types/pg@8.11.6)(kysely@0.28.17)(postgres@3.4.9)
@@ -133,6 +139,9 @@ importers:
       '@starter/api':
         specifier: workspace:*
         version: link:../api
+      '@starter/db':
+        specifier: workspace:*
+        version: link:../../packages/db
       '@tanstack/react-form':
         specifier: ^1.32.0
         version: 1.32.0(react-dom@19.2.5(react@19.2.5))(react@19.2.5)
@@ -1243,6 +1252,12 @@ packages:
     engines: {node: '>=18.14.1'}
     peerDependencies:
       hono: ^4
+
+  '@hono/node-server@2.1.5':
+    resolution: {integrity: sha512-MgP/I06GdvsilDspMk/qmRzpk8LOUStP6jFAbSRi40W09DhoyUn+Mj7eyKICPqeYKybOjVFLVIAQzvu1bfIa7Q==}
+    engines: {node: '>=20'}
+    peerDependencies:
+      hono: ^4 || ^5.0.0-0
 
   '@hono/zod-validator@0.7.6':
     resolution: {integrity: sha512-Io1B6d011Gj1KknV4rXYz4le5+5EubcWEU/speUjuw9XMMIaP3n78yXLhjd2A3PXaXaUwEAluOiAyLqhBEJgsw==}
@@ -6460,6 +6475,10 @@ snapshots:
       - '@types/react'
 
   '@hono/node-server@1.19.14(hono@4.12.16)':
+    dependencies:
+      hono: 4.12.16
+
+  '@hono/node-server@2.1.5(hono@4.12.16)':
     dependencies:
       hono: 4.12.16
 

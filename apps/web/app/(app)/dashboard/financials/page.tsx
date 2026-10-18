@@ -173,7 +173,7 @@ export default function FinancialsPage() {
                       <TableCell>{req.projectName || "-"}</TableCell>
                       <TableCell className="capitalize">{req.status}</TableCell>
                       <TableCell className="text-right">
-                        {req.status === "pending" && can("finance:approve_requisition") && (
+                        {req.status === "pending" && can("finance:approve_funds") && (
                           <div className="flex justify-end gap-2">
                             <Button
                               size="sm"
@@ -195,7 +195,7 @@ export default function FinancialsPage() {
                             </Button>
                           </div>
                         )}
-                        {req.status === "approved" && can("finance:approve_requisition") && (
+                        {req.status === "approved" && can("finance:approve_funds") && (
                           <Button
                             size="sm"
                             className="bg-blue-600 hover:bg-blue-700"

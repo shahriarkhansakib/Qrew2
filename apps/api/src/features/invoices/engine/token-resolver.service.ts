@@ -10,10 +10,31 @@ import {
   templateHeaderFields,
   tokens,
 } from "@starter/db";
-import { and, eq, sql } from "drizzle-orm";
+import { and, eq, gte, lte, sql } from "drizzle-orm";
 import * as math from "mathjs";
 
 const bigMath = math.create(math.all, { number: "BigNumber", precision: 20 });
+
+/**
+ * Safely parses an arbitrary input to a mathjs BigNumber without
+ * converting through native IEEE-754 64-bit float (which causes precision drift).
+ */
+export function parseToBN(val: unknown): math.BigNumber {
+  if (val === null || val === undefined) return bigMath.bignumber(0);
+  const str = String(val).trim();
+  if (str === "" || str === "NaN" || str === "null" || str === "undefined") {
+    return bigMath.bignumber(0);
+  }
+  // Validate that str contains a numeric representation (optional sign, digits, optional decimal, optional exponent)
+  if (/^[+-]?(\d+(\.\d*)?|\.\d+)([eE][+-]?\d+)?$/.test(str)) {
+    try {
+      return bigMath.bignumber(str);
+    } catch {
+      return bigMath.bignumber(0);
+    }
+  }
+  return bigMath.bignumber(0);
+}
 
 export interface ResolveScopeInput {
   projectId: string;
@@ -25,6 +46,10 @@ export interface ResolveScopeInput {
   headerFieldValues?: Record<string, string>;
   /** External token overrides from preview / test input panel */
   externalOverrides?: Record<string, string>;
+  /** Optional time-period filter start date (e.g. for March 2026: 2026-03-01) */
+  periodStart?: string | Date | null;
+  /** Optional time-period filter end date (e.g. for March 2026: 2026-03-31T23:59:59.999Z) */
+  periodEnd?: string | Date | null;
 }
 
 /**
@@ -32,7 +57,7 @@ export interface ResolveScopeInput {
  *
  * Returns Record<tokenKey, BigNumber-as-string> — never undefined for known tokens.
  *
- * 1. EXP_* — SUM of expenses per category + EXP_TOTAL
+ * 1. EXP_* — SUM of expenses per category + EXP_TOTAL (supports optional periodStart/periodEnd filtering)
  * 2. GBL_* — organization_configs WHERE tokens.isInjectable = true
  * 3. TPL_* — template_constants for the given template
  * 4. FILE_* — from projects.customFields + direct columns per template_header_fields config
@@ -73,6 +98,35 @@ export async function resolveScope(input: ResolveScopeInput): Promise<Record<str
     }
   }
 
+  // Parse optional period filter from input or header values (e.g. PERIOD_START / PERIOD_END)
+  const rawStart =
+    input.periodStart ??
+    input.headerFieldValues?.PERIOD_START ??
+    input.headerFieldValues?.EXPENSE_PERIOD_START;
+  const rawEnd =
+    input.periodEnd ??
+    input.headerFieldValues?.PERIOD_END ??
+    input.headerFieldValues?.EXPENSE_PERIOD_END;
+
+  const expenseConditions = [
+    eq(expenses.categoryId, expenseCategories.id),
+    eq(expenses.projectId, projectId),
+    eq(expenses.organizationId, organizationId),
+  ];
+
+  if (rawStart) {
+    const dStart = new Date(rawStart);
+    if (!Number.isNaN(dStart.getTime())) {
+      expenseConditions.push(gte(expenses.createdAt, dStart));
+    }
+  }
+  if (rawEnd) {
+    const dEnd = new Date(rawEnd);
+    if (!Number.isNaN(dEnd.getTime())) {
+      expenseConditions.push(lte(expenses.createdAt, dEnd));
+    }
+  }
+
   // Compute actual sums and override the zeros
   const categorySums = await db
     .select({
@@ -82,14 +136,7 @@ export async function resolveScope(input: ResolveScopeInput): Promise<Record<str
     })
     .from(expenseCategories)
     .innerJoin(tokens, eq(tokens.id, expenseCategories.id))
-    .leftJoin(
-      expenses,
-      and(
-        eq(expenses.categoryId, expenseCategories.id),
-        eq(expenses.projectId, projectId),
-        eq(expenses.organizationId, organizationId),
-      ),
-    )
+    .leftJoin(expenses, and(...expenseConditions))
     .where(and(eq(tokens.organizationId, organizationId), eq(tokens.isSystem, false)))
     .groupBy(tokens.tokenKey, tokens.isSystem, expenseCategories.id);
 
@@ -140,8 +187,7 @@ export async function resolveScope(input: ResolveScopeInput): Promise<Record<str
     .where(eq(templateConstants.templateId, templateId));
 
   for (const c of tplConsts) {
-    const val = parseFloat(c.defaultValue ?? "0");
-    const bn = bigMath.bignumber(Number.isNaN(val) ? 0 : val);
+    const bn = parseToBN(c.defaultValue);
     const formatted = (bn as math.BigNumber).toFixed(6);
     const bareToken = c.tokenKey.replace(/^TPL_/, "");
     scope[`TPL_${bareToken}`] = formatted;
@@ -185,15 +231,15 @@ export async function resolveScope(input: ResolveScopeInput): Promise<Record<str
     .where(and(eq(templateHeaderFields.templateId, templateId), eq(tokens.isInjectable, true)));
 
   for (const field of headerFields) {
-    const bareKey = field.tokenKey.toUpperCase().replace(/^FILE_/, "");
-    const tokenKey = `FILE_${bareKey}`;
+    const cleanKey = field.tokenKey.toUpperCase().replace(/^FILE_/, "");
+    const tokenKey = `FILE_${cleanKey}`;
 
     // Check if staff provided a manual override for this field
     if (headerFieldValues[field.id] !== undefined) {
-      const bn = bigMath.bignumber(headerFieldValues[field.id] || "0");
+      const bn = parseToBN(headerFieldValues[field.id]);
       const formatted = (bn as math.BigNumber).toFixed(6);
       scope[tokenKey] = formatted;
-      scope[bareKey] = formatted;
+      scope[cleanKey] = formatted;
       continue;
     }
 
@@ -211,38 +257,30 @@ export async function resolveScope(input: ResolveScopeInput): Promise<Record<str
       }
 
       if (rawValue !== null && rawValue !== undefined) {
-        const parsed = parseFloat(String(rawValue));
-        if (!Number.isNaN(parsed)) {
-          const bn = bigMath.bignumber(parsed);
-          const formatted = (bn as math.BigNumber).toFixed(6);
-          scope[tokenKey] = formatted;
-          scope[bareKey] = formatted;
-          continue;
-        }
+        const bn = parseToBN(rawValue);
+        const formatted = (bn as math.BigNumber).toFixed(6);
+        scope[tokenKey] = formatted;
+        scope[cleanKey] = formatted;
+        continue;
       }
     }
 
     // Use field default or 0
-    const defaultVal = field.defaultManualValue ?? "0";
-    const parsed = parseFloat(defaultVal);
-    const bn = bigMath.bignumber(Number.isNaN(parsed) ? 0 : parsed);
+    const bn = parseToBN(field.defaultManualValue);
     const formatted = (bn as math.BigNumber).toFixed(6);
     scope[tokenKey] = formatted;
-    scope[bareKey] = formatted;
+    scope[cleanKey] = formatted;
   }
 
-  // Inject all project custom fields under bare key and FILE_<KEY> prefix
+  // Inject all project custom fields under FILE_<KEY> prefix and bare key
   if (project?.customFields) {
     for (const [key, value] of Object.entries(project.customFields)) {
       if (value !== null && value !== undefined) {
-        const parsed = parseFloat(String(value));
-        if (!Number.isNaN(parsed)) {
-          const bn = bigMath.bignumber(parsed);
-          const formatted = (bn as math.BigNumber).toFixed(6);
-          const bareKey = key.toUpperCase().replace(/^FILE_/, "");
-          scope[`FILE_${bareKey}`] = formatted;
-          scope[bareKey] = formatted;
-        }
+        const bn = parseToBN(value);
+        const formatted = (bn as math.BigNumber).toFixed(6);
+        const cleanKey = key.toUpperCase().replace(/^FILE_/, "");
+        scope[`FILE_${cleanKey}`] = formatted;
+        scope[cleanKey] = formatted;
       }
     }
   }
@@ -252,14 +290,12 @@ export async function resolveScope(input: ResolveScopeInput): Promise<Record<str
   // -----------------------------------------------------------------------
   if (externalOverrides) {
     for (const [k, v] of Object.entries(externalOverrides)) {
-      const parsed = parseFloat(v);
-      if (!Number.isNaN(parsed)) {
-        const formatted = bigMath.bignumber(parsed).toFixed(6);
-        scope[k] = formatted;
-        const bare = k.replace(/^(EXP_|FILE_|GBL_|TPL_)/, "");
-        if (bare !== k) {
-          scope[bare] = formatted;
-        }
+      const bn = parseToBN(v);
+      const formatted = (bn as math.BigNumber).toFixed(6);
+      scope[k] = formatted;
+      const bare = k.replace(/^(EXP_|FILE_|GBL_|TPL_)/, "");
+      if (bare !== k) {
+        scope[bare] = formatted;
       }
     }
   }

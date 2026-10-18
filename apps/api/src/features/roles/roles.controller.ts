@@ -1,8 +1,16 @@
-import { db, orgMemberRoles, orgRolePermissions, orgRoles, permissions } from "@starter/db";
+import {
+  db,
+  members,
+  orgMemberRoles,
+  orgRolePermissions,
+  orgRoles,
+  permissions,
+} from "@starter/db";
 import { and, count, eq, sql } from "drizzle-orm";
 import { Context } from "hono";
 import { v4 as uuidv4 } from "uuid";
 import { auth } from "../../infra/lib/auth";
+import { PermissionService } from "../permissions/permission.service";
 
 export class RolesController {
   /**
@@ -221,6 +229,23 @@ export class RolesController {
 
         return { ...role, permissionKeys: permissionKeys ?? [] };
       });
+
+      // Invalidate Redis permissions cache for all members assigned to this role
+      try {
+        const assignedMembers = await db
+          .select({ userId: members.userId })
+          .from(orgMemberRoles)
+          .innerJoin(members, eq(orgMemberRoles.memberId, members.id))
+          .where(eq(orgMemberRoles.roleId, roleId));
+
+        for (const m of assignedMembers) {
+          if (m.userId) {
+            await PermissionService.invalidateCache(m.userId, activeOrgId);
+          }
+        }
+      } catch (cacheErr) {
+        console.warn("[RolesController.updateRole] Failed to invalidate cache:", cacheErr);
+      }
 
       return c.json({ role: updatedRole }, 200);
     } catch (error) {

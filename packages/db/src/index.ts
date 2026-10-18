@@ -34,8 +34,9 @@ export const db = createDb();
 
 export * from "./formula-codec";
 export * from "./org-initializer";
-export * from "./org-initializer";
+export * from "./permissions-registry";
 // ---------------------------------------------------------------
 // Schema re-exports
 // ---------------------------------------------------------------
 export * from "./schema";
+export * from "./seed-agency-templates";
