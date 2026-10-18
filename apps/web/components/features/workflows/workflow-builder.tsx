@@ -283,11 +283,7 @@ export function WorkflowBuilder({
     prevCol?: number,
     prevRow?: number,
   ) => {
-    if (
-      prevCol !== undefined &&
-      prevRow !== undefined &&
-      (prevCol !== col || prevRow !== row)
-    ) {
+    if (prevCol !== undefined && prevRow !== undefined && (prevCol !== col || prevRow !== row)) {
       pushHistory({
         type: "MOVE_NODE",
         nodeId: id,
@@ -591,16 +587,13 @@ export function WorkflowBuilder({
       const target = e.target as HTMLElement | null;
       if (
         target &&
-        (target.tagName === "INPUT" ||
-          target.tagName === "TEXTAREA" ||
-          target.isContentEditable)
+        (target.tagName === "INPUT" || target.tagName === "TEXTAREA" || target.isContentEditable)
       ) {
         return;
       }
 
       const isMac =
-        typeof window !== "undefined" &&
-        navigator.platform.toUpperCase().indexOf("MAC") >= 0;
+        typeof window !== "undefined" && navigator.platform.toUpperCase().indexOf("MAC") >= 0;
       const modifier = isMac ? e.metaKey : e.ctrlKey;
 
       if (modifier && e.key.toLowerCase() === "z" && !e.shiftKey) {

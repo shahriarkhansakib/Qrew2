@@ -654,9 +654,7 @@ export function ProjectDetailsModal({ project, onClose }: ProjectDetailsModalPro
                 : undefined,
           }}
         >
-          {isPast && (
-            <Check className="w-4 h-4 text-white" />
-          )}
+          {isPast && <Check className="w-4 h-4 text-white" />}
           {isCurrent && isTerminal && !isNegativeTerminal && (
             <CheckCircle2 className="w-4 h-4 text-white" />
           )}

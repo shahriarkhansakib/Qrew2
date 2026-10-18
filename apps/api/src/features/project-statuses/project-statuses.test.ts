@@ -593,9 +593,7 @@ describe("POST /statuses/:id/swap", () => {
   it("returns 400 when attempting to swap node with itself", async () => {
     const app = new Hono();
     app.route("/", projectStatusesRoute);
-    const res = await app.fetch(
-      makeRequest("POST", `/${STATUS_ID}/swap`, { targetId: STATUS_ID }),
-    );
+    const res = await app.fetch(makeRequest("POST", `/${STATUS_ID}/swap`, { targetId: STATUS_ID }));
 
     expect(res.status).toBe(400);
     const body = (await res.json()) as any;
@@ -700,7 +698,8 @@ describe("POST /migrate-defaults", () => {
     // 4. Mock select transitions for layout seeding
     mockSelect.mockReturnValueOnce({
       from: () => ({
-        where: () => Promise.resolve([{ fromStatusId: "node-created", toStatusId: "node-completed" }]),
+        where: () =>
+          Promise.resolve([{ fromStatusId: "node-created", toStatusId: "node-completed" }]),
       }),
     });
 
@@ -715,4 +714,3 @@ describe("POST /migrate-defaults", () => {
     expect(mockUpdate).toHaveBeenCalled();
   });
 });
-

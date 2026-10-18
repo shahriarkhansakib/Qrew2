@@ -14,37 +14,31 @@ import { ProjectsController } from "./projects.controller";
 
 // ─── Hoisted Mocks ────────────────────────────────────────────────────────
 
-const {
-  mockDbQuery,
-  mockDbSelect,
-  mockDbInsert,
-  mockDbUpdate,
-  mockDbDelete,
-  mockUploadsService,
-} = vi.hoisted(() => {
-  const mockDbQuery = {
-    projects: { findMany: vi.fn(), findFirst: vi.fn() },
-    projectStatuses: { findFirst: vi.fn() },
-    customFieldDefinitions: { findMany: vi.fn() },
-    projectAttachments: { findMany: vi.fn() },
-  };
-  const mockDbSelect = vi.fn();
-  const mockDbInsert = vi.fn();
-  const mockDbUpdate = vi.fn();
-  const mockDbDelete = vi.fn();
-  const mockUploadsService = {
-    generateProjectAttachmentPresignedPut: vi.fn(),
-  };
+const { mockDbQuery, mockDbSelect, mockDbInsert, mockDbUpdate, mockDbDelete, mockUploadsService } =
+  vi.hoisted(() => {
+    const mockDbQuery = {
+      projects: { findMany: vi.fn(), findFirst: vi.fn() },
+      projectStatuses: { findFirst: vi.fn() },
+      customFieldDefinitions: { findMany: vi.fn() },
+      projectAttachments: { findMany: vi.fn() },
+    };
+    const mockDbSelect = vi.fn();
+    const mockDbInsert = vi.fn();
+    const mockDbUpdate = vi.fn();
+    const mockDbDelete = vi.fn();
+    const mockUploadsService = {
+      generateProjectAttachmentPresignedPut: vi.fn(),
+    };
 
-  return {
-    mockDbQuery,
-    mockDbSelect,
-    mockDbInsert,
-    mockDbUpdate,
-    mockDbDelete,
-    mockUploadsService,
-  };
-});
+    return {
+      mockDbQuery,
+      mockDbSelect,
+      mockDbInsert,
+      mockDbUpdate,
+      mockDbDelete,
+      mockUploadsService,
+    };
+  });
 
 vi.mock("@starter/db", () => ({
   db: {
@@ -117,7 +111,8 @@ function makeCtx({
   query?: Record<string, string>;
 } = {}): any {
   return {
-    get: (k: string) => (k === "organizationId" ? ORG_ID : k === "user" ? { id: "user-1" } : undefined),
+    get: (k: string) =>
+      k === "organizationId" ? ORG_ID : k === "user" ? { id: "user-1" } : undefined,
     req: {
       param: (k?: string) => (k ? params[k] : params),
       query: (k?: string) => (k ? query[k] : query),

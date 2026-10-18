@@ -556,4 +556,3 @@ describe("updateProject — status bypassing guard and concurrency", () => {
     expect((res._data as any).name).toBe("Renamed Project");
   });
 });
-

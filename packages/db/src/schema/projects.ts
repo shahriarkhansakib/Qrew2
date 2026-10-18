@@ -34,7 +34,9 @@ export const projects = pgTable("projects", {
   statusHistory: jsonb("status_history").$type<string[]>().default([]),
   /** Historical snapshots of fields captured at each stage transition. */
   stageFieldHistory: jsonb("stage_field_history")
-    .$type<Array<{ stageId: string; stageName: string; timestamp: string; fields: Record<string, any> }>>()
+    .$type<
+      Array<{ stageId: string; stageName: string; timestamp: string; fields: Record<string, any> }>
+    >()
     .default([]),
   lifecycleState: projectLifecycleStateEnum("lifecycle_state").default("open").notNull(),
   archivedAt: timestamp("archived_at", { mode: "date" }),
