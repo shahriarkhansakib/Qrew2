@@ -116,13 +116,13 @@ export const ROW_TOKENS_INFO: SectionInfoData = {
       name: "<ROW_TOKEN>_<CHARGE>",
       role: "Line Charge",
       description: "Single charge line (calculated as Base × Rate%).",
-      badgeClass: "text-accent-foreground/80 bg-accent/10",
+      badgeClass: "text-amber-400/80 bg-amber-500/10",
     },
     {
       name: "<ROW_TOKEN>_CHARGES",
       role: "Charges Sum",
       description: "Total of all charges added to this row.",
-      badgeClass: "text-accent-foreground bg-accent/10 font-medium",
+      badgeClass: "text-amber-400 bg-amber-500/10 font-medium",
     },
   ],
   rules: [

@@ -68,16 +68,16 @@ const TOKEN_TYPE_CONFIG: Record<
     description: "The raw base value entered directly into a row cell",
   },
   "row-charge-item": {
-    chip: "bg-accent/5 text-accent-foreground/70 border border-amber-500/10",
-    dot: "bg-accent/70",
-    value: "text-accent-foreground/70",
+    chip: "bg-amber-500/5 text-amber-400/70 border border-amber-500/10",
+    dot: "bg-amber-400/70",
+    value: "text-amber-400/70",
     label: "Row Charge Item",
     description: "A single computed charge applied to a specific row",
   },
   "row-charges": {
-    chip: "bg-accent/10 text-accent-foreground border border-amber-500/20",
-    dot: "bg-accent",
-    value: "text-accent-foreground font-medium",
+    chip: "bg-amber-500/10 text-amber-400 border border-amber-500/20",
+    dot: "bg-amber-400",
+    value: "text-amber-400 font-medium",
     label: "Row Charges Sum",
     description: "Sum of all individual charges on a specific row",
   },
@@ -1038,14 +1038,14 @@ export function TemplateTokenPool({
                       </p>
                       <p>
                         • <strong>Charges Sum:</strong>{" "}
-                        <code className="font-mono text-accent-foreground font-medium">
+                        <code className="font-mono text-amber-400 font-medium">
                           &lt;ROW&gt;_CHARGES
                         </code>{" "}
                         represents the sum of all charges for that row.
                       </p>
                       <p>
                         • <strong>Strict Rate Charges:</strong> Line charges evaluate predictably as{" "}
-                        <code className="font-mono text-accent-foreground/80">
+                        <code className="font-mono text-amber-400/80">
                           &lt;ROW&gt;_BASE * rate%
                         </code>
                         .

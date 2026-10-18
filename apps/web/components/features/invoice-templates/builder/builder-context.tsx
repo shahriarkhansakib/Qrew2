@@ -221,7 +221,7 @@ export function BuilderProvider({
 
   const getTokenColor = useCallback(
     (token: string) => {
-      if (["MIN", "MAX", "ROUND", "CLAMP", "ABS"].includes(token))
+      if (["MIN", "MAX", "ROUND", "CLAMP", "ABS", "FLOOR", "CEIL"].includes(token))
         return "text-amber-400 font-semibold";
       if (token === "EXP_TOTAL") return "text-rose-500 font-bold bg-rose-500/15";
       if (externalTokens.category?.has(token) || token.startsWith("EXP_"))
@@ -241,8 +241,8 @@ export function BuilderProvider({
       // Row tokens
       if (t.rowBases.has(token)) return "text-violet-400 font-semibold";
       if (t.rowTotals.has(token)) return "text-slate-400 font-bold";
-      if (t.rowChargeTotals.has(token)) return "text-accent-foreground font-medium";
-      if (t.rowChargeItems.has(token)) return "text-accent-foreground/70";
+      if (t.rowChargeTotals.has(token)) return "text-amber-400 font-medium";
+      if (t.rowChargeItems.has(token)) return "text-amber-400/70";
 
       // Fallbacks if token missing from AST but looks like one
       if (token.startsWith("SEC_")) {
@@ -251,7 +251,7 @@ export function BuilderProvider({
         return "text-slate-400 font-bold";
       }
       if (token.endsWith("_BASE")) return "text-violet-400 font-semibold";
-      if (token.endsWith("_CHARGES")) return "text-accent-foreground font-medium";
+      if (token.endsWith("_CHARGES")) return "text-amber-400 font-medium";
 
       return "text-slate-400 font-bold";
     },
