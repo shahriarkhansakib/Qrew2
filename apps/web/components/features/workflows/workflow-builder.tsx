@@ -1,14 +1,15 @@
 "use client";
 
 import { useMutation, useQueryClient } from "@tanstack/react-query";
-import { AlertTriangle, Loader2, Plus, Redo2, Trash2, Undo2 } from "lucide-react";
-import { useEffect, useState } from "react";
+import { AlertTriangle, Gauge, Loader2, Plus, Redo2, Trash2, Undo2 } from "lucide-react";
+import { useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogFooter, DialogTitle } from "@/components/ui/dialog";
 import { apiUrl } from "@/lib/constants";
 import { WorkflowGraph } from "./workflow-graph";
 import { WorkflowNodeModal } from "./workflow-node-modal";
+import { WorkflowVelocityModal } from "./workflow-velocity-modal";
 
 // ─── Types ──────────────────────────────────────────────────────────────────
 interface Status {
@@ -200,6 +201,7 @@ export function WorkflowBuilder({
 
   const [insertBetween, setInsertBetween] = useState<{ fromId: string; toId: string } | null>(null);
   const [branchFrom, setBranchFrom] = useState<string | null>(null);
+  const [isVelocityOpen, setIsVelocityOpen] = useState(false);
 
   const statuses: Status[] = Array.isArray(initialStatuses) ? initialStatuses : [];
   const nonSystemStatuses = statuses.filter((s) => !s.isSystem);
@@ -582,6 +584,12 @@ export function WorkflowBuilder({
     }
   };
 
+  const handleUndoRef = useRef(handleUndo);
+  handleUndoRef.current = handleUndo;
+
+  const handleRedoRef = useRef(handleRedo);
+  handleRedoRef.current = handleRedo;
+
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
       const target = e.target as HTMLElement | null;
@@ -598,19 +606,19 @@ export function WorkflowBuilder({
 
       if (modifier && e.key.toLowerCase() === "z" && !e.shiftKey) {
         e.preventDefault();
-        handleUndo();
+        handleUndoRef.current();
       } else if (
         (modifier && e.key.toLowerCase() === "y") ||
         (modifier && e.shiftKey && e.key.toLowerCase() === "z")
       ) {
         e.preventDefault();
-        handleRedo();
+        handleRedoRef.current();
       }
     };
 
     window.addEventListener("keydown", handleKeyDown);
     return () => window.removeEventListener("keydown", handleKeyDown);
-  }, [undoStack, redoStack, isExecutingHistory]);
+  }, []);
 
   // ── Close modal ──────────────────────────────────────────────────────────
 
@@ -661,6 +669,16 @@ export function WorkflowBuilder({
               <span className="hidden sm:inline">Redo</span>
             </Button>
           </div>
+
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => setIsVelocityOpen(true)}
+            className="gap-1.5 text-xs border-primary/20 hover:border-primary hover:bg-primary/5 shadow-2xs"
+          >
+            <Gauge className="w-3.5 h-3.5 text-primary" />
+            <span className="hidden sm:inline">Workflow Velocity</span>
+          </Button>
 
           {nonSystemStatuses.length > 0 && (
             <Button
@@ -766,6 +784,9 @@ export function WorkflowBuilder({
           branchFrom={branchFrom}
         />
       )}
+
+      {/* Workflow Velocity Analytics Modal (Option 4) */}
+      <WorkflowVelocityModal isOpen={isVelocityOpen} onClose={() => setIsVelocityOpen(false)} />
     </div>
   );
 }

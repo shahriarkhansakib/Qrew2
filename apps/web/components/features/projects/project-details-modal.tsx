@@ -9,19 +9,23 @@ import {
   ArrowRight,
   Check,
   CheckCircle2,
+  Clock,
   Download,
   Edit2,
   FileStack,
   FileText,
   Flag,
   GitBranch,
+  History,
   Loader2,
+  Lock,
   Paperclip,
   Plus,
   Receipt,
   RotateCcw,
   Settings2,
   Trash2,
+  User,
   X,
   XCircle,
 } from "lucide-react";
@@ -37,6 +41,7 @@ import { Input } from "@/components/ui/input";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { apiUrl } from "@/lib/constants";
 import { cn } from "@/lib/utils";
+import { usePermissionStore } from "@/store/use-permission-store";
 import { EditStageDataModal } from "./edit-stage-data-modal";
 import { ExpenseDetailsModal } from "./expense-details-modal";
 import { ProjectDataDisplay } from "./project-data-display";
@@ -212,6 +217,7 @@ function ProjectInvoicesSection({
 export function ProjectDetailsModal({ project, onClose }: ProjectDetailsModalProps) {
   const router = useRouter();
   const queryClient = useQueryClient();
+  const { hasRole } = usePermissionStore();
   const [isExpenseDetailsOpen, setIsExpenseDetailsOpen] = useState(false);
   const [selectedStatusId, setSelectedStatusId] = useState<string | null>(null);
   const [editStageId, setEditStageId] = useState<string | null>(null);
@@ -292,6 +298,33 @@ export function ProjectDetailsModal({ project, onClose }: ProjectDetailsModalPro
     },
     enabled: !!project,
   });
+
+  const { data: statusLogsData, isLoading: loadingStatusLogs } = useQuery({
+    queryKey: ["project-status-logs", project?.id],
+    queryFn: async () => {
+      if (!project?.id) return { logs: [] };
+      const res = await fetch(`${apiUrl}/api/workspaces/projects/${project.id}/status-logs`, {
+        credentials: "include",
+      });
+      if (!res.ok) throw new Error("Failed to fetch status logs");
+      return res.json();
+    },
+    enabled: !!project?.id,
+  });
+
+  const statusLogs: any[] = statusLogsData?.logs || [];
+
+  const formatStageDuration = (sec: number | null | undefined) => {
+    if (!sec || sec <= 0) return "< 1m";
+    if (sec < 60) return `${Math.round(sec)}s`;
+    if (sec < 3600) return `${Math.round(sec / 60)}m`;
+    const hours = Math.floor(sec / 3600);
+    const mins = Math.round((sec % 3600) / 60);
+    if (hours < 24) return mins > 0 ? `${hours}h ${mins}m` : `${hours}h`;
+    const days = Math.floor(sec / 86400);
+    const remHours = Math.round((sec % 86400) / 3600);
+    return remHours > 0 ? `${days}d ${remHours}h` : `${days}d`;
+  };
 
   // ── Mutations ──────────────────────────────────────────────────────────────
 
@@ -376,6 +409,7 @@ export function ProjectDetailsModal({ project, onClose }: ProjectDetailsModalPro
 
       // 2. Also invalidate in the background so the list re-fetches fresh data.
       queryClient.invalidateQueries({ queryKey: ["projects"] });
+      queryClient.invalidateQueries({ queryKey: ["project-status-logs", project?.id] });
 
       // 3. Auto-select the new status so fields update immediately.
       setSelectedStatusId(updatedProject.status);
@@ -628,12 +662,25 @@ export function ProjectDetailsModal({ project, onClose }: ProjectDetailsModalPro
     const terminalRingColor = isNegativeTerminal ? "#f43f5e" : isTerminal ? "#10b981" : null;
     const effectiveColor = terminalRingColor ?? color;
 
+    // Look up historical duration for past status from ledger
+    const matchingLog = isPast ? statusLogs.find((l: any) => l.fromStatusId === status.id) : null;
+    const durationBadge =
+      matchingLog?.timeInPreviousStageSeconds != null
+        ? formatStageDuration(matchingLog.timeInPreviousStageSeconds)
+        : null;
+
     return (
       <div
         className="flex flex-col items-center gap-2 z-10 relative group cursor-pointer"
         key={status.id}
         onClick={() => setSelectedStatusId(status.id)}
+        title={durationBadge ? `Time in stage: ${durationBadge}` : status.name}
       >
+        {durationBadge && (
+          <span className="text-[10px] font-mono text-muted-foreground/80 absolute -top-4.5 whitespace-nowrap bg-background/90 px-1 py-0.2 rounded border border-border/40 shadow-2xs">
+            {durationBadge}
+          </span>
+        )}
         <div
           className={cn(
             "rounded-full flex items-center justify-center transition-all border-2",
@@ -799,21 +846,46 @@ export function ProjectDetailsModal({ project, onClose }: ProjectDetailsModalPro
                               allowedNextStatuses.map((ns: any) => {
                                 const isDynamicTerminal =
                                   !ns.isInitial && ns.transitions?.length === 0;
+                                const trans = (currentStatus?.transitions || []).find(
+                                  (t: any) => t.toStatusId === ns.id,
+                                );
+                                const isRoleAllowed = hasRole(trans?.allowedRoleIds);
+
                                 return (
                                   <Button
                                     key={ns.id}
                                     variant="ghost"
-                                    className="w-full justify-start gap-2 h-9 text-sm"
-                                    onClick={() => handleAdvance(ns.id)}
+                                    className={cn(
+                                      "w-full justify-start gap-2 h-9 text-sm",
+                                      !isRoleAllowed &&
+                                        "opacity-50 cursor-not-allowed hover:bg-transparent",
+                                    )}
+                                    onClick={() => {
+                                      if (!isRoleAllowed) {
+                                        toast.error(
+                                          `Your role does not have permission to advance files to "${ns.name}".`,
+                                        );
+                                        return;
+                                      }
+                                      handleAdvance(ns.id);
+                                    }}
+                                    disabled={!isRoleAllowed}
+                                    title={
+                                      !isRoleAllowed
+                                        ? "Restricted: your role is not permitted for this transition"
+                                        : undefined
+                                    }
                                   >
                                     <span
                                       className="w-2 h-2 rounded-full"
                                       style={{ backgroundColor: ns.color || "#94a3b8" }}
                                     />
                                     <span className="flex-1 text-left">{ns.name}</span>
-                                    {isDynamicTerminal && (
+                                    {!isRoleAllowed ? (
+                                      <Lock className="w-3.5 h-3.5 text-muted-foreground" />
+                                    ) : isDynamicTerminal ? (
                                       <CheckCircle2 className="w-3.5 h-3.5 text-primary/70" />
-                                    )}
+                                    ) : null}
                                   </Button>
                                 );
                               })
@@ -845,26 +917,51 @@ export function ProjectDetailsModal({ project, onClose }: ProjectDetailsModalPro
                     <div className="flex flex-wrap items-center gap-2">
                       {allowedNextStatuses.map((ns: any) => {
                         const reqFields = getRequiredFields(ns.id);
+                        const trans = (currentStatus?.transitions || []).find(
+                          (t: any) => t.toStatusId === ns.id,
+                        );
+                        const isRoleAllowed = hasRole(trans?.allowedRoleIds);
+
                         return (
                           <Button
                             key={ns.id}
                             size="sm"
                             variant="outline"
-                            className="h-8 gap-2 text-xs border-primary/20 hover:border-primary hover:bg-primary/5 transition-all shadow-none"
-                            onClick={() => handleAdvance(ns.id)}
-                            disabled={advanceStatusMutation.isPending}
+                            className={cn(
+                              "h-8 gap-2 text-xs border-primary/20 hover:border-primary hover:bg-primary/5 transition-all shadow-none",
+                              !isRoleAllowed &&
+                                "opacity-50 cursor-not-allowed hover:bg-transparent hover:border-border",
+                            )}
+                            onClick={() => {
+                              if (!isRoleAllowed) {
+                                toast.error(
+                                  `Your role does not have permission to advance files to "${ns.name}".`,
+                                );
+                                return;
+                              }
+                              handleAdvance(ns.id);
+                            }}
+                            disabled={advanceStatusMutation.isPending || !isRoleAllowed}
+                            title={
+                              !isRoleAllowed
+                                ? "Restricted: your role is not permitted for this transition"
+                                : undefined
+                            }
                           >
                             <span
                               className="w-2 h-2 rounded-full shrink-0"
                               style={{ backgroundColor: ns.color || "#94a3b8" }}
                             />
                             <span>{ns.name}</span>
-                            {reqFields.length > 0 && (
+                            {!isRoleAllowed ? (
+                              <Lock className="w-3 h-3 text-muted-foreground" />
+                            ) : reqFields.length > 0 ? (
                               <span className="text-[10px] font-semibold px-1.5 py-0.2 rounded-full bg-amber-500/15 text-amber-600 dark:text-amber-400 border border-amber-500/30">
                                 {reqFields.length} {reqFields.length === 1 ? "field" : "fields"}
                               </span>
+                            ) : (
+                              <ArrowRight className="w-3 h-3 opacity-60" />
                             )}
-                            <ArrowRight className="w-3 h-3 opacity-60" />
                           </Button>
                         );
                       })}
@@ -1265,6 +1362,83 @@ export function ProjectDetailsModal({ project, onClose }: ProjectDetailsModalPro
                   onOpenGenerateInvoice={() => setIsGenerateInvoiceOpen(true)}
                 />
               </Can>
+
+              {/* Stage Audit History Section (Option 3) */}
+              <div className="p-6 border-t pb-8">
+                <div className="flex items-center justify-between mb-3">
+                  <h3 className="text-sm font-semibold uppercase tracking-wider text-muted-foreground flex items-center gap-2">
+                    <History className="w-4 h-4" />
+                    Stage Audit Trail
+                    {statusLogs.length > 0 && (
+                      <span className="text-[11px] font-medium px-1.5 py-0.5 rounded-full bg-muted text-muted-foreground">
+                        {statusLogs.length}
+                      </span>
+                    )}
+                  </h3>
+                </div>
+
+                {loadingStatusLogs ? (
+                  <div className="flex justify-center py-4">
+                    <Loader2 className="w-4 h-4 animate-spin text-muted-foreground" />
+                  </div>
+                ) : statusLogs.length === 0 ? (
+                  <div className="text-center py-6 bg-background/50 rounded-xl border border-dashed text-muted-foreground">
+                    <p className="text-xs font-medium">No transitions recorded yet</p>
+                  </div>
+                ) : (
+                  <div className="space-y-2.5">
+                    {statusLogs.map((log: any) => {
+                      const fromStatus = sortedStatuses.find((s: any) => s.id === log.fromStatusId);
+                      const toStatus = sortedStatuses.find((s: any) => s.id === log.toStatusId);
+
+                      return (
+                        <div
+                          key={log.id}
+                          className="p-2.5 rounded-lg border bg-background text-xs space-y-1.5 shadow-2xs"
+                        >
+                          <div className="flex items-center justify-between">
+                            <div className="flex items-center gap-1.5 font-medium">
+                              <span
+                                className="w-2 h-2 rounded-full shrink-0"
+                                style={{ backgroundColor: fromStatus?.color || "#94a3b8" }}
+                              />
+                              <span className="truncate max-w-[70px]">
+                                {fromStatus?.name || "Initial"}
+                              </span>
+                              <ArrowRight className="w-3 h-3 text-muted-foreground shrink-0" />
+                              <span
+                                className="w-2 h-2 rounded-full shrink-0"
+                                style={{ backgroundColor: toStatus?.color || "#94a3b8" }}
+                              />
+                              <span className="truncate max-w-[70px] font-semibold">
+                                {toStatus?.name || "Target"}
+                              </span>
+                            </div>
+                            <span className="text-[10px] text-muted-foreground whitespace-nowrap">
+                              {log.changedAt
+                                ? format(new Date(log.changedAt), "MMM d, h:mm a")
+                                : ""}
+                            </span>
+                          </div>
+
+                          <div className="flex items-center justify-between text-[11px] text-muted-foreground pt-1 border-t border-border/30">
+                            <span className="flex items-center gap-1 truncate max-w-[130px]">
+                              <User className="w-3 h-3 shrink-0" />
+                              <span className="truncate">{log.changedByName || "Team member"}</span>
+                            </span>
+                            {log.timeInPreviousStageSeconds != null && (
+                              <span className="flex items-center gap-1 text-primary font-medium shrink-0">
+                                <Clock className="w-3 h-3" />
+                                {formatStageDuration(log.timeInPreviousStageSeconds)}
+                              </span>
+                            )}
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                )}
+              </div>
             </div>
           </div>
         )}

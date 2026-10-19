@@ -1,4 +1,4 @@
-import { type AppPermission, db, members } from "@starter/db";
+import { type AppPermission, db, members, orgMemberRoles } from "@starter/db";
 import { and, eq } from "drizzle-orm";
 import { Context, Next } from "hono";
 import { PermissionService } from "../../features/permissions/permission.service";
@@ -40,6 +40,8 @@ export const requireOrgPermission = (requiredPermission: AppPermission | AppPerm
     // 2. Global Admin Bypass (Super Admins ignore tenant boundaries)
     if (sessionData.user.role === "super_admin") {
       c.set("isOwner", true);
+      c.set("memberRole", "owner");
+      c.set("memberRoleIds", []);
       return await next();
     }
 
@@ -65,6 +67,14 @@ export const requireOrgPermission = (requiredPermission: AppPermission | AppPerm
         403,
       );
     }
+
+    const memberRoles = await db.query.orgMemberRoles.findMany({
+      where: eq(orgMemberRoles.memberId, currentMember.id),
+    });
+    const memberRoleIds = memberRoles.map((mr) => mr.roleId);
+
+    c.set("memberRole", currentMember.role);
+    c.set("memberRoleIds", memberRoleIds);
 
     if (currentMember.role === "owner") {
       c.set("isOwner", true);

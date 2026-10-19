@@ -31,6 +31,7 @@ export * from "./product-categories";
 export * from "./products";
 export * from "./project_attachments";
 export * from "./project-status-fields";
+export * from "./project-status-logs";
 export * from "./project-status-transitions";
 export * from "./project-statuses";
 export * from "./projects";

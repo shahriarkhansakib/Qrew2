@@ -14,7 +14,7 @@
  */
 
 import { relations } from "drizzle-orm";
-import { pgTable, text, timestamp, unique } from "drizzle-orm/pg-core";
+import { jsonb, pgTable, text, timestamp, unique } from "drizzle-orm/pg-core";
 import { organizations } from "./auth";
 import { projectStatuses } from "./project-statuses";
 
@@ -33,6 +33,8 @@ export const projectStatusTransitions = pgTable(
     toStatusId: text("to_status_id")
       .notNull()
       .references(() => projectStatuses.id, { onDelete: "cascade" }),
+    // Role-gating: empty array means available to all roles with project edit permission
+    allowedRoleIds: jsonb("allowed_role_ids").$type<string[]>().default([]).notNull(),
     createdAt: timestamp("created_at", { mode: "date" }).defaultNow().notNull(),
   },
   (table) => [

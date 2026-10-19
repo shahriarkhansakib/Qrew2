@@ -36,7 +36,15 @@ export const projectStatusesSchema = z.object({
 const transitionsSchema = z.object({
   // Array of toStatusIds this status is allowed to transition to.
   // Replaces all existing transitions for this status (full replace).
-  toStatusIds: z.array(z.string()).min(0),
+  toStatusIds: z.array(z.string()).min(0).optional(),
+  transitions: z
+    .array(
+      z.object({
+        toStatusId: z.string().min(1),
+        allowedRoleIds: z.array(z.string()).default([]),
+      }),
+    )
+    .optional(),
 });
 
 const statusFieldsSchema = z.object({
@@ -162,6 +170,7 @@ projectStatusesRoute.get("/", requireOrgPermission("file:view"), async (c) => {
             id: projectStatusTransitions.id,
             fromStatusId: projectStatusTransitions.fromStatusId,
             toStatusId: projectStatusTransitions.toStatusId,
+            allowedRoleIds: projectStatusTransitions.allowedRoleIds,
           })
           .from(projectStatusTransitions)
           .where(
@@ -575,7 +584,12 @@ projectStatusesRoute.put(
   async (c) => {
     const orgId = c.get("organizationId") as string;
     const id = c.req.param("id") as string;
-    const { toStatusIds } = c.req.valid("json");
+    const body = c.req.valid("json");
+    const targetTransitions: { toStatusId: string; allowedRoleIds: string[] }[] =
+      body.transitions && body.transitions.length > 0
+        ? body.transitions
+        : (body.toStatusIds || []).map((tid) => ({ toStatusId: tid, allowedRoleIds: [] }));
+    const toStatusIds = targetTransitions.map((t) => t.toStatusId);
 
     // 1. Verify source status exists in this org
     const [source] = await db
@@ -636,19 +650,20 @@ projectStatusesRoute.put(
         ),
       );
 
-    if (toStatusIds.length > 0) {
+    if (targetTransitions.length > 0) {
       await db.insert(projectStatusTransitions).values(
-        toStatusIds.map((toId) => ({
+        targetTransitions.map((t) => ({
           id: crypto.randomUUID(),
           organizationId: orgId,
           fromStatusId: id,
-          toStatusId: toId,
+          toStatusId: t.toStatusId,
+          allowedRoleIds: t.allowedRoleIds || [],
         })),
       );
     }
 
     log.info({ orgId, fromStatusId: id, toStatusIds }, "Updated status transitions");
-    return c.json({ success: true, fromStatusId: id, toStatusIds });
+    return c.json({ success: true, fromStatusId: id, toStatusIds, transitions: targetTransitions });
   },
 );
 

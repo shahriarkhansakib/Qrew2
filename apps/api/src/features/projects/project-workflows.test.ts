@@ -23,21 +23,25 @@ import { ProjectsController } from "./projects.controller";
 // vi.mock is hoisted to the top of the file; variables it references must also
 // be hoisted using vi.hoisted() to avoid "Cannot access before initialization" errors.
 
-const { mockDbQuery, mockDbSelect, mockDbUpdate } = vi.hoisted(() => {
+const { mockDbQuery, mockDbSelect, mockDbUpdate, mockDbInsert } = vi.hoisted(() => {
   const mockDbQuery = {
     projects: { findFirst: vi.fn() },
     customFieldDefinitions: { findMany: vi.fn() },
   };
-  const mockDbSelect = vi.fn();
-  const mockDbUpdate = vi.fn();
-  return { mockDbQuery, mockDbSelect, mockDbUpdate };
+  const mockDbSelect = vi.fn((..._args: any[]) => ({}));
+  const mockDbUpdate = vi.fn((..._args: any[]) => ({}));
+  const mockDbInsert = vi.fn((..._args: any[]) => ({
+    values: vi.fn().mockResolvedValue([{ id: "log-1" }]),
+  }));
+  return { mockDbQuery, mockDbSelect, mockDbUpdate, mockDbInsert };
 });
 
 vi.mock("@starter/db", () => ({
   db: {
     query: mockDbQuery,
-    select: (...args: any[]) => mockDbSelect(...args),
-    update: (...args: any[]) => mockDbUpdate(...args),
+    select: (...args: any[]) => (mockDbSelect as any)(...args),
+    update: (...args: any[]) => (mockDbUpdate as any)(...args),
+    insert: (...args: any[]) => (mockDbInsert as any)(...args),
   },
   projects: {
     id: "id",
@@ -48,12 +52,21 @@ vi.mock("@starter/db", () => ({
     version: "version",
     stageFieldHistory: "stage_field_history",
   },
-  projectStatuses: { id: "id", organizationId: "organization_id" },
+  projectStatuses: {
+    id: "id",
+    organizationId: "organization_id",
+    name: "name",
+    color: "color",
+    isTerminal: "is_terminal",
+    gridColumn: "grid_column",
+    gridRow: "grid_row",
+  },
   projectStatusTransitions: {
     id: "id",
     organizationId: "organization_id",
     fromStatusId: "from_status_id",
     toStatusId: "to_status_id",
+    allowedRoleIds: "allowed_role_ids",
   },
   projectStatusFields: {
     fieldId: "field_id",
@@ -61,7 +74,19 @@ vi.mock("@starter/db", () => ({
     statusId: "status_id",
     isRequiredToEnter: "is_required_to_enter",
   },
+  projectStatusLogs: {
+    id: "id",
+    organizationId: "organization_id",
+    projectId: "project_id",
+    fromStatusId: "from_status_id",
+    toStatusId: "to_status_id",
+    changedById: "changed_by_id",
+    changedAt: "changed_at",
+    timeInPreviousStageSeconds: "time_in_previous_stage_seconds",
+    stageSnapshot: "stage_snapshot",
+  },
   customFieldDefinitions: { id: "id", fieldKey: "field_key", fieldName: "field_name" },
+  users: { id: "id", name: "name", email: "email" },
   expenses: {},
   invoices: {},
 }));
@@ -88,9 +113,19 @@ const TO_STATUS_ID = "status-active";
 const FIELD_KEY_A = "DISCHARGE_DATE";
 const FIELD_KEY_B = "VESSEL_NAME";
 
-function makeCtx(body: object, param: string = PROJECT_ID): any {
+function makeCtx(
+  body: object,
+  param: string = PROJECT_ID,
+  options?: { isOwner?: boolean; memberRole?: string },
+): any {
   return {
-    get: (k: string) => (k === "organizationId" ? ORG_ID : undefined),
+    get: (k: string) => {
+      if (k === "organizationId") return ORG_ID;
+      if (k === "isOwner") return options?.isOwner ?? false;
+      if (k === "memberRole") return options?.memberRole ?? "org_role_staff";
+      if (k === "user") return { id: "usr_test_1", name: "Test User" };
+      return undefined;
+    },
     req: {
       param: () => param,
       json: () => Promise.resolve(body),
@@ -105,15 +140,16 @@ function makeCtx(body: object, param: string = PROJECT_ID): any {
 }
 
 function selectChainable(rows: any[]) {
-  const c: any = {
-    from: () => c,
-    where: () => c,
-    innerJoin: () => c,
-    limit: () => c,
-    then: (resolve: any) => Promise.resolve(rows).then(resolve),
-    [Symbol.iterator]: rows[Symbol.iterator].bind(rows),
-  };
-  return c;
+  const p: any = Promise.resolve(rows);
+  p.from = () => p;
+  p.where = () => p;
+  p.innerJoin = () => p;
+  p.leftJoin = () => p;
+  p.limit = () => p;
+  p.orderBy = () => p;
+  p.groupBy = () => p;
+  p[Symbol.iterator] = rows[Symbol.iterator].bind(rows);
+  return p;
 }
 
 function updateChainable(result: any[]) {
@@ -554,5 +590,235 @@ describe("updateProject — status bypassing guard and concurrency", () => {
     const res = await ProjectsController.updateProject(ctx as any);
     expect(res._status).toBe(200);
     expect((res._data as any).name).toBe("Renamed Project");
+  });
+});
+
+describe("advanceStatus — role-gated transitions (Option 1)", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    mockDbQuery.customFieldDefinitions.findMany.mockResolvedValue([]);
+  });
+
+  it("rejects transition with 403 when user role is not in allowedRoleIds", async () => {
+    const project = {
+      id: PROJECT_ID,
+      organizationId: ORG_ID,
+      status: FROM_STATUS_ID,
+      lifecycleState: "open",
+      customFields: {},
+      version: 1,
+    };
+    const targetStatus = { id: TO_STATUS_ID, name: "Manager Approval" };
+
+    mockDbQuery.projects.findFirst.mockResolvedValueOnce(project);
+    mockDbSelect
+      .mockReturnValueOnce(selectChainable([targetStatus])) // targetStatus check
+      .mockReturnValueOnce(
+        selectChainable([
+          {
+            id: "trans-1",
+            allowedRoleIds: ["org_role_manager"], // Only managers allowed!
+          },
+        ]),
+      ) // allowedTransition check
+      .mockReturnValueOnce(selectChainable([{ id: "trans-1" }])); // hasAnyTransitions check
+
+    // Staff member attempts the transition
+    const ctx = makeCtx({ toStatusId: TO_STATUS_ID }, PROJECT_ID, {
+      isOwner: false,
+      memberRole: "org_role_staff",
+    });
+
+    const res = await ProjectsController.advanceStatus(ctx as any);
+    expect(res._status).toBe(403);
+    expect((res._data as any).error).toBe("Forbidden");
+    expect((res._data as any).message).toContain("does not have permission");
+  });
+
+  it("allows transition when user role matches one of allowedRoleIds", async () => {
+    const project = {
+      id: PROJECT_ID,
+      organizationId: ORG_ID,
+      status: FROM_STATUS_ID,
+      lifecycleState: "open",
+      customFields: {},
+      version: 1,
+    };
+    const targetStatus = { id: TO_STATUS_ID, name: "Manager Approval" };
+    const updatedProject = { ...project, status: TO_STATUS_ID, version: 2 };
+
+    mockDbQuery.projects.findFirst.mockResolvedValueOnce(project);
+    mockDbSelect
+      .mockReturnValueOnce(selectChainable([targetStatus])) // targetStatus
+      .mockReturnValueOnce(
+        selectChainable([
+          {
+            id: "trans-1",
+            allowedRoleIds: ["org_role_manager"],
+          },
+        ]),
+      ) // allowedTransition
+      .mockReturnValueOnce(selectChainable([{ id: "trans-1" }])) // hasAnyTransitions
+      .mockReturnValueOnce(selectChainable([])) // requiredFields
+      .mockReturnValueOnce(selectChainable([])); // lastLog for audit log
+
+    mockDbUpdate.mockReturnValueOnce(updateChainable([updatedProject]));
+
+    // Manager executes the transition
+    const ctx = makeCtx({ toStatusId: TO_STATUS_ID }, PROJECT_ID, {
+      isOwner: false,
+      memberRole: "org_role_manager",
+    });
+
+    const res = await ProjectsController.advanceStatus(ctx as any);
+    expect(res._status).toBe(200);
+    expect((res._data as any).status).toBe(TO_STATUS_ID);
+  });
+
+  it("allows transition when user is workspace owner even if role is not in allowedRoleIds", async () => {
+    const project = {
+      id: PROJECT_ID,
+      organizationId: ORG_ID,
+      status: FROM_STATUS_ID,
+      lifecycleState: "open",
+      customFields: {},
+      version: 1,
+    };
+    const targetStatus = { id: TO_STATUS_ID, name: "Manager Approval" };
+    const updatedProject = { ...project, status: TO_STATUS_ID, version: 2 };
+
+    mockDbQuery.projects.findFirst.mockResolvedValueOnce(project);
+    mockDbSelect
+      .mockReturnValueOnce(selectChainable([targetStatus]))
+      .mockReturnValueOnce(
+        selectChainable([
+          {
+            id: "trans-1",
+            allowedRoleIds: ["org_role_manager"],
+          },
+        ]),
+      )
+      .mockReturnValueOnce(selectChainable([{ id: "trans-1" }]))
+      .mockReturnValueOnce(selectChainable([]))
+      .mockReturnValueOnce(selectChainable([])); // lastLog
+
+    mockDbUpdate.mockReturnValueOnce(updateChainable([updatedProject]));
+
+    // Workspace Owner executes transition
+    const ctx = makeCtx({ toStatusId: TO_STATUS_ID }, PROJECT_ID, {
+      isOwner: true,
+      memberRole: "owner",
+    });
+
+    const res = await ProjectsController.advanceStatus(ctx as any);
+    expect(res._status).toBe(200);
+    expect((res._data as any).status).toBe(TO_STATUS_ID);
+  });
+});
+
+describe("getStatusLogs & projectStatusLogs — audit ledger (Option 3)", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
+
+  it("retrieves status logs for a project via getStatusLogs", async () => {
+    const sampleLogs = [
+      {
+        id: "log-2",
+        projectId: PROJECT_ID,
+        fromStatusId: FROM_STATUS_ID,
+        toStatusId: TO_STATUS_ID,
+        changedById: "usr_1",
+        changedAt: new Date(),
+        timeInPreviousStageSeconds: 3600,
+        stageSnapshot: { VESSEL_NAME: "Ever Given" },
+      },
+    ];
+
+    mockDbSelect.mockReturnValueOnce(selectChainable(sampleLogs));
+
+    const ctx = makeCtx({}, PROJECT_ID);
+    const res = await ProjectsController.getStatusLogs(ctx as any);
+    expect(res._status).toBe(200);
+    expect((res._data as any).logs).toHaveLength(1);
+    expect((res._data as any).logs[0].timeInPreviousStageSeconds).toBe(3600);
+  });
+});
+
+describe("getWorkflowVelocityAnalytics — bottleneck & velocity metrics (Option 4)", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
+
+  it("computes stage distribution, velocity averages, and identifies bottleneck stage", async () => {
+    const statuses = [
+      {
+        id: "status-created",
+        name: "Created",
+        color: "#3b82f6",
+        isTerminal: false,
+        gridColumn: 0,
+        gridRow: 0,
+      },
+      {
+        id: "status-progress",
+        name: "In Progress",
+        color: "#f59e0b",
+        isTerminal: false,
+        gridColumn: 1,
+        gridRow: 0,
+      },
+      {
+        id: "status-completed",
+        name: "Completed",
+        color: "#10b981",
+        isTerminal: true,
+        gridColumn: 2,
+        gridRow: 0,
+      },
+    ];
+
+    const projectCounts = [
+      { status: "status-created", count: 5 },
+      { status: "status-progress", count: 8 },
+      { status: "status-completed", count: 12 },
+    ];
+
+    const logAggregates = [
+      {
+        fromStatusId: "status-created",
+        transitionCount: 10,
+        avgSeconds: 1800, // 30m
+        maxSeconds: 3600,
+        minSeconds: 300,
+      },
+      {
+        fromStatusId: "status-progress",
+        transitionCount: 7,
+        avgSeconds: 7200, // 2h — bottleneck!
+        maxSeconds: 14400,
+        minSeconds: 1800,
+      },
+    ];
+
+    mockDbSelect
+      .mockReturnValueOnce(selectChainable(statuses))
+      .mockReturnValueOnce(selectChainable(projectCounts))
+      .mockReturnValueOnce(selectChainable(logAggregates));
+
+    const ctx = makeCtx({});
+    const res = await ProjectsController.getWorkflowVelocityAnalytics(ctx as any);
+    expect(res._status).toBe(200);
+
+    const data = res._data as any;
+    expect(data.totalActiveFiles).toBe(25);
+    expect(data.totalTransitions).toBe(17);
+    expect(data.stageMetrics).toHaveLength(3);
+
+    // Verify bottleneck identification
+    const progressStage = data.stageMetrics.find((m: any) => m.statusId === "status-progress");
+    expect(progressStage.isBottleneck).toBe(true);
+    expect(progressStage.formattedAvgDuration).toBe("2.0h");
+    expect(data.bottleneckStage.statusId).toBe("status-progress");
   });
 });
