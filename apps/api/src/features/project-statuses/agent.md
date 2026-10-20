@@ -18,14 +18,15 @@ This document defines the backend architectural invariants, API contracts, datab
 ---
 
 ## 2. Invariants & Non-Negotiable Rules
-1. **Terminal Stage Invariant**:
-   - Stages marked `isTerminal: true` are mathematical sink nodes. The endpoint `PUT /:id/transitions` explicitly forbids outbound transitions from terminal nodes (`400 Terminal status cannot have outbound transitions.`).
+1. **Dynamic Terminal & Sink Invariant**:
+   - Terminal stages are dynamically deduced by having zero outgoing transitions (`out-degree = 0`). The system completed stage (`name === "Completed"`) is strictly forbidden from having outbound transitions (`400`).
 2. **Atomic Grid Coordinate Swapping**:
    - Reordering or swapping two grid nodes (`POST /:id/swap`) must execute within an atomic PostgreSQL transaction (`db.transaction`) to prevent duplicate coordinate collisions (`409 Conflict`).
 3. **Graph Splicing on Deletion**:
    - When deleting an intermediate stage B that connects A → B → C, the deletion handler MUST re-point all inbound edges (A → B) to each of B's outbound targets (A → C) before dropping B. This prevents graph fragmentation.
-4. **Initial-to-Completed Immutable Edge**:
-   - The edge connecting the initial status (`isInitial: true`) to the default completed status (`isSystem: true`) cannot be removed (`403 Forbidden`).
+4. **Directed Path Reachability (BFS Invariant)**:
+   - A direct edge from `Created` to `Completed` is NOT required; pipelines can route through arbitrary intermediate stages.
+   - However, when updating transitions, the API verifies via BFS that a directed path connects `Created` to `Completed` (`422 Unprocessable Entity` if severed).
 5. **Foreign Key Integrity**:
    - If projects are currently assigned to a stage, Postgres foreign key constraints (`23503`) prevent deletion, and the route returns a user-friendly `409 Conflict`.
 6. **Role-Gated Transitions**:

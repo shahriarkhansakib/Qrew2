@@ -1,7 +1,17 @@
 "use client";
 
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { Check, CheckSquare, GitFork, Loader2, Lock, Plus, Settings2, Shield } from "lucide-react";
+import {
+  Check,
+  CheckSquare,
+  GitFork,
+  Loader2,
+  Lock,
+  Plus,
+  Settings2,
+  Shield,
+  Unlink2,
+} from "lucide-react";
 import { useEffect, useState } from "react";
 import { toast } from "sonner";
 import { Badge } from "@/components/ui/badge";
@@ -17,7 +27,6 @@ import {
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { ScrollArea } from "@/components/ui/scroll-area";
-import { Switch } from "@/components/ui/switch";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { apiUrl } from "@/lib/constants";
 
@@ -57,7 +66,6 @@ export function WorkflowNodeModal({
   const [activeTab, setActiveTab] = useState("general");
   const [name, setName] = useState("");
   const [color, setColor] = useState("#94a3b8");
-  const [isTerminal, setIsTerminal] = useState(false);
 
   // Graph Edges with Role Gating (Option 1)
   const [transitions, setTransitions] = useState<TransitionItem[]>([]);
@@ -84,7 +92,6 @@ export function WorkflowNodeModal({
       if (node) {
         setName(node.name);
         setColor(node.color || "#94a3b8");
-        setIsTerminal(node.isTerminal || false);
         setTransitions(
           (node.transitions || []).map((t: any) => ({
             toStatusId: t.toStatusId,
@@ -101,7 +108,6 @@ export function WorkflowNodeModal({
       } else {
         setName("");
         setColor("#3b82f6");
-        setIsTerminal(false);
         setTransitions(
           (initialTransitions || []).map((toId: string) => ({
             toStatusId: toId,
@@ -153,7 +159,6 @@ export function WorkflowNodeModal({
           body: JSON.stringify({
             name,
             color,
-            isTerminal,
             gridColumn,
             gridRow,
             insertBump: !!insertBetween,
@@ -166,7 +171,7 @@ export function WorkflowNodeModal({
         const res = await fetch(`${apiUrl}/api/workspaces/projects/statuses/${statusId}`, {
           method: "PATCH",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ name, color, isTerminal }),
+          body: JSON.stringify({ name, color }),
           credentials: "include",
         });
         if (!res.ok) throw new Error((await res.json()).error || "Failed to update node");
@@ -261,14 +266,8 @@ export function WorkflowNodeModal({
     onError: (err: any) => toast.error(err.message),
   });
 
-  const toggleTransition = (targetId: string) => {
-    setTransitions((prev) => {
-      const exists = prev.some((t) => t.toStatusId === targetId);
-      if (exists) {
-        return prev.filter((t) => t.toStatusId !== targetId);
-      }
-      return [...prev, { toStatusId: targetId, allowedRoleIds: [] }];
-    });
+  const disconnectTransition = (targetId: string) => {
+    setTransitions((prev) => prev.filter((t) => t.toStatusId !== targetId));
   };
 
   const toggleRoleForTransition = (targetId: string, roleIdentifier: string) => {
@@ -307,8 +306,9 @@ export function WorkflowNodeModal({
     });
   };
 
-  const availableTargets = allStatuses.filter(
-    (s) => s.id !== node?.id && !s.isInitial, // Cannot transition back to starting node
+  // Only directly connected outgoing nodes are displayed in this modal
+  const connectedTargets = allStatuses.filter((s) =>
+    transitions.some((t) => t.toStatusId === s.id),
   );
 
   return (
@@ -390,25 +390,29 @@ export function WorkflowNodeModal({
               </div>
 
               <div className="p-4 rounded-xl border bg-muted/20 flex items-center justify-between">
-                <div>
-                  <Label className="text-sm font-semibold">Terminal Stage</Label>
-                  <p className="text-xs text-muted-foreground mt-0.5">
-                    Terminal stages represent final workflow outcomes (e.g. &quot;Completed&quot; or
-                    &quot;Void&quot;) and have no outbound transitions.
+                <div className="space-y-1">
+                  <div className="flex items-center gap-2">
+                    <Label className="text-sm font-semibold">Stage Nature</Label>
+                    <Badge variant="outline" className="text-xs font-mono">
+                      {node?.isInitial
+                        ? "Initial (Entry)"
+                        : transitions.length === 0
+                          ? "Terminal (Sink)"
+                          : "Intermediate"}
+                    </Badge>
+                  </div>
+                  <p className="text-xs text-muted-foreground">
+                    {node?.isInitial
+                      ? "This is the primary starting stage for new projects entering the workflow."
+                      : transitions.length === 0
+                        ? "This stage currently has 0 outgoing transitions and acts dynamically as a terminal stage."
+                        : `This stage connects to ${transitions.length} downstream stage${transitions.length === 1 ? "" : "s"}.`}
                   </p>
                 </div>
-                <Switch
-                  checked={isTerminal}
-                  onCheckedChange={(checked) => {
-                    setIsTerminal(checked);
-                    if (checked) setTransitions([]);
-                  }}
-                  disabled={node?.isSystem}
-                />
               </div>
             </TabsContent>
 
-            {/* Tab 2: Outgoing Transitions & Role-Gating (Option 1) */}
+            {/* Tab 2: Outgoing Transitions & Role-Gating */}
             <TabsContent value="transitions" className="mt-0 space-y-4">
               <div className="flex items-center justify-between pb-2 border-b">
                 <div>
@@ -417,132 +421,133 @@ export function WorkflowNodeModal({
                     Allowed Outgoing Transitions &amp; Role PBAC
                   </h4>
                   <p className="text-xs text-muted-foreground">
-                    Connect this stage to downstream stages. Restrict individual transitions by
-                    member role. Workspace owners always bypass role gates.
+                    Manage role-based access for existing outgoing transitions from this stage. Edge
+                    creation is performed directly on the canvas using the Connect tool or (+)
+                    handles.
                   </p>
                 </div>
               </div>
 
-              {isTerminal ? (
-                <div className="p-6 text-center rounded-xl border border-dashed text-muted-foreground text-xs">
-                  This stage is marked as terminal and cannot have outbound transitions.
-                </div>
-              ) : availableTargets.length === 0 ? (
-                <div className="p-6 text-center rounded-xl border border-dashed text-muted-foreground text-xs">
-                  No other stages are available in this workflow.
+              {connectedTargets.length === 0 ? (
+                <div className="p-8 text-center rounded-xl border border-dashed text-muted-foreground space-y-2">
+                  <GitFork className="w-8 h-8 mx-auto opacity-40 text-muted-foreground" />
+                  <p className="text-sm font-medium text-foreground">No Outgoing Transitions</p>
+                  <p className="text-xs max-w-sm mx-auto text-muted-foreground">
+                    This stage currently has no downstream connections and behaves dynamically as a
+                    terminal stage. To connect this stage to other stages, use the{" "}
+                    <strong>Connect</strong> tool in the toolbar or click the <strong>(+)</strong>{" "}
+                    handle on the canvas.
+                  </p>
                 </div>
               ) : (
                 <div className="space-y-3">
-                  {availableTargets.map((target) => {
+                  {connectedTargets.map((target) => {
                     const activeTransition = transitions.find((t) => t.toStatusId === target.id);
-                    const isConnected = !!activeTransition;
                     const selectedRoleIds = activeTransition?.allowedRoleIds || [];
+                    const isTargetTerminal = (target.transitions?.length ?? 0) === 0;
 
                     return (
                       <div
                         key={target.id}
-                        className={`p-3.5 rounded-xl border transition-all ${
-                          isConnected
-                            ? "bg-card border-primary/40 shadow-xs"
-                            : "bg-muted/10 border-border/50 opacity-70 hover:opacity-100"
-                        }`}
+                        className="p-3.5 rounded-xl border bg-card border-border shadow-xs space-y-3"
                       >
                         <div className="flex items-center justify-between">
-                          <label className="flex items-center gap-3 cursor-pointer select-none">
-                            <Checkbox
-                              checked={isConnected}
-                              onCheckedChange={() => toggleTransition(target.id)}
-                            />
+                          <div className="flex items-center gap-2.5">
                             <span
                               className="w-3 h-3 rounded-full shrink-0"
                               style={{ backgroundColor: target.color || "#94a3b8" }}
                             />
-                            <span className="text-sm font-medium">{target.name}</span>
-                            {target.isTerminal && (
-                              <Badge variant="outline" className="text-[10px] py-0">
-                                Terminal
+                            <span className="text-sm font-medium text-foreground">
+                              {target.name}
+                            </span>
+                            <Badge variant="outline" className="text-[10px] py-0">
+                              {isTargetTerminal ? "Terminal" : "Intermediate"}
+                            </Badge>
+                          </div>
+
+                          <div className="flex items-center gap-2">
+                            {selectedRoleIds.length === 0 ? (
+                              <Badge variant="secondary" className="text-[11px] font-normal">
+                                All Roles (Anyone)
+                              </Badge>
+                            ) : (
+                              <Badge variant="default" className="text-[11px] font-medium gap-1">
+                                <Lock className="w-2.5 h-2.5" />
+                                {selectedRoleIds.length} Role
+                                {selectedRoleIds.length > 1 ? "s" : ""} Gated
                               </Badge>
                             )}
-                          </label>
-
-                          {isConnected && (
-                            <span className="text-xs text-muted-foreground flex items-center gap-1">
-                              {selectedRoleIds.length === 0 ? (
-                                <Badge variant="secondary" className="text-[11px] font-normal">
-                                  All Roles (Anyone)
-                                </Badge>
-                              ) : (
-                                <Badge variant="default" className="text-[11px] font-medium gap-1">
-                                  <Lock className="w-2.5 h-2.5" />
-                                  {selectedRoleIds.length} Role
-                                  {selectedRoleIds.length > 1 ? "s" : ""} Gated
-                                </Badge>
-                              )}
-                            </span>
-                          )}
+                            <Button
+                              type="button"
+                              variant="ghost"
+                              size="sm"
+                              onClick={() => disconnectTransition(target.id)}
+                              className="h-7 px-2 text-xs text-red-500 hover:text-red-600 hover:bg-red-500/10 gap-1"
+                              title="Disconnect edge"
+                            >
+                              <Unlink2 className="w-3.5 h-3.5" />
+                              Disconnect
+                            </Button>
+                          </div>
                         </div>
 
-                        {/* Role Selection when Connected */}
-                        {isConnected && (
-                          <div className="mt-3 pt-3 border-t border-border/40 pl-7 space-y-2">
-                            <div className="flex items-center justify-between">
-                              <span className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">
-                                Restrict to Roles
-                              </span>
-                              {selectedRoleIds.length > 0 && (
-                                <button
-                                  type="button"
-                                  onClick={() =>
-                                    setTransitions((prev) =>
-                                      prev.map((t) =>
-                                        t.toStatusId === target.id
-                                          ? { ...t, allowedRoleIds: [] }
-                                          : t,
-                                      ),
-                                    )
-                                  }
-                                  className="text-[11px] text-muted-foreground hover:text-foreground underline"
-                                >
-                                  Allow All Roles
-                                </button>
-                              )}
-                            </div>
-
-                            {isLoadingRoles ? (
-                              <div className="flex items-center gap-2 text-xs text-muted-foreground">
-                                <Loader2 className="w-3 h-3 animate-spin" /> Loading roles...
-                              </div>
-                            ) : availableRoles.length === 0 ? (
-                              <p className="text-xs text-muted-foreground italic">
-                                No custom roles found. Workspace owner &amp; default members can
-                                execute this transition.
-                              </p>
-                            ) : (
-                              <div className="flex flex-wrap gap-1.5 pt-1">
-                                {availableRoles.map((role) => {
-                                  const isRoleActive =
-                                    selectedRoleIds.includes(role.id) ||
-                                    selectedRoleIds.includes(role.name);
-                                  return (
-                                    <button
-                                      type="button"
-                                      key={role.id}
-                                      onClick={() => toggleRoleForTransition(target.id, role.id)}
-                                      className={`px-2.5 py-1 rounded-md text-xs font-medium border transition-all flex items-center gap-1.5 ${
-                                        isRoleActive
-                                          ? "bg-primary text-primary-foreground border-primary shadow-xs"
-                                          : "bg-background text-muted-foreground border-border hover:border-primary/50"
-                                      }`}
-                                    >
-                                      {isRoleActive && <Check className="w-3 h-3" />}
-                                      {role.name}
-                                    </button>
-                                  );
-                                })}
-                              </div>
+                        {/* Role Selection */}
+                        <div className="pt-2 border-t border-border/40 pl-5 space-y-2">
+                          <div className="flex items-center justify-between">
+                            <span className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">
+                              Restrict to Roles
+                            </span>
+                            {selectedRoleIds.length > 0 && (
+                              <button
+                                type="button"
+                                onClick={() =>
+                                  setTransitions((prev) =>
+                                    prev.map((t) =>
+                                      t.toStatusId === target.id ? { ...t, allowedRoleIds: [] } : t,
+                                    ),
+                                  )
+                                }
+                                className="text-[11px] text-muted-foreground hover:text-foreground underline"
+                              >
+                                Allow All Roles
+                              </button>
                             )}
                           </div>
-                        )}
+
+                          {isLoadingRoles ? (
+                            <div className="flex items-center gap-2 text-xs text-muted-foreground">
+                              <Loader2 className="w-3 h-3 animate-spin" /> Loading roles...
+                            </div>
+                          ) : availableRoles.length === 0 ? (
+                            <p className="text-xs text-muted-foreground italic">
+                              No custom roles found. Workspace owner &amp; default members can
+                              execute this transition.
+                            </p>
+                          ) : (
+                            <div className="flex flex-wrap gap-1.5 pt-1">
+                              {availableRoles.map((role) => {
+                                const isRoleActive =
+                                  selectedRoleIds.includes(role.id) ||
+                                  selectedRoleIds.includes(role.name);
+                                return (
+                                  <button
+                                    type="button"
+                                    key={role.id}
+                                    onClick={() => toggleRoleForTransition(target.id, role.id)}
+                                    className={`px-2.5 py-1 rounded-md text-xs font-medium border transition-all flex items-center gap-1.5 ${
+                                      isRoleActive
+                                        ? "bg-primary text-primary-foreground border-primary shadow-xs"
+                                        : "bg-background text-muted-foreground border-border hover:border-primary/50"
+                                    }`}
+                                  >
+                                    {isRoleActive && <Check className="w-3 h-3" />}
+                                    {role.name}
+                                  </button>
+                                );
+                              })}
+                            </div>
+                          )}
+                        </div>
                       </div>
                     );
                   })}

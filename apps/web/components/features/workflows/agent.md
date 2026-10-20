@@ -23,15 +23,23 @@ This document serves as the architectural contract for the interactive Workflow 
 1. **Interactive Node Click Gating**:
    - Every `WorkflowNodeCircle` container must be directly clickable in both Normal Mode (to open the edit modal) and Connect Mode (to select source and target stages).
    - Drag moves must be distinguished from clicks using pointer drag delta thresholds (`Math.hypot(deltaX, deltaY) > 5`). Repositioning a node on the grid must never trigger the edit modal.
-2. **Terminal Stage Invariants**:
-   - A terminal stage (`isTerminal: true`) represents an end state (sink node) with zero outgoing transitions (`transitions: []`).
-   - Toggling a stage as terminal automatically clears and disables outbound transition selections in the UI and is strictly rejected by the backend if outbound transitions are supplied (`400 Terminal status cannot have outbound transitions.`).
-3. **Directed Graph Connectivity & Edge Preservation**:
-   - In Connect Mode, selecting a source stage must visually highlight eligible downstream target nodes in emerald (`#10b981`), while disabling invalid targets (e.g., self-loops or initial nodes).
-   - When connecting nodes or deleting edges, mutations must preserve existing `allowedRoleIds` metadata for intact transitions rather than resetting them to empty arrays.
-   - Deletion of an intermediate node splices inbound edges to downstream target nodes on the backend to prevent graph disconnection.
-4. **Initial-to-Completed Immutable Bridge**:
-   - The direct connection between the Initial stage (`isInitial: true`) and the System Completed stage (`isSystem: true`) cannot be severed (`403`).
+2. **Dynamic Terminal & Initial Node Semantics**:
+   - There is no manual boolean toggle (`isTerminal`). A node is dynamically terminal if and only if its outgoing edge count is 0 (`out-degree = 0`).
+   - A node is dynamically a starting node if its inbound edge count is 0 (`in-degree = 0`). `Created` is the designated primary default entry point for new projects.
+   - Unconnected draft stages ($in=0 \land out=0$) are classified as unlinked draft nodes with neutral styling, preventing premature initial/terminal classification.
+3. **Five Semantic Node Categories & Color Palette**:
+   - **Default Initial (`Created`)**: Royal Indigo (`#6366f1`)
+   - **Other Starting Nodes** ($in=0 \land out>0$): Vibrant Violet (`#8b5cf6`)
+   - **Default Terminal (`Completed`)**: Signature Emerald (`#10b981`)
+   - **Other Terminal Nodes** ($in>0 \land out=0$): Teal / Mint (`#0d9488` / `#14b8a6`) or Rose (`#f43f5e` for negative outcomes)
+   - **Intermediate Nodes** ($in>0 \land out>0$): Sky Blue (`#3b82f6` or user custom)
+4. **Edge Creation Exclusivity & Modal Transition Gating**:
+   - Edge creation is strictly confined to the 3 visual gestures on the canvas (Node `+`, Edge `+`, Connect tool).
+   - The Stage Modal's "Transitions & Role-Gating" tab displays ONLY directly connected outgoing edges, allowing staff to configure role PBAC (`allowedRoleIds`) or disconnect edges. Checkboxes creating new edges are strictly prohibited.
+5. **Path Reachability Invariant (Liveness / BFS)**:
+   - Direct edge between `Created` and `Completed` is NOT required; workflows can pass through arbitrary intermediate pipelines.
+   - However, a directed path must always connect `Created` to `Completed` ($\text{Created} \rightsquigarrow \text{Completed}$).
+   - Every active starting node ($in=0 \land out>0$) must have a directed path to at least one completion node ($\forall s \in S \quad \exists t \in T : s \rightsquigarrow t$). Live graph health is displayed in the canvas toolbar.
 
 ---
 

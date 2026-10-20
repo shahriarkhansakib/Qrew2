@@ -1,8 +1,17 @@
 "use client";
 
 import { useMutation, useQueryClient } from "@tanstack/react-query";
-import { AlertTriangle, Gauge, Loader2, Plus, Redo2, Trash2, Undo2 } from "lucide-react";
-import { useEffect, useRef, useState } from "react";
+import {
+  AlertTriangle,
+  CheckCircle2,
+  Gauge,
+  Loader2,
+  Plus,
+  Redo2,
+  Trash2,
+  Undo2,
+} from "lucide-react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogFooter, DialogTitle } from "@/components/ui/dialog";
@@ -645,6 +654,89 @@ export function WorkflowBuilder({
   const modalInitialTransitions: string[] = insertBetween ? [insertBetween.toId] : [];
   const modalInsertContext = insertBetween ?? null;
 
+  // ── Live Graph Reachability Health (BFS) ──────────────────────────────────
+  const graphHealth = useMemo(() => {
+    if (statuses.length === 0) return { isValid: true, brokenStages: [] };
+
+    const inDegreeMap: Record<string, number> = {};
+    const adjacency: Record<string, string[]> = {};
+    for (const s of statuses) {
+      inDegreeMap[s.id] = 0;
+      adjacency[s.id] = (s.transitions ?? []).map((t) => t.toStatusId);
+    }
+    for (const s of statuses) {
+      for (const t of s.transitions ?? []) {
+        if (inDegreeMap[t.toStatusId] !== undefined) {
+          inDegreeMap[t.toStatusId]++;
+        }
+      }
+    }
+
+    const createdNode = statuses.find((s) => s.isInitial || s.name.toLowerCase() === "created");
+    const completedNode = statuses.find(
+      (s) =>
+        (s.isSystem && s.name.toLowerCase() === "completed") ||
+        s.name.toLowerCase() === "completed",
+    );
+
+    const terminalNodeIds = new Set(
+      statuses.filter((s) => (s.transitions ?? []).length === 0).map((s) => s.id),
+    );
+
+    const canReach = (startId: string, targetId: string) => {
+      const visited = new Set<string>();
+      const queue = [startId];
+      while (queue.length > 0) {
+        const curr = queue.shift()!;
+        if (curr === targetId) return true;
+        for (const next of adjacency[curr] || []) {
+          if (!visited.has(next)) {
+            visited.add(next);
+            queue.push(next);
+          }
+        }
+      }
+      return false;
+    };
+
+    const canReachAnyTerminal = (startId: string) => {
+      const visited = new Set<string>();
+      const queue = [startId];
+      while (queue.length > 0) {
+        const curr = queue.shift()!;
+        if (terminalNodeIds.has(curr)) return true;
+        for (const next of adjacency[curr] || []) {
+          if (!visited.has(next)) {
+            visited.add(next);
+            queue.push(next);
+          }
+        }
+      }
+      return false;
+    };
+
+    const brokenStages: string[] = [];
+
+    // 1. Verify Created -> Completed path
+    if (createdNode && completedNode && !canReach(createdNode.id, completedNode.id)) {
+      brokenStages.push(`Path broken: "${createdNode.name}" cannot reach "${completedNode.name}"`);
+    }
+
+    // 2. Verify all active initial nodes reach at least one terminal node
+    for (const s of statuses) {
+      const inDeg = inDegreeMap[s.id] || 0;
+      const outDeg = (s.transitions ?? []).length;
+      if (inDeg === 0 && outDeg > 0 && !canReachAnyTerminal(s.id)) {
+        brokenStages.push(`"${s.name}" has no path to any completion stage`);
+      }
+    }
+
+    return {
+      isValid: brokenStages.length === 0,
+      brokenStages,
+    };
+  }, [statuses]);
+
   return (
     <div className={`space-y-5 ${disabled ? "opacity-60 pointer-events-none" : ""}`}>
       {/* Toolbar */}
@@ -656,6 +748,27 @@ export function WorkflowBuilder({
           </p>
         </div>
         <div className="flex items-center gap-2">
+          {/* Live Graph Health Badge */}
+          {graphHealth.isValid ? (
+            <div
+              className="flex items-center gap-1.5 px-2.5 py-1 rounded-md text-xs font-medium border border-emerald-500/30 bg-emerald-500/10 text-emerald-600 dark:text-emerald-400"
+              title="All starting stages have a valid path to completion"
+            >
+              <CheckCircle2 className="w-3.5 h-3.5" />
+              <span className="hidden md:inline">Workflow Valid</span>
+            </div>
+          ) : (
+            <div
+              className="flex items-center gap-1.5 px-2.5 py-1 rounded-md text-xs font-medium border border-amber-500/30 bg-amber-500/10 text-amber-600 dark:text-amber-400 cursor-help"
+              title={graphHealth.brokenStages.join(" • ")}
+            >
+              <AlertTriangle className="w-3.5 h-3.5 shrink-0" />
+              <span className="hidden md:inline truncate max-w-[200px]">
+                {graphHealth.brokenStages[0]}
+              </span>
+            </div>
+          )}
+
           {/* Undo / Redo Buttons */}
           <div className="flex items-center border rounded-md p-0.5 bg-background shadow-xs">
             <Button
