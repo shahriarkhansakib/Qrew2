@@ -11,6 +11,7 @@ export function useFormulaAutocomplete(
   currentToken?: string,
   invalidTokens: Set<string> = new Set(),
   hiddenTokens: Set<string> = new Set(),
+  isFormulaCell: boolean = true,
 ) {
   const [state, setState] = useState({
     items: [] as string[],
@@ -61,10 +62,11 @@ export function useFormulaAutocomplete(
 
   const isAtValidTokenPosition = atInsertPosition || (lastWord.length > 0 && !numericOnly);
 
-  const isVisible = isActive && !forceHidden && !numericOnly && isAtValidTokenPosition;
+  const isVisible =
+    isFormulaCell && isActive && !forceHidden && !numericOnly && isAtValidTokenPosition;
 
   useEffect(() => {
-    if (!isActive || numericOnly || !isAtValidTokenPosition) {
+    if (!isFormulaCell || !isActive || numericOnly || !isAtValidTokenPosition) {
       setState({ items: [], activeIdx: 0 });
       return;
     }

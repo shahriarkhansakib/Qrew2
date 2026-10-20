@@ -4,6 +4,7 @@ import { ChevronDown, ChevronRight, ExternalLink } from "lucide-react";
 import Link from "next/link";
 import { useState } from "react";
 import { cn } from "@/lib/utils";
+import { fmt } from "@/lib/formula-evaluator";
 import { useBuilderContext } from "../../builder-context";
 import { PoolSectionHeader } from "../index";
 import { EXPENSE_CATEGORIES_INFO } from "./section-info-popover";
@@ -20,10 +21,12 @@ export function ExpenseCategoriesSection({
   setShowLegend: (show: boolean) => void;
 }) {
   const [isOpen, setIsOpen] = useState(true);
-  const { selectedCell, invalidTokens, hiddenTokens, getTokenDisabledReason } = useBuilderContext();
+  const { selectedCell, invalidTokens, hiddenTokens, getTokenDisabledReason, tokenMap } =
+    useBuilderContext();
   const isFormulaMode = !!selectedCell;
 
   const expTotalToken = "EXP_TOTAL";
+  const expTotalVal = tokenMap["EXP_TOTAL"] ?? 0;
   const isTotalInvalid = isFormulaMode && invalidTokens.has(expTotalToken);
   const isTotalHidden = isFormulaMode && hiddenTokens.has(expTotalToken);
   const isTotalDisabled = isTotalInvalid || isTotalHidden;
@@ -95,7 +98,7 @@ export function ExpenseCategoriesSection({
               className="font-mono shrink-0 tabular-nums text-rose-400 font-bold"
               style={{ fontSize: 14 + tokenZoomLevel }}
             >
-              0
+              {fmt(expTotalVal)}
             </span>
           </div>
 
@@ -113,6 +116,11 @@ export function ExpenseCategoriesSection({
                   : undefined;
 
                 const label = cat.label || cat.name || bareToken;
+                const catVal =
+                  tokenMap[bareToken] ??
+                  tokenMap[cat.tokenKey] ??
+                  tokenMap[`EXP_${bareToken}`] ??
+                  0;
 
                 return (
                   <div
@@ -152,7 +160,7 @@ export function ExpenseCategoriesSection({
                         className="font-mono shrink-0 tabular-nums text-rose-400 font-medium"
                         style={{ fontSize: 13 + tokenZoomLevel }}
                       >
-                        0
+                        {fmt(catVal)}
                       </span>
                     </div>
                   </div>

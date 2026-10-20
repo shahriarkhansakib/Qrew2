@@ -430,14 +430,17 @@ export function WorkflowBuilder({
     mutationFn: async ({ fromId, toId }: { fromId: string; toId: string }) => {
       const from = statuses.find((s) => s.id === fromId);
       if (!from) throw new Error("Source status not found");
-      const currentToIds = (from.transitions ?? []).map((t) => t.toStatusId);
-      if (currentToIds.includes(toId)) return;
-      const newToIds = [...currentToIds, toId];
+      const currentTransitions = (from.transitions ?? []).map((t: any) => ({
+        toStatusId: t.toStatusId,
+        allowedRoleIds: Array.isArray(t.allowedRoleIds) ? t.allowedRoleIds : [],
+      }));
+      if (currentTransitions.some((t: any) => t.toStatusId === toId)) return;
+      const newTransitions = [...currentTransitions, { toStatusId: toId, allowedRoleIds: [] }];
       const res = await fetch(`${apiUrl}/api/workspaces/projects/statuses/${fromId}/transitions`, {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
         credentials: "include",
-        body: JSON.stringify({ toStatusIds: newToIds }),
+        body: JSON.stringify({ transitions: newTransitions }),
       });
       if (!res.ok) {
         const data = await res.json();
@@ -457,10 +460,17 @@ export function WorkflowBuilder({
       toast.error("A stage cannot connect to itself.");
       return;
     }
-    const _fromStatus = statuses.find((s) => s.id === fromId);
+    const fromStatus = statuses.find((s) => s.id === fromId);
     const toStatus = statuses.find((s) => s.id === toId);
     if (toStatus?.isInitial) {
       toast.error("Nothing can connect back to the starting stage.");
+      return;
+    }
+    const alreadyConnected = (fromStatus?.transitions ?? []).some(
+      (t: any) => t.toStatusId === toId,
+    );
+    if (alreadyConnected) {
+      toast.info(`"${fromStatus?.name}" is already connected to "${toStatus?.name}".`);
       return;
     }
     pushHistory({ type: "CONNECT_NODES", fromId, toId });
@@ -473,14 +483,17 @@ export function WorkflowBuilder({
     mutationFn: async ({ fromId, toId }: { fromId: string; toId: string }) => {
       const from = statuses.find((s) => s.id === fromId);
       if (!from) throw new Error("Source status not found");
-      const newToIds = (from.transitions ?? [])
-        .map((t) => t.toStatusId)
-        .filter((id) => id !== toId);
+      const newTransitions = (from.transitions ?? [])
+        .filter((t: any) => t.toStatusId !== toId)
+        .map((t: any) => ({
+          toStatusId: t.toStatusId,
+          allowedRoleIds: Array.isArray(t.allowedRoleIds) ? t.allowedRoleIds : [],
+        }));
       const res = await fetch(`${apiUrl}/api/workspaces/projects/statuses/${fromId}/transitions`, {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
         credentials: "include",
-        body: JSON.stringify({ toStatusIds: newToIds }),
+        body: JSON.stringify({ transitions: newTransitions }),
       });
       if (!res.ok) {
         const data = await res.json();

@@ -1,3 +1,4 @@
+import { touchTemplate } from "../../invoice-templates.controller";
 import {
   db,
   decodeFormula,
@@ -150,6 +151,8 @@ export async function createRow(c: Context) {
         );
       }),
     );
+
+    await touchTemplate(templateId, tx);
 
     return {
       ...row,

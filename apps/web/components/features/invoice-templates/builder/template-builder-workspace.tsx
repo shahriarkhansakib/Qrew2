@@ -4,16 +4,8 @@ import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { Pencil, Plus, X } from "lucide-react";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { toast } from "sonner";
-import {
-  AlertDialog,
-  AlertDialogAction,
-  AlertDialogCancel,
-  AlertDialogContent,
-  AlertDialogDescription,
-  AlertDialogFooter,
-  AlertDialogHeader,
-  AlertDialogTitle,
-} from "@/components/ui/alert-dialog";
+import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
+import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
 import { apiUrl } from "@/lib/constants";
 import { buildTokenMap, fmt } from "@/lib/formula-evaluator";
@@ -63,6 +55,9 @@ function AddSectionDivider({ onClick }: { onClick: () => void }) {
 // 4 columns: SL (w-10) | Label (flex-1) | USD (w-20) | USD (w-20)
 // The token area is outside the table (absolute-positioned per row), so NO token space here.
 function TableHeaderRow() {
+  const { mode } = useBuilderContext();
+  const isPdfMode = mode === "preview";
+
   return (
     <div className="flex items-stretch border border-b-0 border-border bg-muted/40 h-10">
       {/* SL */}
@@ -71,8 +66,12 @@ function TableHeaderRow() {
       </div>
       {/* Label */}
       <div className="flex-1 px-3 flex items-center gap-2 border-r border-border min-w-0">
-        <span className="text-sm font-extrabold text-foreground/60">Row Label</span>
-        <span className="text-sm text-foreground/40">(text displayed in PDF)</span>
+        <span className="text-sm font-extrabold text-foreground/60">
+          {isPdfMode ? "Description" : "Row Label"}
+        </span>
+        {!isPdfMode && (
+          <span className="text-sm text-foreground/40">(text displayed in PDF)</span>
+        )}
       </div>
       {/* USD1 — base/charge values */}
       <div className="w-20 shrink-0 flex items-center justify-center border-r border-border text-sm font-extrabold text-foreground/60">
@@ -124,8 +123,10 @@ export interface FileDetailsHeaderBoxProps {
     columnPosition: "left" | "right";
     sortOrder: number;
     isFormulaInjectable?: boolean;
+    defaultManualValue?: string;
   }>;
   project?: any; // The actual project data to populate values
+  draftHeaderValues?: Record<string, any>;
   onDelete?: (id: string) => void;
   onEdit?: (field: any) => void;
   onAdd?: () => void;
@@ -137,6 +138,7 @@ export interface FileDetailsHeaderBoxProps {
 export function FileDetailsHeaderBox({
   templateHeaderFields = [],
   project,
+  draftHeaderValues,
   onDelete,
   onEdit,
   onAdd,
@@ -145,11 +147,14 @@ export function FileDetailsHeaderBox({
   isSharedDnd = false,
   zoomLevel = 0,
 }: FileDetailsHeaderBoxProps & { zoomLevel?: number }) {
-  const { selectedCell } = useBuilderContext();
+  const { selectedCell, mode } = useBuilderContext();
   const isFormulaMode = !!selectedCell;
+  const isFillMode = mode === "fill";
+  const isEditable = isTemplateMode || mode === "draft";
 
   const handleTokenClick = (e: React.MouseEvent, clickedToken: string) => {
     e.stopPropagation();
+    if (isFillMode) return;
     if (isFormulaMode) {
       window.dispatchEvent(new CustomEvent("insert-token", { detail: clickedToken }));
     } else {
@@ -159,23 +164,69 @@ export function FileDetailsHeaderBox({
   };
 
   const renderVal = (field: any) => {
-    if (!project) return <span className="text-foreground/20 font-light">—</span>;
+    const key = field.fieldKey || field.systemFieldKey || field.fileFieldKey;
+    const cleanToken = getCleanToken(field);
+    const tokenKey = field.tokenKey;
 
-    let val: any = "—";
-    if (field.fileFieldKey === "clientId") {
-      val = project.client?.name || "—";
-    } else if (field.fileFieldKey === "name") {
-      val = project.name || "—";
-    } else if (field.fileFieldKey === "status") {
-      val = project.statusRelation?.name || project.status || "—";
-    } else if (project.customFields) {
-      val = project.customFields[field.fileFieldKey] ?? "—";
+    let val: any = null;
+
+    // 1. Check draftHeaderValues first (draft mode)
+    if (draftHeaderValues) {
+      val =
+        (tokenKey ? draftHeaderValues[tokenKey] : undefined) ??
+        (cleanToken ? draftHeaderValues[cleanToken] : undefined) ??
+        (key ? draftHeaderValues[key] : undefined) ??
+        (cleanToken ? draftHeaderValues[`FILE_${cleanToken}`] : undefined);
     }
 
-    if (val === "—" || val === null || val === undefined) {
+    // 2. Check project root & customFields if not resolved
+    if ((val === null || val === undefined) && project) {
+      if (key === "clientId" || key === "client") {
+        val = project.client?.name || project.clientId;
+      } else if (key === "name") {
+        val = project.name;
+      } else if (key === "status") {
+        val = project.statusRelation?.name || project.status;
+      } else if (key && project[key] !== undefined) {
+        val = project[key];
+      }
+
+      // Try customFields lookup if not found in root project properties
+      if ((val === null || val === undefined) && project.customFields) {
+        const cf = project.customFields;
+        // 1. Direct match on key, tokenKey, cleanToken, or label
+        val =
+          (key ? cf[key] : undefined) ??
+          (field.tokenKey ? cf[field.tokenKey] : undefined) ??
+          (cleanToken ? cf[cleanToken] : undefined) ??
+          (field.label ? cf[field.label] : undefined);
+
+        // 2. Case-insensitive / slug match over all customFields entries
+        if (val === null || val === undefined) {
+          const candidates = [key, field.tokenKey, cleanToken, field.label]
+            .filter(Boolean)
+            .map((k) => String(k).toLowerCase().replace(/[^a-z0-9]/g, ""));
+
+          for (const [cfKey, cfVal] of Object.entries(cf)) {
+            const normalizedCfKey = cfKey.toLowerCase().replace(/[^a-z0-9]/g, "");
+            if (candidates.includes(normalizedCfKey)) {
+              val = cfVal;
+              break;
+            }
+          }
+        }
+      }
+    }
+
+    // 3. Fallback to defaultManualValue on the template field definition
+    if ((val === null || val === undefined) && field.defaultManualValue) {
+      val = field.defaultManualValue;
+    }
+
+    if (val === null || val === undefined || val === "" || val === "—") {
       return <span className="text-foreground/20 font-light">—</span>;
     }
-    return val;
+    return String(val);
   };
 
   const getCleanToken = (field: any) => {
@@ -208,9 +259,14 @@ export function FileDetailsHeaderBox({
             "flex gap-2 w-full items-center",
             isSelectable && "transition-colors select-none insertable-token",
             isSelectable &&
+              isFillMode &&
+              "cursor-default",
+            isSelectable &&
+              !isFillMode &&
               isFormulaMode &&
               "cursor-pointer text-primary hover:bg-primary/5 rounded-md -ml-1 pl-1",
             isSelectable &&
+              !isFillMode &&
               !isFormulaMode &&
               "cursor-pointer hover:text-foreground hover:bg-muted/10 rounded-md -ml-1 pl-1",
           )}
@@ -226,9 +282,11 @@ export function FileDetailsHeaderBox({
           }}
           title={
             isSelectable
-              ? isFormulaMode
-                ? `Insert ${cleanToken} into formula`
-                : `Copy token ${cleanToken}`
+              ? isFillMode
+                ? undefined
+                : isFormulaMode
+                  ? `Insert ${cleanToken} into formula`
+                  : `Copy token ${cleanToken}`
               : undefined
           }
         >
@@ -246,7 +304,7 @@ export function FileDetailsHeaderBox({
             {renderVal(field)}
           </span>
         </div>
-        {isTemplateMode && (
+        {isEditable && (
           <div className="opacity-0 group-hover:opacity-100 absolute -right-9 flex items-center gap-0.5 transition-all">
             {onEdit && (
               <button
@@ -261,7 +319,7 @@ export function FileDetailsHeaderBox({
               <button
                 onClick={() => onDelete(field.id)}
                 className="p-1 text-muted-foreground hover:text-destructive transition-all"
-                title="Remove field from template"
+                title="Remove field"
               >
                 <X className="w-3 h-3" />
               </button>
@@ -315,12 +373,45 @@ export function FileDetailsHeaderBox({
     onReorder(updates, newState);
   };
 
-  const leftFields = templateHeaderFields
+  const effectiveFields =
+    templateHeaderFields && templateHeaderFields.length > 0
+      ? templateHeaderFields
+      : [
+          {
+            id: "default-name",
+            label: "Name",
+            fileFieldKey: "name",
+            tokenKey: "NAME",
+            columnPosition: "left",
+            sortOrder: 0,
+            fieldType: "file_field",
+          },
+          {
+            id: "default-client",
+            label: "Client",
+            fileFieldKey: "clientId",
+            tokenKey: "CLIENT",
+            columnPosition: "left",
+            sortOrder: 1,
+            fieldType: "file_field",
+          },
+          {
+            id: "default-status",
+            label: "Status",
+            fileFieldKey: "status",
+            tokenKey: "STATUS",
+            columnPosition: "right",
+            sortOrder: 0,
+            fieldType: "file_field",
+          },
+        ];
+
+  const leftFields = effectiveFields
     .filter((f) => f.columnPosition === "left")
-    .sort((a, b) => a.sortOrder - b.sortOrder);
-  const rightFields = templateHeaderFields
+    .sort((a, b) => (a.sortOrder ?? 0) - (b.sortOrder ?? 0));
+  const rightFields = effectiveFields
     .filter((f) => f.columnPosition === "right")
-    .sort((a, b) => a.sortOrder - b.sortOrder);
+    .sort((a, b) => (a.sortOrder ?? 0) - (b.sortOrder ?? 0));
 
   const renderDroppable = (id: string, fields: any[]) => (
     <Droppable droppableId={id} direction="vertical">
@@ -338,7 +429,7 @@ export function FileDetailsHeaderBox({
               key={field.id}
               draggableId={field.id}
               index={index}
-              isDragDisabled={!isTemplateMode || !onReorder}
+              isDragDisabled={!isEditable || !onReorder}
             >
               {(provided, snapshot) => (
                 <div
@@ -353,7 +444,7 @@ export function FileDetailsHeaderBox({
                       "bg-card shadow-md z-10 p-1 -m-1 rounded-md border border-primary/20",
                   )}
                 >
-                  {isTemplateMode && onReorder && (
+                  {isEditable && onReorder && (
                     <div
                       {...provided.dragHandleProps}
                       className="text-muted-foreground/30 hover:text-foreground cursor-grab opacity-0 group-hover:opacity-100 transition-opacity"
@@ -392,11 +483,11 @@ export function FileDetailsHeaderBox({
         )}
       </div>
 
-      {isTemplateMode && onAdd && (
+      {isEditable && onAdd && (
         <button
           onClick={onAdd}
           className="absolute -top-3 -right-3 opacity-0 group-hover:opacity-100 transition-opacity bg-background border border-border shadow-sm rounded-md p-1.5 hover:bg-muted text-muted-foreground hover:text-foreground"
-          title="Add a field to template description"
+          title="Add a field to file description"
         >
           <Plus className="w-4 h-4" />
         </button>
@@ -413,14 +504,20 @@ function WorkspaceInner({
   zoomLevel = 0,
   onZoomChange,
   project,
+  draftHeaderValues,
   isSharedDnd = false,
+  resolvedTokens,
+  projectedDocumentNumber,
 }: {
   templateId?: string;
   draftId?: string;
   zoomLevel?: number;
   onZoomChange?: React.Dispatch<React.SetStateAction<number>>;
   project?: any;
+  draftHeaderValues?: Record<string, any>;
   isSharedDnd?: boolean;
+  resolvedTokens?: Record<string, any>;
+  projectedDocumentNumber?: string | null;
 }) {
   const {
     setTokenMap,
@@ -430,6 +527,8 @@ function WorkspaceInner({
     mode,
     setExternalTokens,
     setSections,
+    setHeaderFields,
+    setTemplateConstants,
   } = useBuilderContext();
   const queryClient = useQueryClient();
   const [insertAtIndex, setInsertAtIndex] = useState<number | null>(null);
@@ -492,16 +591,23 @@ function WorkspaceInner({
     },
   });
 
+  const headerFieldsQueryKey = draftId
+    ? ["draft-header-fields", draftId]
+    : ["template-header-fields", templateId];
+  const headerFieldsUrl = draftId
+    ? `${apiUrl}/api/invoices/drafts/${draftId}/header-fields`
+    : `${apiUrl}/api/invoice-templates/${templateId}/header-fields`;
+
   const { data: templateHeaderFields, refetch: refetchHeaderFields } = useQuery({
-    queryKey: ["template-header-fields", templateId],
+    queryKey: headerFieldsQueryKey,
     queryFn: async () => {
-      const res = await fetch(`${apiUrl}/api/invoice-templates/${templateId}/header-fields`, {
+      const res = await fetch(headerFieldsUrl, {
         credentials: "include",
       });
       if (!res.ok) return [];
       return res.json();
     },
-    enabled: !!templateId,
+    enabled: !!(draftId || templateId),
   });
 
   const { data: projectCustomFields } = useQuery({
@@ -561,6 +667,26 @@ function WorkspaceInner({
     return [...sections].sort((a: any, b: any) => (a.sortOrder ?? 0) - (b.sortOrder ?? 0));
   }, [sections]);
 
+  // Merge resolvedTokens from engine preview with project.customFields
+  const externalTokenValues = useMemo(() => {
+    const map: Record<string, any> = {};
+    if (project?.customFields) {
+      for (const [k, v] of Object.entries(project.customFields)) {
+        if (v !== undefined && v !== null) {
+          map[k] = v;
+          map[k.toUpperCase()] = v;
+          map[`FILE_${k.toUpperCase()}`] = v;
+        }
+      }
+    }
+    if (resolvedTokens) {
+      for (const [k, v] of Object.entries(resolvedTokens)) {
+        map[k] = v;
+      }
+    }
+    return map;
+  }, [project?.customFields, resolvedTokens]);
+
   // ── Compute token map and push it to context ──────────────────────────────
   // Pass constants, file fields, and expense categories so formula rows that reference them resolve correctly
   const tokenMap = useMemo(() => {
@@ -570,8 +696,16 @@ function WorkspaceInner({
       constantsData ?? [],
       templateHeaderFields ?? [],
       expenseCategoriesData ?? [],
+      externalTokenValues,
     );
-  }, [sortedSections, orgConfigs, constantsData, templateHeaderFields, expenseCategoriesData]);
+  }, [
+    sortedSections,
+    orgConfigs,
+    constantsData,
+    templateHeaderFields,
+    expenseCategoriesData,
+    externalTokenValues,
+  ]);
 
   useEffect(() => {
     setTokenMap(tokenMap);
@@ -580,6 +714,18 @@ function WorkspaceInner({
   useEffect(() => {
     if (setSections) setSections(sortedSections);
   }, [sortedSections, setSections]);
+
+  useEffect(() => {
+    if (setHeaderFields && templateHeaderFields) {
+      setHeaderFields(templateHeaderFields);
+    }
+  }, [templateHeaderFields, setHeaderFields]);
+
+  useEffect(() => {
+    if (setTemplateConstants && constantsData) {
+      setTemplateConstants(constantsData);
+    }
+  }, [constantsData, setTemplateConstants]);
 
   useEffect(() => {
     if (!setExternalTokens) return;
@@ -669,13 +815,19 @@ function WorkspaceInner({
   const handleConfirmDeleteField = async () => {
     if (!fieldToDelete) return;
     try {
-      await fetch(`${apiUrl}/api/invoice-templates/${templateId}/header-fields/${fieldToDelete}`, {
+      const deleteUrl = draftId
+        ? `${apiUrl}/api/invoices/drafts/${draftId}/header-fields/${fieldToDelete}`
+        : `${apiUrl}/api/invoice-templates/${templateId}/header-fields/${fieldToDelete}`;
+      await fetch(deleteUrl, {
         method: "DELETE",
         credentials: "include",
       });
+      toast.success("Header field removed");
       refetchHeaderFields();
+      queryClient.invalidateQueries({ queryKey: invalidateKey });
     } catch (error) {
       console.error("Failed to delete header field", error);
+      toast.error("Failed to delete header field");
     } finally {
       setFieldToDelete(null);
     }
@@ -697,139 +849,165 @@ function WorkspaceInner({
     <div
       ref={containerRef}
       className={cn(
-        "px-2 sm:px-4 max-w-5xl mx-auto w-full pb-6 overflow-visible transition-all duration-200 outline-none",
-        tokenPoolOpen
-          ? "xl:pl-36 xl:pr-32 2xl:pl-40 2xl:pr-52"
-          : "md:pl-36 md:pr-32 lg:pl-40 lg:pr-52",
+        "px-4 sm:px-6 md:px-12 lg:px-44 xl:px-48 pb-8 overflow-visible transition-all duration-200 outline-none w-full",
       )}
       tabIndex={0}
     >
-      {/* ── File Details Header Box ── */}
-      <FileDetailsHeaderBox
-        templateHeaderFields={templateHeaderFields || []}
-        project={project}
-        zoomLevel={zoomLevel}
-        isTemplateMode={!draftId}
-        isSharedDnd={isSharedDnd}
-        onDelete={(fieldId) => setFieldToDelete(fieldId)}
-        onReorder={async (updates, optimisticState) => {
-          if (draftId) return;
-          queryClient.setQueryData(["template-header-fields", templateId], optimisticState);
-          try {
-            await fetch(`${apiUrl}/api/invoice-templates/${templateId}/header-fields/reorder`, {
-              method: "PUT",
-              headers: { "Content-Type": "application/json" },
-              credentials: "include",
-              body: JSON.stringify({ updates }),
-            });
-            refetchHeaderFields();
-          } catch (e) {
-            console.error(e);
-            refetchHeaderFields();
-          }
-        }}
-        onEdit={(field) => {
-          setEditingHeaderField(field);
-          setIsAddHeaderModalOpen(true);
-        }}
-        onAdd={() => {
-          setEditingHeaderField(null);
-          setIsAddHeaderModalOpen(true);
-        }}
-      />
-
-      {/* ── Sticky formula bar ── */}
-      <div className="sticky top-0 z-30 pt-6 pb-4">
-        <TemplateFormulaBar />
-      </div>
-
-      {/* ── Table header ── */}
-      <TableHeaderRow />
-
-      {/* ── Sections ── */}
-      {/* overflow-visible is REQUIRED so row tokens (position:absolute right:100%) escape the border */}
-      <div className="border-x border-border bg-background overflow-visible">
-        {mode !== "fill" && <AddSectionDivider onClick={() => setInsertAtIndex(0)} />}
-
-        {sortedSections.length === 0 ? (
-          <div className="py-8 text-center text-sm text-muted-foreground/50">
-            No sections yet — add one above.
+      <div className="w-full max-w-4xl mx-auto relative overflow-visible">
+        {/* ── Document Reference Banner (Invoice Number above File Details) ── */}
+        {projectedDocumentNumber && (
+          <div className="flex items-center justify-between pb-2.5 pt-1 px-1 select-none">
+            <div className="flex items-center gap-2">
+              <span className="text-[11px] font-bold uppercase tracking-wider text-muted-foreground/80">
+                Invoice Document No:
+              </span>
+              <Badge
+                variant="outline"
+                className="text-xs font-mono font-bold px-2 py-0.5 border-primary/30 text-primary bg-primary/5"
+                title="Projected invoice document number upon finalization"
+              >
+                {projectedDocumentNumber}
+              </Badge>
+            </div>
+            <span className="text-[11px] font-mono text-muted-foreground/70">
+              (Projected on finalize)
+            </span>
           </div>
-        ) : (
-          sortedSections.map((section: any, idx: number) => {
-            const sectionColor = SECTION_PALETTE[idx % SECTION_PALETTE.length];
-            return (
-              <div key={section.id}>
-                <TemplateSectionCard
-                  templateId={templateId || ""}
-                  draftId={draftId}
-                  section={section}
-                  allSections={sortedSections}
-                  isFirst={idx === 0}
-                  isLast={idx === sortedSections.length - 1}
-                  slOffset={sectionSlOffsets[idx]}
-                  sectionColor={sectionColor}
-                  tokenMap={tokenMap}
-                  isSharedDnd={isSharedDnd}
-                />
-                {mode !== "fill" && (
-                  <AddSectionDivider onClick={() => setInsertAtIndex(section.sortOrder + 1)} />
-                )}
-              </div>
-            );
-          })
         )}
-      </div>
 
-      {/* ── Grand total ── */}
-      <GrandTotalRow total={grandTotal} />
-
-      {insertAtIndex !== null && (
-        <AddSectionModal
-          isOpen={true}
-          onClose={() => setInsertAtIndex(null)}
-          templateId={templateId || ""}
-          draftId={draftId}
-          insertAtIndex={insertAtIndex}
-          existingSections={sortedSections}
-        />
-      )}
-
-      {templateId && (
-        <AddHeaderFieldModal
-          isOpen={isAddHeaderModalOpen}
-          onClose={() => {
-            setIsAddHeaderModalOpen(false);
-            setEditingHeaderField(null);
+        {/* ── File Details Header Box ── */}
+        <FileDetailsHeaderBox
+          templateHeaderFields={templateHeaderFields || []}
+          project={project}
+          draftHeaderValues={draftHeaderValues}
+          zoomLevel={zoomLevel}
+          isTemplateMode={!draftId}
+          isSharedDnd={isSharedDnd}
+          onDelete={(fieldId) => setFieldToDelete(fieldId)}
+          onReorder={async (updates, optimisticState) => {
+            queryClient.setQueryData(headerFieldsQueryKey, optimisticState);
+            try {
+              const reorderUrl = draftId
+                ? `${apiUrl}/api/invoices/drafts/${draftId}/header-fields/reorder`
+                : `${apiUrl}/api/invoice-templates/${templateId}/header-fields/reorder`;
+              await fetch(reorderUrl, {
+                method: "PUT",
+                headers: { "Content-Type": "application/json" },
+                credentials: "include",
+                body: JSON.stringify({ updates }),
+              });
+              refetchHeaderFields();
+            } catch (e) {
+              console.error(e);
+              refetchHeaderFields();
+            }
           }}
-          templateId={templateId}
-          editField={editingHeaderField}
-          onSuccess={() => refetchHeaderFields()}
+          onEdit={(field) => {
+            setEditingHeaderField(field);
+            setIsAddHeaderModalOpen(true);
+          }}
+          onAdd={() => {
+            setEditingHeaderField(null);
+            setIsAddHeaderModalOpen(true);
+          }}
         />
-      )}
 
-      {/* ── Delete Field Alert Dialog ── */}
-      <AlertDialog open={!!fieldToDelete} onOpenChange={(open) => !open && setFieldToDelete(null)}>
-        <AlertDialogContent>
-          <AlertDialogHeader>
-            <AlertDialogTitle>Are you absolutely sure?</AlertDialogTitle>
-            <AlertDialogDescription>
-              This action will remove the field from the template. It will not delete the custom
-              field from the global schema, but any formulas relying on this token will become
-              invalid.
-            </AlertDialogDescription>
-          </AlertDialogHeader>
-          <AlertDialogFooter>
-            <AlertDialogCancel>Cancel</AlertDialogCancel>
-            <AlertDialogAction
-              onClick={handleConfirmDeleteField}
-              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
-            >
-              Yes, delete
-            </AlertDialogAction>
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
+        {/* ── Sticky formula bar ── */}
+        {mode !== "preview" && (
+          <div className="sticky top-0 z-30 pt-6 pb-4">
+            <TemplateFormulaBar />
+          </div>
+        )}
+
+        {/* ── Table header ── */}
+        <TableHeaderRow />
+
+        {/* ── Sections ── */}
+        {/* overflow-visible is REQUIRED so row tokens (position:absolute right:100%) escape the border */}
+        <div className="border-x border-border bg-background overflow-visible">
+          {mode !== "fill" && mode !== "preview" && <AddSectionDivider onClick={() => setInsertAtIndex(0)} />}
+
+          {sortedSections.length === 0 ? (
+            <div className="py-8 text-center text-sm text-muted-foreground/50">
+              No sections yet — add one above.
+            </div>
+          ) : (
+            sortedSections.map((section: any, idx: number) => {
+              const sectionColor = SECTION_PALETTE[idx % SECTION_PALETTE.length];
+              return (
+                <div key={section.id}>
+                  <TemplateSectionCard
+                    templateId={templateId || ""}
+                    draftId={draftId}
+                    section={section}
+                    allSections={sortedSections}
+                    isFirst={idx === 0}
+                    isLast={idx === sortedSections.length - 1}
+                    slOffset={sectionSlOffsets[idx]}
+                    sectionColor={sectionColor}
+                    tokenMap={tokenMap}
+                    isSharedDnd={isSharedDnd}
+                  />
+                  {mode !== "fill" && mode !== "preview" && (
+                    <AddSectionDivider onClick={() => setInsertAtIndex(section.sortOrder + 1)} />
+                  )}
+                </div>
+              );
+            })
+          )}
+        </div>
+
+        {/* ── Grand total ── */}
+        <GrandTotalRow total={grandTotal} />
+
+        {insertAtIndex !== null && (
+          <AddSectionModal
+            isOpen={true}
+            onClose={() => setInsertAtIndex(null)}
+            templateId={templateId || ""}
+            draftId={draftId}
+            insertAtIndex={insertAtIndex}
+            existingSections={sortedSections}
+          />
+        )}
+
+        {(templateId || draftId) && (
+          <AddHeaderFieldModal
+            isOpen={isAddHeaderModalOpen}
+            onClose={() => {
+              setIsAddHeaderModalOpen(false);
+              setEditingHeaderField(null);
+            }}
+            templateId={templateId}
+            draftId={draftId}
+            editField={editingHeaderField}
+            onSuccess={() => refetchHeaderFields()}
+          />
+        )}
+
+        {/* ── Delete Field Alert Dialog ── */}
+        <AlertDialog open={!!fieldToDelete} onOpenChange={(open) => !open && setFieldToDelete(null)}>
+          <AlertDialogContent>
+            <AlertDialogHeader>
+              <AlertDialogTitle>Are you absolutely sure?</AlertDialogTitle>
+              <AlertDialogDescription>
+                This action will remove the field from this {draftId ? "draft" : "template"}. It will not delete the custom
+                field from the global schema, but any formulas relying on this token will become
+                invalid.
+              </AlertDialogDescription>
+            </AlertDialogHeader>
+            <AlertDialogFooter>
+              <AlertDialogCancel>Cancel</AlertDialogCancel>
+              <AlertDialogAction
+                onClick={handleConfirmDeleteField}
+                className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+              >
+                Yes, delete
+              </AlertDialogAction>
+            </AlertDialogFooter>
+          </AlertDialogContent>
+        </AlertDialog>
+      </div>
     </div>
   );
 }
@@ -841,14 +1019,20 @@ export function TemplateBuilderWorkspace({
   zoomLevel = 0,
   onZoomChange,
   project,
+  draftHeaderValues,
   isSharedDnd = false,
+  resolvedTokens,
+  projectedDocumentNumber,
 }: {
   templateId?: string;
   draftId?: string;
   zoomLevel?: number;
   onZoomChange?: React.Dispatch<React.SetStateAction<number>>;
   project?: any;
+  draftHeaderValues?: Record<string, any>;
   isSharedDnd?: boolean;
+  resolvedTokens?: Record<string, any>;
+  projectedDocumentNumber?: string | null;
 }) {
   return (
     <WorkspaceInner
@@ -857,7 +1041,10 @@ export function TemplateBuilderWorkspace({
       zoomLevel={zoomLevel}
       onZoomChange={onZoomChange}
       project={project}
+      draftHeaderValues={draftHeaderValues}
       isSharedDnd={isSharedDnd}
+      resolvedTokens={resolvedTokens}
+      projectedDocumentNumber={projectedDocumentNumber}
     />
   );
 }

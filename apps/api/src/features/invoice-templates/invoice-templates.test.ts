@@ -59,6 +59,7 @@ vi.mock("@starter/db", () => {
       description: "description",
       documentPrefix: "documentPrefix",
       numberingFormat: "numberingFormat",
+      optionalRows: "optionalRows",
     },
     templateHeaderFields: { id: "id", templateId: "templateId" },
     invoiceDocumentSequences: {
@@ -327,6 +328,49 @@ describe("InvoiceTemplatesController", () => {
       const res = await InvoiceTemplatesController.deleteTemplate(ctx);
       expect(res.status).toBe(200);
       expect((res as any).data.success).toBe(true);
+    });
+  });
+
+  describe("addOptionalRow", () => {
+    it("returns 401 when organizationId is missing", async () => {
+      const ctx = makeCtx({ orgId: null, params: { id: TEMPLATE_ID } });
+      const res = await InvoiceTemplatesController.addOptionalRow(ctx);
+      expect(res.status).toBe(401);
+    });
+
+    it("returns 404 when template not found", async () => {
+      mockSelectReturns([]);
+      const ctx = makeCtx({ params: { id: TEMPLATE_ID }, body: { rowToken: "CRANE_RENTAL" } });
+      const res = await InvoiceTemplatesController.addOptionalRow(ctx);
+      expect(res.status).toBe(404);
+    });
+
+    it("adds a new optional row when not duplicate", async () => {
+      mockSelectReturns([{ optionalRows: [] }]);
+      const ctx = makeCtx({
+        params: { id: TEMPLATE_ID },
+        body: { rowToken: "CRANE_RENTAL", label: "Crane Rental" },
+      });
+      const res = await InvoiceTemplatesController.addOptionalRow(ctx);
+      expect(res.status).toBe(201);
+      expect((res as any).data.rowToken).toBe("CRANE_RENTAL");
+    });
+
+    it("rejects with 409 conflict when duplicate optional row token exists", async () => {
+      mockSelectReturns([
+        {
+          optionalRows: [
+            { id: "1", rowToken: "CRANE_RENTAL", label: "Crane Rental", valueType: "normal" },
+          ],
+        },
+      ]);
+      const ctx = makeCtx({
+        params: { id: TEMPLATE_ID },
+        body: { rowToken: "CRANE_RENTAL", label: "Crane Rental Second" },
+      });
+      const res = await InvoiceTemplatesController.addOptionalRow(ctx);
+      expect(res.status).toBe(409);
+      expect((res as any).data.error).toContain("already exists");
     });
   });
 });

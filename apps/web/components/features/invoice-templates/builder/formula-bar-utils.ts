@@ -1,13 +1,17 @@
-// ─── Formula Bar Pure Utilities ──────────────────────────────────────────────
+import { normalizeFormulaSpacing } from "@starter/db/formula-codec";
+
+export { normalizeFormulaSpacing };
 
 /**
  * Convert the user-facing formula to storage format before saving:
+ *  - normalizes canonical spacing
  *  - `50%`  → `(50/100)`   percentage sugar
  *  - `//`   → `%`          modulo operator
  */
 export function preprocessForSave(formula: string): string {
+  const normalized = normalizeFormulaSpacing(formula);
   return (
-    formula
+    normalized
       // percentage: 50% → (50/100), 0.15% → (0.15/100)
       .replace(/(\d+(?:\.\d+)?)%/g, "($1/100)")
       // modulo: // → %
@@ -398,8 +402,8 @@ export function getSmartBackspaceResult(
   const before = inputValue.slice(0, cursorPos);
   const after = inputValue.slice(cursorPos);
 
-  // 1. Spaced operator block " + " / " - " / " * " / " / " / " // "
-  const matchSpaced = before.match(/ (\+|-|\*|\/|\/\/) $/);
+  // 1. Spaced operator block " + " / " - " / " * " / " / " / " // " / " % "
+  const matchSpaced = before.match(/ (\+|-|\*|\/|\/\/|%) $/);
   if (matchSpaced) {
     const toRemove = matchSpaced[0].length;
     return {
@@ -408,8 +412,16 @@ export function getSmartBackspaceResult(
     };
   }
 
-  // 2. Partial operator block " +" / " -" / " *" / " /" / " //"
-  const matchPartial = before.match(/ (\+|-|\*|\/|\/\/)$/);
+  // 1b. Comma delimiter ", "
+  if (before.endsWith(", ")) {
+    return {
+      newVal: before.slice(0, -2) + after,
+      newCursor: cursorPos - 2,
+    };
+  }
+
+  // 2. Partial operator block " +" / " -" / " *" / " /" / " //" / " %"
+  const matchPartial = before.match(/ (\+|-|\*|\/|\/\/|%)$/);
   if (matchPartial) {
     const toRemove = matchPartial[0].length;
     return {

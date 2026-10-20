@@ -13,6 +13,7 @@ import {
   getSmartBackspaceResult,
   isValidTokenPrefix,
   MATH_FUNCTIONS,
+  normalizeFormulaSpacing,
   validateFormulaSave,
 } from "../formula-bar-utils";
 import { useFormulaAutocomplete } from "../use-formula-autocomplete";
@@ -38,13 +39,14 @@ export function TemplateFormulaBar() {
   const { canAny } = usePermissionStore();
 
   const canAuthorFormulas =
-    mode === "template" ||
-    canAny([
-      "invoice:author_formulas",
-      "finance:manage_invoices",
-      "template:edit",
-      "workspace:manage_settings",
-    ]);
+    mode !== "fill" &&
+    (mode === "template" ||
+      canAny([
+        "invoice:author_formulas",
+        "finance:manage_invoices",
+        "template:edit",
+        "workspace:manage_settings",
+      ]));
 
   const canFillValues =
     mode === "template" ||
@@ -69,10 +71,17 @@ export function TemplateFormulaBar() {
   const inputRef = useRef<HTMLTextAreaElement>(null);
   const overlayRef = useRef<HTMLDivElement>(null);
 
-  const isFormulaInput = selectedCell?.valueType === "formula";
+  // In Builder/Template mode with formula authoring permissions, any row cell can accept formulas or numbers dynamically.
+  // In Fill mode, only formula cells (which are locked) are formula inputs; normal cells are manual rate/quantity inputs.
+  const isFormulaInput =
+    mode !== "fill" && canAuthorFormulas
+      ? true
+      : selectedCell?.valueType === "formula";
   const isActive = !!selectedCell;
   const isLocked =
-    isActive && ((isFormulaInput && !canAuthorFormulas) || (!isFormulaInput && !canFillValues));
+    isActive &&
+    ((selectedCell?.valueType === "formula" && !canAuthorFormulas && mode === "fill") ||
+      (!canAuthorFormulas && !canFillValues));
 
   // We need to sync cursorPos whenever inputValue changes or selection changes.
   useEffect(() => {
@@ -105,6 +114,7 @@ export function TemplateFormulaBar() {
     selectedCell?.token,
     invalidTokens,
     hiddenTokens,
+    isFormulaInput,
   );
 
   const allTokensRef = useRef<string[]>(allTokens);
@@ -117,7 +127,8 @@ export function TemplateFormulaBar() {
   }, [allTokens, hiddenTokens, invalidTokens]);
 
   useEffect(() => {
-    const initial = selectedCell?.currentInput ?? "";
+    const raw = selectedCell?.currentInput ?? "";
+    const initial = selectedCell?.valueType === "formula" ? normalizeFormulaSpacing(raw) : raw;
     resetHistory(initial);
     setInputValue(initial);
     isDirty.current = false;
@@ -129,7 +140,19 @@ export function TemplateFormulaBar() {
   useEffect(() => {
     const handleInsertToken = (e: any) => {
       if (!selectedCellRef.current || isLocked) return;
-      const tokenToInsert: string = e.detail.trim();
+      const tokenToInsert: string = e.detail?.trim() ?? "";
+      if (!tokenToInsert) return;
+
+      const isMathOpOrFn =
+        ["+", "-", "*", "/", "%", "//", "(", ")", ","].includes(tokenToInsert) ||
+        MATH_FUNCTIONS.some((fn) => tokenToInsert.startsWith(fn));
+
+      if (!isFormulaInput && !isMathOpOrFn) {
+        toast.error(
+          "Tokens can only be used in Builder Mode. Enter a number or mathematical expression.",
+        );
+        return;
+      }
 
       setInputValue((prev) => {
         const base = prev ?? "";
@@ -280,22 +303,49 @@ export function TemplateFormulaBar() {
           }
         }
 
-        const prefix = before.endsWith(" ") || before === "" ? "" : " ";
-        // If 'after' already starts with a space or is empty, no suffix needed.
-        const suffix =
-          after.startsWith(" ") || after === "" || isOpenParen || isCloseParen ? "" : " ";
-
-        let inserted = tokenToInsert;
-        if (!isOpenParen && !isCloseParen) {
-          inserted = tokenToInsert + suffix;
+        if (isBinaryOp) {
+          const cleanBefore = before.trimEnd();
+          const cleanAfter = after.trimStart();
+          const newVal = `${cleanBefore} ${tokenToInsert} ${cleanAfter}`;
+          const newCursorPos = cleanBefore.length + 1 + tokenToInsert.length + 1;
+          setTimeout(() => inputRef.current?.setSelectionRange(newCursorPos, newCursorPos), 0);
+          return newVal;
         }
 
-        const newVal = before + prefix + inserted + after;
+        if (isOpenParen) {
+          const trimmedB = before.trimEnd();
+          const lastWordMatch = trimmedB.match(/[A-Z0-9_]+$/);
+          const lastWord = lastWordMatch ? lastWordMatch[0] : "";
+          const isFn = (MATH_FUNCTIONS as readonly string[]).includes(lastWord);
+          const cleanBefore = isFn
+            ? trimmedB
+            : before.endsWith(" ")
+              ? before
+              : trimmedB.length > 0
+                ? `${trimmedB} `
+                : "";
+          const cleanAfter = after.trimStart();
+          const newVal = `${cleanBefore}(${cleanAfter}`;
+          const newCursorPos = cleanBefore.length + 1;
+          setTimeout(() => inputRef.current?.setSelectionRange(newCursorPos, newCursorPos), 0);
+          return newVal;
+        }
 
-        // Reposition cursor exactly after the insertion (including suffix)
-        const newCursorPos = before.length + prefix.length + inserted.length;
+        if (isCloseParen) {
+          const cleanBefore = before.trimEnd();
+          const cleanAfter = after.trimStart();
+          const newVal = `${cleanBefore})${cleanAfter}`;
+          const newCursorPos = cleanBefore.length + 1;
+          setTimeout(() => inputRef.current?.setSelectionRange(newCursorPos, newCursorPos), 0);
+          return newVal;
+        }
+
+        // Bare token insertion: tokens never have trailing spaces!
+        const prefix = before.endsWith(" ") || before === "" || before.endsWith("(") ? "" : " ";
+        const cleanAfter = after.trimStart();
+        const newVal = before + prefix + tokenToInsert + cleanAfter;
+        const newCursorPos = before.length + prefix.length + tokenToInsert.length;
         setTimeout(() => inputRef.current?.setSelectionRange(newCursorPos, newCursorPos), 0);
-
         return newVal;
       });
       isDirty.current = true;
@@ -322,7 +372,8 @@ export function TemplateFormulaBar() {
       setSelectedCell(null);
       return;
     }
-    const trimmed = inputValue.trim();
+    const raw = inputValue.trim();
+    const trimmed = selectedCell.valueType === "formula" ? normalizeFormulaSpacing(raw) : raw;
     if (trimmed === selectedCell.currentInput) {
       setSelectedCell(null);
       return;
@@ -395,8 +446,8 @@ export function TemplateFormulaBar() {
         withoutPartial.endsWith(" ") || withoutPartial === "" || withoutPartial.endsWith("(")
           ? ""
           : " ";
-      const padRight = isMathFn ? "" : " ";
-      const newVal = `${withoutPartial + padLeft + tokenWithParen}${padRight}${afterCursor}`;
+      const cleanAfter = afterCursor.trimStart();
+      const newVal = `${withoutPartial + padLeft + tokenWithParen}${cleanAfter}`;
 
       setInputValue(newVal);
       isDirty.current = true;
@@ -405,8 +456,7 @@ export function TemplateFormulaBar() {
 
       setTimeout(() => {
         inputRef.current?.focus();
-        const pos =
-          withoutPartial.length + padLeft.length + tokenWithParen.length + (isMathFn ? 0 : 1);
+        const pos = withoutPartial.length + padLeft.length + tokenWithParen.length;
         inputRef.current?.setSelectionRange(pos, pos);
       }, 0);
     },
@@ -430,6 +480,7 @@ export function TemplateFormulaBar() {
     invalidTokens,
     onUndo: () => undo(inputRef, isDirty),
     onRedo: () => redo(inputRef, isDirty),
+    isFormulaCell: isFormulaInput,
   });
 
   const handleMouseDeleteWord = (e: React.MouseEvent) => {
@@ -723,18 +774,7 @@ export function TemplateFormulaBar() {
                 }
 
                 // 2. Strictly normalize operator spacing
-                let normalized = pasted
-                  .replace(/\s*\/\/\s*/g, " // ")
-                  .replace(/\s*([+\-*/])\s*/g, " $1 ")
-                  .replace(/\s{2,}/g, " ")
-                  .replace(/\(\s+/g, "(")
-                  .replace(/\s+\)/g, ")")
-                  .replace(/\)(?=[A-Z0-9])/g, ") ")
-                  .replace(/([A-Z0-9_])\(/g, "$1 (")
-                  .trim();
-
-                // Preserve percentage attached to numbers: "50 %" -> "50%"
-                normalized = normalized.replace(/(\d+)\s+%/g, "$1%");
+                const normalized = normalizeFormulaSpacing(pasted);
 
                 // 3. Boundary validation at cursor position
                 const target = inputRef.current;

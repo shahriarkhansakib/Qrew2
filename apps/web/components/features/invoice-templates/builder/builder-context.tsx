@@ -11,8 +11,9 @@ import { getCircularDependencyTokens, type TokenMap } from "@/lib/formula-evalua
  */
 export type SelectedCell = {
   // ── Routing ───────────────────────────────────────────────────────────────
-  templateId: string;
-  sectionId: string;
+  templateId?: string;
+  draftId?: string;
+  sectionId?: string;
   rowId: string;
   /** Full row object — needed to PATCH the row atomically. */
   row: any;
@@ -20,6 +21,8 @@ export type SelectedCell = {
   chargeId?: string;
   /** True if this is a section charge (has no parent row). */
   isSectionCharge?: boolean;
+  /** True if this is a catalog item in the Additional Line Items panel. */
+  isCatalogItem?: boolean;
 
   // ── Display ───────────────────────────────────────────────────────────────
   /** Human-readable breadcrumb shown on the left side of the formula bar.
@@ -72,8 +75,18 @@ type BuilderContextValue = {
   getTokenColor: (token: string) => string;
   sidebarTab: "tokens" | "line-items";
   setSidebarTab: (tab: "tokens" | "line-items") => void;
+  headerFields: any[];
+  setHeaderFields?: (fields: any[]) => void;
+  templateConstants: any[];
+  setTemplateConstants?: (constants: any[]) => void;
   draftId?: string;
   templateId?: string;
+  sectionSeparation: "double" | "step" | "none";
+  setSectionSeparation: (style: "double" | "step" | "none") => void;
+  showSectionHeaders: boolean;
+  setShowSectionHeaders: (show: boolean) => void;
+  showSectionSubtotals: boolean;
+  setShowSectionSubtotals: (show: boolean) => void;
 };
 
 const DEFAULT_EXTERNAL_TOKENS: ExternalTokens = {
@@ -98,12 +111,22 @@ const BuilderContext = createContext<BuilderContextValue>({
   tokenPoolOpen: false,
   sidebarTab: "tokens",
   setSidebarTab: () => {},
+  headerFields: [],
+  setHeaderFields: () => {},
+  templateConstants: [],
+  setTemplateConstants: () => {},
   apiBasePath: "",
   mode: "template",
   invalidateKey: [],
   clipboardToken: null,
   setClipboardToken: () => {},
   getTokenColor: () => "text-slate-400",
+  sectionSeparation: "double",
+  setSectionSeparation: () => {},
+  showSectionHeaders: true,
+  setShowSectionHeaders: () => {},
+  showSectionSubtotals: false,
+  setShowSectionSubtotals: () => {},
 });
 
 // ─── Provider ─────────────────────────────────────────────────────────────────
@@ -132,8 +155,13 @@ export function BuilderProvider({
   const [sections, setSectionsState] = useState<any[]>([]);
   const [clipboardToken, setClipboardToken] = useState<string | null>(null);
   const [sidebarTab, setSidebarTab] = useState<"tokens" | "line-items">("tokens");
+  const [headerFields, setHeaderFields] = useState<any[]>([]);
+  const [templateConstants, setTemplateConstants] = useState<any[]>([]);
   const [externalTokens, setExternalTokensState] =
     useState<ExternalTokens>(DEFAULT_EXTERNAL_TOKENS);
+  const [sectionSeparation, setSectionSeparation] = useState<"double" | "step" | "none">("double");
+  const [showSectionHeaders, setShowSectionHeaders] = useState(true);
+  const [showSectionSubtotals, setShowSectionSubtotals] = useState(false);
 
   const setTokenMap = useCallback((mapOrFn: TokenMap | ((prev: TokenMap) => TokenMap)) => {
     setTokenMapState((prev) => {
@@ -433,8 +461,18 @@ export function BuilderProvider({
       getTokenColor,
       sidebarTab,
       setSidebarTab,
+      headerFields,
+      setHeaderFields,
+      templateConstants,
+      setTemplateConstants,
       draftId,
       templateId,
+      sectionSeparation,
+      setSectionSeparation,
+      showSectionHeaders,
+      setShowSectionHeaders,
+      showSectionSubtotals,
+      setShowSectionSubtotals,
     }),
     [
       selectedCell,
@@ -450,6 +488,8 @@ export function BuilderProvider({
       getTokenDisabledReason,
       tokenPoolOpen,
       sidebarTab,
+      headerFields,
+      templateConstants,
       apiBasePath,
       mode,
       invalidateKey,
@@ -458,6 +498,9 @@ export function BuilderProvider({
       getTokenColor,
       draftId,
       templateId,
+      sectionSeparation,
+      showSectionHeaders,
+      showSectionSubtotals,
     ],
   );
 

@@ -37,7 +37,7 @@ When implementing new features, tables, or data fields across this platform, you
 
 ## 4. Single-Value Row Architecture & Formula Codec (`formula-codec.ts`)
 - **Row Architecture**: Parent rows (`template_rows`) directly hold `valueType` (`normal` | `formula`), `formula`, and `initialValue`. Sub-components are obsolete and bypassed.
-- **UUID Formula Encoding**: Formulas are stored in the database using immutable row UUID tags: `{{$row:UUID}}` and `{{$row:UUID}}_TOTAL`.
+- **UUID Formula Encoding**: Formulas are stored in the database using immutable unified token UUID tags: `{{$tok:UUID}}` (with `_BASE` and `_CHARGES` variants). Legacy tags (`{{$row:}}`, `{{$sec:}}`, `{{$tpl:}}`) are completely purged.
 - **Display vs Storage**: All API endpoints MUST call `decodeFormula` before serving formulas to the client (converting UUID tags to current token names) and call `encodeFormula` before writing to the database. Renaming a row token never breaks existing stored formulas because references are bound by UUID.
 
 ## 5. Formula Operator Syntax & Sugar
@@ -198,4 +198,43 @@ stateDiagram-v2
 - **DND Hierarchy & Shared Context**: To avoid `@hello-pangea/dnd` nested `DragDropContext` fatal errors, the studio uses a shared top-level `DragDropContext` with child components (`TemplateBuilderWorkspace`, `FileDetailsHeaderBox`, `TemplateSectionCard`, `TemplateRowList`) accepting `isSharedDnd: true`.
 - **DAG Token Collision Prevention**: When dragging or instantiating catalog items into table sections, existing template tokens are scanned and incremental suffixes (`_2`, `_3`) are appended automatically to prevent token collision.
 
+## 23. Workspace Zoom Isolation, Full-Cell Row Selection, Token-Only Creation, & Cross-Section DnD (`page.tsx`, `table-row.tsx`, `add-edit-row-modal.tsx`, `row-list/index.tsx`, `additional-line-items-pool.tsx`)
+- **Workspace-Scoped Zoom Isolation**: CSS zoom controls scale only the workspace canvas document (`TemplateBuilderWorkspace`). The top header bar, bottom formula bar, and studio sidebars stay at fixed 100% native scale.
+- **Full-Cell Click-to-Edit**: In the row label column, clicking anywhere within the cell container triggers inline select-and-edit mode. Action buttons and token chips stop propagation.
+- **Additional Line Items Table Layout & Hover Actions**: The Additional Line Items catalog strictly mirrors the visual layout of table body rows:
+  - Column 1: `w-8` serial index (`1, 2, ...`) that reveals `GripVertical` on hover.
+  - Column 2: Canonical Token in crisp monospace font with semantic coloring (`getTokenColor`), without heavy background badges.
+  - Column 3: Row Label in bold white text (`font-medium text-foreground`) with inline click-to-edit and hover actions pinned to the right edge with gradient fade.
+  - Column 4: USD / Rate cell (`tabular-nums font-bold font-mono text-xs`) completely unobstructed.
+  - Action buttons: Strictly `[ Edit Token ]` and `[ Delete from Catalog ]`. The `+` (Quick add) button is permanently removed; transferring items into the table is strictly drag-and-drop or via the Add Row modal.
+- **Add Row Modal with Catalog Dropdown & Target Section Selector**:
+  - Derived label and formula token preview boxes are eradicated from modals.
+  - When opening the Add Row modal from the table, users can switch between `[ From Line Items (${catalog.length}) ]` and `[ Create New Token ]`.
+  - In catalog mode, selecting a saved line item stamps it into the chosen target section with automatic suffix collision avoidance (`_2`, `_3`).
+  - A Target Section dropdown enables routing the line item to any section in the template.
+- **Sticky Viewport Clamping for "+ Add Line Item" Button**:
+  - The `+ Add Line Item` button sits inside the scroll container directly beneath the last item using `sticky bottom-0 z-20` with a background gradient mask.
+  - When items are few (1-3 items), the button renders directly below the last row in normal flow.
+  - When items overflow and scroll, the button stays docked to the bottom of the visible sidebar panel so it never scrolls out of sight.
+- **Duplicate Line Items Prevention**: Adding duplicate tokens to the Additional Line Items catalog is strictly blocked at the API level (`409 Conflict`) and validated before form submission.
+- **Cross-Section DnD & Droppable Invariant**: `TemplateRowList` must never return `null` when `sortedRows.length === 0` in builder mode, ensuring the `<Droppable>` container is registered. Top-level `onDragEnd` supports cross-section movement with optimistic updates and `PATCH` with `sectionId`.
 
+## 24. Table Row Action Hygiene, Catalog Inline Styling, & Formula Bar Auto-Switching (`row-context-menu.tsx`, `additional-line-items-pool.tsx`, `use-save-cell.ts`)
+- **Single Edit Pencil for Table Rows**: In table rows, editing the token/row is triggered exclusively via the edit pencil button positioned over the token pill in the left gutter. Redundant edit buttons in the row hover toolbar (`RowActions`) are omitted to eliminate duplicate actions.
+- **Seamless Borderless Catalog Inline Input**: Inline editing for line item labels in the Additional Line Items catalog matches the transparent, borderless, zero-padding styling of `LabelCell` in the main table (`bg-transparent border-none outline-none focus:outline-none`).
+- **Line Item USD / Rate Formula Bar Integration & Auto-Tab Switch**:
+  - Clicking the USD / Rate cell in the Additional Line Items catalog sets `selectedCell` with `isCatalogItem: true` and loads the item's rate or formula into the formula bar.
+  - Opening a catalog item's rate cell automatically switches the right sidebar tab from `line-items` to `tokens` (`setSidebarTab("tokens")`), giving the user immediate access to token suggestions and clickable token chips from the Token Pool.
+  - Saving the cell sends a PATCH request to `updateTemplateOptionalRow` and invalidates the template catalog query cache.
+- **Delete Confirmation Modal for Catalog Line Items**: Deleting an item from the Additional Line Items catalog requires confirmation via `ConfirmDeleteModal`, safeguarding against accidental loss of catalog rows.
+
+## 25. Template-Draft 3-Way Synchronization, Save-As-Template Translation, & Dual-Engine DAG Enforcement (`drafts.controller.ts`, `draft-builder.controller.ts`, `template-sync-modal.tsx`)
+- **Two-Stage Formula Translation (`saveAsTemplate`)**: When converting drafts into templates, formulas undergo a strict 2-stage conversion: `decodeFormula` (translating draft UUID tags to bare tokens using draft entity maps) followed by `encodeFormula` (re-encoding bare tokens into new master template `{{$tok:UUID}}` tags). Any draft row carrying `isOptional: true` is inherited into the master template's `optionalRows` catalog.
+- **Master Template Version Tracking & Drift Alerts**: Master template mutations (`createRow`, `updateRow`, `deleteRow`, etc.) automatically call `touchTemplate` to increment `invoice_templates.version`. The draft editor checks `GET /template-sync-status` and surfaces an amber `Sync vX Available` button when drift is detected.
+- **Non-Destructive 3-Way Merge (`POST /sync-template`)**: Synchronizing drafts against updated master templates brings in new sections and rows, updates master formulas, and preserves user-edited custom row labels, manual amounts, and optional items without data loss.
+- **Draft Builder DAG Validation**: `validateDraftDag` is evaluated on all draft row and charge mutations, rejecting circular loops and compounding charge scope violations with `422 Unprocessable Entity`.
+
+## 26. Unified Token Namespace, Zero-Legacy Architecture, & Clean Database Rebuild (`formula-codec.ts`, `wipe-and-rebuild.ts`)
+- **Unified Formula Codec**: All formulas are stored strictly as `{{$tok:UUID}}` (with `_BASE` and `_CHARGES` variants). Legacy tags (`{{$row:}}`, `{{$sec:}}`, `{{$tpl:}}`) and legacy regexes are completely eradicated.
+- **Prefix Hygiene**: Template constants published to the calculation scope strictly strip duplicate prefixes (`bareKey = key.replace(/^TPL_/, "")`), guaranteeing that duplicate `TPL_TPL_*` tokens never pollute scope.
+- **Single-Command Clean Rebuild**: `pnpm --filter @starter/db rebuild` provides an automated end-to-end database wipe (`DROP SCHEMA public CASCADE`), table reconstruction (`drizzle-kit push --force`), trigger installation (`0003_token_triggers.sql`), and clean baseline data seeding (all 89 PBAC permissions, linked Google auth user, org defaults, agency templates, and active client/projects).

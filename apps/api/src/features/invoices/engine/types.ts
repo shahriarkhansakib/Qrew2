@@ -74,7 +74,7 @@ export interface EvaluatorRow {
   /** valueType = 'formula' → evaluate formula; 'normal' → use initialValue/manualValue */
   valueType: import("@starter/db").ComponentValueType;
   /**
-   * Stored as {{$row:uuid}} format. Decoded before evaluation.
+   * Stored as {{$tok:uuid}} format. Decoded before evaluation.
    * Only present when valueType = 'formula'.
    */
   formula?: string | null;

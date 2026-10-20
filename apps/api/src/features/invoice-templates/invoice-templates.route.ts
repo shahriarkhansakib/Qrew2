@@ -76,6 +76,12 @@ invoiceTemplatesRouter.post(
   InvoiceTemplatesController.addOptionalRow,
 );
 
+invoiceTemplatesRouter.patch(
+  "/:id/optional-rows/:optionalRowId",
+  requireOrgPermission(["template:edit", "finance:manage_invoices"]),
+  InvoiceTemplatesController.updateOptionalRow,
+);
+
 invoiceTemplatesRouter.delete(
   "/:id/optional-rows/:optionalRowId",
   requireOrgPermission(["template:edit", "finance:manage_invoices"]),

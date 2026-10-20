@@ -1,3 +1,4 @@
+import { touchTemplate } from "../../invoice-templates.controller";
 import { db, templateConstants, tokens } from "@starter/db";
 import { and, eq } from "drizzle-orm";
 import { Context } from "hono";
@@ -69,5 +70,6 @@ export async function updateConstant(c: Context) {
 
   if (!updated) return c.json({ error: "Not found" }, 404);
 
+  await touchTemplate(updated.templateId);
   return c.json(updated);
 }

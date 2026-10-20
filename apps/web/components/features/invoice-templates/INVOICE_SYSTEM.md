@@ -178,7 +178,7 @@ The formula bar appears at the top of the workspace whenever `selectedCell` is n
 
 - **Token Label Display**: Shows the human-readable token name of the selected cell.
 - **Formula Input**: An `<input>` field where the user types or pastes a formula. Tokens can be inserted by clicking in the token pool sidebar.
-- **Token Decode Preview**: Shows the formula with `{{$row:UUID}}` references decoded to their human-readable token names.
+- **Token Decode Preview**: Shows the formula with `{{$tok:UUID}}` references decoded to their human-readable token names.
 - **Live Computed Preview**: Shows the formula's current evaluated result.
 - **Token Insertion**: Subscribes to the global `insert-token` custom DOM event. When the token pool fires this event, the token is inserted at the cursor position.
 - **Save on blur / Enter**: On blur or Enter key, the formula is saved via PATCH to the appropriate row/charge endpoint.
@@ -186,10 +186,10 @@ The formula bar appears at the top of the workspace whenever `selectedCell` is n
 
 ### Formula Storage Format
 
-Formulas are saved to the DB in `{{$row:UUID}}` format:
+Formulas are saved to the DB in `{{$tok:UUID}}` format:
 ```
 Display:   "PORT_DUES * 0.15"
-Stored:    "{{$row:abc-123-uuid}} * 0.15"
+Stored:    "{{$tok:abc-123-uuid}} * 0.15"
 ```
 
 The `decodeFormula` function in `formula-evaluator.ts` converts UUIDs back to token names for display.
@@ -229,7 +229,7 @@ buildTokenMap(sections: any[], orgConfigs?: any[], templateConstants?: any[]): T
 // Evaluate a single formula expression against a token map
 evaluateFormula(formula: string, tokens: TokenMap): number | null
 
-// Decode {{$row:UUID}} references to human-readable token names
+// Decode {{$tok:UUID}} references to human-readable token names
 decodeFormula(formula: string, allSections: any[]): string
 
 // Format a number for display (2dp if fractional, integer otherwise, "—" if null/Infinity)

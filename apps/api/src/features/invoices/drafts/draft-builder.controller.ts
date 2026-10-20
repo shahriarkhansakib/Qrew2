@@ -1,15 +1,20 @@
 import {
+  customFieldDefinitions,
   db,
   decodeFormula,
   encodeFormula,
   invoiceDrafts,
   invoiceTemplates,
+  templateHeaderFields,
   TemplateOptionalRow,
+  tokens,
 } from "@starter/db";
-import { and, eq } from "drizzle-orm";
+import { and, asc, eq } from "drizzle-orm";
 import { Context } from "hono";
 import { v4 as uuidv4 } from "uuid";
+import { TokenService } from "../../tokens/token.service";
 import { appendAuditEntry } from "./draft-audit";
+import { validateDraftDag } from "../engine/engine-utils";
 
 async function getDraft(c: Context) {
   const draftId = c.req.param("id") as string;
@@ -63,7 +68,7 @@ function toSnakeCase(label: string): string {
     .replace(/^_|_$/, "");
 }
 
-function buildDraftIndices(draft: any) {
+export async function buildDraftIndices(draft: any, organizationId?: string) {
   const sections: any[] = draft.draftSections || [];
   const constants: any = draft.draftConstants || {};
 
@@ -73,6 +78,17 @@ function buildDraftIndices(draft: any) {
   const secIdToToken: Record<string, string> = {};
   const tplTokenToId: Record<string, string> = {};
   const tplIdToToken: Record<string, string> = {};
+
+  if (draft?.sourceTemplateId) {
+    try {
+      const orgId = organizationId || draft.organizationId || "";
+      const tplMaps = await TokenService.getTemplateTokenMaps(draft.sourceTemplateId, orgId);
+      Object.assign(tokenToId, tplMaps.tokenMap);
+      Object.assign(idToToken, tplMaps.idToToken);
+    } catch (e) {
+      console.error("[buildDraftIndices] Failed to load template token maps", e);
+    }
+  }
 
   for (const sec of sections) {
     if (sec.id && sec.sectionToken) {
@@ -102,7 +118,10 @@ export class DraftBuilderController {
   static async getSections(c: Context) {
     const draft = await getDraft(c);
     if (!draft) return c.json({ error: "Draft not found" }, 404);
-    const { idToToken, secIdToToken, tplIdToToken } = buildDraftIndices(draft);
+    const { idToToken, secIdToToken, tplIdToToken } = await buildDraftIndices(
+      draft,
+      c.get("organizationId"),
+    );
 
     const decodedSections = (draft.draftSections || []).map((sec: any) => ({
       ...sec,
@@ -314,7 +333,7 @@ export class DraftBuilderController {
     }
 
     const { tokenToId, idToToken, secTokenToId, secIdToToken, tplTokenToId, tplIdToToken } =
-      buildDraftIndices(draft);
+      await buildDraftIndices(draft, c.get("organizationId"));
 
     const rowId = crypto.randomUUID();
     tokenToId[body.rowToken] = rowId;
@@ -368,7 +387,7 @@ export class DraftBuilderController {
     if (rIdx === -1) return c.json({ error: "Row not found" }, 404);
 
     const { tokenToId, idToToken, secTokenToId, secIdToToken, tplTokenToId, tplIdToToken } =
-      buildDraftIndices(draft);
+      await buildDraftIndices(draft, c.get("organizationId"));
 
     const updateFields: any = { ...body };
     if (updateFields.rowToken && updateFields.rowToken !== s.rows[rIdx].rowToken) {
@@ -392,6 +411,20 @@ export class DraftBuilderController {
     }
 
     s.rows[rIdx] = { ...s.rows[rIdx], ...updateFields };
+
+    if (updateFields.formula) {
+      const testDraft = { ...draft, draftSections: sections };
+      const validation = validateDraftDag(testDraft);
+      if (!validation.valid) {
+        return c.json(
+          {
+            error: validation.errors[0]?.message || "Invalid formula: circular reference or illegal dependency detected",
+            errors: validation.errors,
+          },
+          422,
+        );
+      }
+    }
 
     await updateDraft(
       draft.id,
@@ -471,7 +504,10 @@ export class DraftBuilderController {
     const r = s.rows.find((r: any) => r.id === rowId);
     if (!r) return c.json({ error: "Row not found" }, 404);
 
-    const { idToToken, secIdToToken, tplIdToToken } = buildDraftIndices(draft);
+    const { idToToken, secIdToToken, tplIdToToken } = await buildDraftIndices(
+      draft,
+      c.get("organizationId"),
+    );
     const decodedCharges = (r.charges || []).map((ch: any) => ({
       ...ch,
       formula: decodeFormula(ch.formula, idToToken, secIdToToken, tplIdToToken) ?? ch.formula,
@@ -494,7 +530,7 @@ export class DraftBuilderController {
     if (!r) return c.json({ error: "Row not found" }, 404);
 
     const { tokenToId, idToToken, secTokenToId, secIdToToken, tplTokenToId, tplIdToToken } =
-      buildDraftIndices(draft);
+      await buildDraftIndices(draft, c.get("organizationId"));
 
     const chargeToken = body.chargeToken || `${r.rowToken}_${toSnakeCase(body.label)}`;
     const encodedFormula = body.formula
@@ -515,6 +551,20 @@ export class DraftBuilderController {
 
     if (!r.charges) r.charges = [];
     r.charges.push(newCharge);
+
+    if (encodedFormula) {
+      const testDraft = { ...draft, draftSections: sections };
+      const validation = validateDraftDag(testDraft);
+      if (!validation.valid) {
+        return c.json(
+          {
+            error: validation.errors[0]?.message || "Invalid charge formula: circular reference or illegal dependency detected",
+            errors: validation.errors,
+          },
+          422,
+        );
+      }
+    }
 
     await updateDraft(
       draft.id,
@@ -554,7 +604,7 @@ export class DraftBuilderController {
     if (cIdx === -1) return c.json({ error: "Charge not found" }, 404);
 
     const { tokenToId, idToToken, secTokenToId, secIdToToken, tplTokenToId, tplIdToToken } =
-      buildDraftIndices(draft);
+      await buildDraftIndices(draft, c.get("organizationId"));
 
     const updateData = { ...body };
     if (updateData.formula !== undefined) {
@@ -564,6 +614,20 @@ export class DraftBuilderController {
     }
 
     r.charges[cIdx] = { ...r.charges[cIdx], ...updateData };
+
+    if (updateData.formula) {
+      const testDraft = { ...draft, draftSections: sections };
+      const validation = validateDraftDag(testDraft);
+      if (!validation.valid) {
+        return c.json(
+          {
+            error: validation.errors[0]?.message || "Invalid charge formula: circular reference or illegal dependency detected",
+            errors: validation.errors,
+          },
+          422,
+        );
+      }
+    }
 
     await updateDraft(
       draft.id,
@@ -662,7 +726,7 @@ export class DraftBuilderController {
     if (!s) return c.json({ error: "Section not found" }, 404);
 
     const { tokenToId, idToToken, secTokenToId, secIdToToken, tplTokenToId, tplIdToToken } =
-      buildDraftIndices(draft);
+      await buildDraftIndices(draft, c.get("organizationId"));
 
     const encodedFormula = body.formula
       ? encodeFormula(body.formula, tokenToId, secTokenToId, tplTokenToId)
@@ -678,6 +742,20 @@ export class DraftBuilderController {
     };
     if (!s.sectionCharges) s.sectionCharges = [];
     s.sectionCharges.push(newCharge);
+
+    if (encodedFormula) {
+      const testDraft = { ...draft, draftSections: sections };
+      const validation = validateDraftDag(testDraft);
+      if (!validation.valid) {
+        return c.json(
+          {
+            error: validation.errors[0]?.message || "Invalid section charge formula: circular reference or illegal dependency detected",
+            errors: validation.errors,
+          },
+          422,
+        );
+      }
+    }
 
     await updateDraft(
       draft.id,
@@ -714,7 +792,7 @@ export class DraftBuilderController {
     if (cIdx === -1) return c.json({ error: "Charge not found" }, 404);
 
     const { tokenToId, idToToken, secTokenToId, secIdToToken, tplTokenToId, tplIdToToken } =
-      buildDraftIndices(draft);
+      await buildDraftIndices(draft, c.get("organizationId"));
 
     const updateData = { ...body };
     if (updateData.formula !== undefined) {
@@ -724,6 +802,20 @@ export class DraftBuilderController {
     }
 
     s.sectionCharges[cIdx] = { ...s.sectionCharges[cIdx], ...updateData };
+
+    if (updateData.formula) {
+      const testDraft = { ...draft, draftSections: sections };
+      const validation = validateDraftDag(testDraft);
+      if (!validation.valid) {
+        return c.json(
+          {
+            error: validation.errors[0]?.message || "Invalid section charge formula: circular reference or illegal dependency detected",
+            errors: validation.errors,
+          },
+          422,
+        );
+      }
+    }
 
     await updateDraft(
       draft.id,
@@ -987,5 +1079,225 @@ export class DraftBuilderController {
       token: removedToken,
       label: removedLabel,
     });
+  }
+
+  static async listHeaderFields(c: Context) {
+    const draft = await getDraft(c);
+    if (!draft) return c.json({ error: "Draft not found" }, 404);
+    if (Array.isArray(draft.draftHeaderFields) && draft.draftHeaderFields.length > 0) {
+      return c.json(draft.draftHeaderFields);
+    }
+
+    if (draft.sourceTemplateId) {
+      try {
+        const fields = await db
+          .select({
+            id: templateHeaderFields.id,
+            templateId: templateHeaderFields.templateId,
+            fieldType: templateHeaderFields.fieldType,
+            columnPosition: templateHeaderFields.columnPosition,
+            customFieldDefinitionId: templateHeaderFields.customFieldDefinitionId,
+            systemFieldKey: templateHeaderFields.systemFieldKey,
+            orgConfigKey: templateHeaderFields.orgConfigKey,
+            defaultManualValue: templateHeaderFields.defaultManualValue,
+            placeholder: templateHeaderFields.placeholder,
+            fieldKey: customFieldDefinitions.fieldKey,
+            tokenKey: tokens.tokenKey,
+            label: tokens.label,
+            description: tokens.description,
+            isFormulaInjectable: tokens.isInjectable,
+            sortOrder: tokens.sortOrder,
+          })
+          .from(templateHeaderFields)
+          .innerJoin(tokens, eq(tokens.id, templateHeaderFields.id))
+          .leftJoin(
+            customFieldDefinitions,
+            eq(templateHeaderFields.customFieldDefinitionId, customFieldDefinitions.id),
+          )
+          .where(eq(templateHeaderFields.templateId, draft.sourceTemplateId))
+          .orderBy(asc(tokens.sortOrder));
+
+        if (fields.length > 0) {
+          const draftFields = fields.map((f) => ({
+            id: crypto.randomUUID(),
+            label: f.label || "Field",
+            fieldType: f.fieldType || "file_field",
+            fileFieldKey: f.fieldKey || f.systemFieldKey || f.tokenKey,
+            tokenKey: f.tokenKey || f.fieldKey,
+            isFormulaInjectable: f.isFormulaInjectable ?? false,
+            columnPosition: f.columnPosition || "left",
+            sortOrder: f.sortOrder ?? 0,
+            defaultManualValue: f.defaultManualValue || "",
+          }));
+          await updateDraft(draft.id, { draftHeaderFields: draftFields }, c);
+          return c.json(draftFields);
+        }
+      } catch (err) {
+        console.error("[listHeaderFields] Failed to populate draft header fields from template", err);
+      }
+    }
+
+    // Fallback: Seed default system fields and project custom fields so File Details is never empty
+    const defaultFields = [
+      {
+        id: crypto.randomUUID(),
+        label: "Name",
+        fieldType: "file_field",
+        fileFieldKey: "name",
+        tokenKey: "NAME",
+        columnPosition: "left",
+        sortOrder: 0,
+        isFormulaInjectable: false,
+      },
+      {
+        id: crypto.randomUUID(),
+        label: "Client",
+        fieldType: "file_field",
+        fileFieldKey: "clientId",
+        tokenKey: "CLIENT",
+        columnPosition: "left",
+        sortOrder: 1,
+        isFormulaInjectable: false,
+      },
+      {
+        id: crypto.randomUUID(),
+        label: "Status",
+        fieldType: "file_field",
+        fileFieldKey: "status",
+        tokenKey: "STATUS",
+        columnPosition: "right",
+        sortOrder: 0,
+        isFormulaInjectable: false,
+      },
+    ];
+
+    try {
+      const orgId = c.get("organizationId");
+      if (orgId) {
+        const projectCustomFields = await db
+          .select()
+          .from(customFieldDefinitions)
+          .where(
+            and(
+              eq(customFieldDefinitions.organizationId, orgId),
+              eq(customFieldDefinitions.entityType, "project"),
+            ),
+          );
+
+        projectCustomFields.forEach((cf: any, idx: number) => {
+          defaultFields.push({
+            id: crypto.randomUUID(),
+            label: cf.fieldName || cf.fieldKey,
+            fieldType: "file_field",
+            fileFieldKey: cf.fieldKey,
+            tokenKey: cf.fieldKey.toUpperCase(),
+            columnPosition: idx % 2 === 0 ? "right" : "left",
+            sortOrder: Math.floor(idx / 2) + 1,
+            isFormulaInjectable: cf.fieldType === "number" || cf.fieldType === "currency",
+          });
+        });
+      }
+
+      await updateDraft(draft.id, { draftHeaderFields: defaultFields }, c);
+      return c.json(defaultFields);
+    } catch (e) {
+      console.error("[listHeaderFields] Failed to seed default header fields", e);
+      return c.json(defaultFields);
+    }
+  }
+
+  static async createHeaderField(c: Context) {
+    const draft = await getDraft(c);
+    if (!draft) return c.json({ error: "Draft not found" }, 404);
+    const body = await c.req.json();
+    const fields = Array.isArray(draft.draftHeaderFields) ? [...draft.draftHeaderFields] : [];
+    const cleanToken = (body.fileFieldKey || body.label || "FIELD")
+      .trim()
+      .replace(/[^a-zA-Z0-9]/g, "_")
+      .toUpperCase();
+
+    const newField = {
+      id: crypto.randomUUID(),
+      label: body.label || "New Field",
+      fieldType: body.fieldType || "file_field",
+      fileFieldKey: cleanToken,
+      tokenKey: cleanToken,
+      isFormulaInjectable: body.isFormulaInjectable ?? false,
+      columnPosition: body.columnPosition || "left",
+      sortOrder: fields.length,
+      defaultManualValue: body.defaultManualValue || "",
+    };
+
+    fields.push(newField);
+    await updateDraft(
+      draft.id,
+      { draftHeaderFields: fields },
+      c,
+      `Added description field "${newField.label}"`,
+    );
+    return c.json(newField, 201);
+  }
+
+  static async updateHeaderField(c: Context) {
+    const draft = await getDraft(c);
+    if (!draft) return c.json({ error: "Draft not found" }, 404);
+    const fieldId = c.req.param("fieldId");
+    const body = await c.req.json();
+    const fields = Array.isArray(draft.draftHeaderFields) ? [...draft.draftHeaderFields] : [];
+    const idx = fields.findIndex((f) => f.id === fieldId);
+    if (idx === -1) return c.json({ error: "Header field not found" }, 404);
+
+    fields[idx] = { ...fields[idx], ...body };
+    await updateDraft(
+      draft.id,
+      { draftHeaderFields: fields },
+      c,
+      `Updated description field "${fields[idx].label}"`,
+    );
+    return c.json(fields[idx]);
+  }
+
+  static async deleteHeaderField(c: Context) {
+    const draft = await getDraft(c);
+    if (!draft) return c.json({ error: "Draft not found" }, 404);
+    const fieldId = c.req.param("fieldId");
+    const fields = Array.isArray(draft.draftHeaderFields) ? [...draft.draftHeaderFields] : [];
+    const filtered = fields.filter((f) => f.id !== fieldId);
+    filtered.forEach((f, i) => {
+      f.sortOrder = i;
+    });
+
+    await updateDraft(
+      draft.id,
+      { draftHeaderFields: filtered },
+      c,
+      "Deleted description field",
+    );
+    return c.json({ success: true, deletedId: fieldId });
+  }
+
+  static async reorderHeaderFields(c: Context) {
+    const draft = await getDraft(c);
+    if (!draft) return c.json({ error: "Draft not found" }, 404);
+    const body = await c.req.json();
+    const updates = body.updates || body.fields || [];
+    const fields = Array.isArray(draft.draftHeaderFields) ? [...draft.draftHeaderFields] : [];
+    const updateMap = new Map((updates || []).map((u: any) => [u.fieldId, u]));
+
+    for (const f of fields) {
+      const u: any = updateMap.get(f.id);
+      if (u) {
+        if (u.sortOrder !== undefined) f.sortOrder = u.sortOrder;
+        if (u.columnPosition !== undefined) f.columnPosition = u.columnPosition;
+      }
+    }
+
+    await updateDraft(
+      draft.id,
+      { draftHeaderFields: fields },
+      c,
+      "Reordered description fields",
+    );
+    return c.json({ success: true });
   }
 }

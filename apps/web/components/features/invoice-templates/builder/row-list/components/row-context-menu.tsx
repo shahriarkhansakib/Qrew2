@@ -54,34 +54,25 @@ export function UnresolvedNoticeButton({ notices }: { notices: any[] }) {
 }
 
 export function RowActions({
-  onEdit,
+  onEdit: _onEdit,
   onDelete,
   onAddCharge,
   onMoveToAdditionalLineItems,
 }: {
-  onEdit: () => void;
+  onEdit?: () => void;
   onDelete: () => void;
   onAddCharge?: () => void;
   onMoveToAdditionalLineItems?: () => void;
 }) {
   return (
     <>
-      <Button
-        variant="ghost"
-        size="icon"
-        className="h-6 w-6 text-muted-foreground hover:text-foreground"
-        onClick={onEdit}
-        title="Edit Token"
-      >
-        <Edit2 className="h-3.5 w-3.5" />
-      </Button>
       {onMoveToAdditionalLineItems && (
         <Button
           variant="ghost"
           size="icon"
           className="h-6 w-6 text-muted-foreground hover:text-primary"
           onClick={onMoveToAdditionalLineItems}
-          title="Move to Additional Line Items"
+          title="Copy to Additional Line Items"
         >
           <Layers className="h-3.5 w-3.5" />
         </Button>
@@ -143,7 +134,7 @@ export function MobileRowActions({
         )}
         {onMoveToAdditionalLineItems && !isCharge && (
           <DropdownMenuItem onClick={onMoveToAdditionalLineItems}>
-            <Layers className="h-4 w-4 mr-2 text-primary" /> Move to Line Items
+            <Layers className="h-4 w-4 mr-2 text-primary" /> Copy to Line Items
           </DropdownMenuItem>
         )}
         {onAddCharge && (

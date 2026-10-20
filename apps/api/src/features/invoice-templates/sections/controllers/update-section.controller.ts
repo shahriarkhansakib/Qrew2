@@ -1,3 +1,4 @@
+import { touchTemplate } from "../../invoice-templates.controller";
 import { db, invoiceTemplates, templateSections, tokens } from "@starter/db";
 import { and, eq } from "drizzle-orm";
 import { Context } from "hono";
@@ -102,5 +103,6 @@ export async function updateSection(c: Context) {
     };
   });
 
+  await touchTemplate(sectionRow[0].section.templateId);
   return c.json(mergedSection);
 }

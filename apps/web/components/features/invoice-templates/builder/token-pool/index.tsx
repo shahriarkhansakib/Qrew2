@@ -1,7 +1,7 @@
 "use client";
 
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { AlertTriangle, Edit2, Hash, Info, Layers, Trash2 } from "lucide-react";
+import { AlertTriangle, Edit2, Hash, Info, Layers, PanelRightClose, Trash2 } from "lucide-react";
 import { useState } from "react";
 import { toast } from "sonner";
 import { invoiceApi } from "@/components/features/invoices/shared/invoice-api";
@@ -239,11 +239,13 @@ export function FileTokenRow({
   onClick?: () => void;
   onLegendClick?: () => void;
 }) {
-  const { selectedCell, invalidTokens, hiddenTokens, getTokenDisabledReason } = useBuilderContext();
+  const { selectedCell, invalidTokens, hiddenTokens, getTokenDisabledReason, tokenMap, mode } =
+    useBuilderContext();
+  const isFillMode = mode === "fill";
   const isFormulaMode = !!selectedCell;
   const isInvalid = isFormulaMode && invalidTokens.has(token);
   const isHidden = isFormulaMode && hiddenTokens.has(token);
-  const isDisabled = isInvalid || isHidden || !isNumeric;
+  const isDisabled = isFillMode ? false : isInvalid || isHidden || !isNumeric;
   const disabledReason = !isNumeric
     ? `${label} is a text field and cannot be used in formulas`
     : isDisabled
@@ -252,6 +254,7 @@ export function FileTokenRow({
       : undefined;
 
   const handleClick = () => {
+    if (isFillMode) return;
     if (!isNumeric) return;
     if (isInvalid || isHidden) {
       toast.error(`Cannot insert: ${disabledReason || `"${token}" is not allowed.`}`);
@@ -262,21 +265,41 @@ export function FileTokenRow({
 
   const type: TokenEntry["type"] = isNumeric ? "file" : "file-text";
   const cfg = TOKEN_TYPE_CONFIG[type];
+  const numVal = isNumeric
+    ? (tokenMap[token] ??
+       tokenMap[`FILE_${token}`] ??
+       tokenMap[token.replace(/^FILE_/, "")])
+    : null;
+
+  const textVal = !isNumeric
+    ? (tokenMap[token] ??
+       tokenMap[`FILE_${token}`] ??
+       tokenMap[token.replace(/^FILE_/, "")])
+    : null;
+
+  const normLabel = (label || "").toUpperCase().replace(/[^A-Z0-9]/g, "");
+  const normToken = (token || "").replace(/^FILE_/, "").toUpperCase().replace(/[^A-Z0-9]/g, "");
+  const isDuplicateLabel = normLabel === normToken;
+
   return (
     <div
       className={cn(
         "flex items-center justify-between gap-2 px-2 py-0.5 rounded transition-colors group",
-        isDisabled
-          ? "opacity-35 cursor-not-allowed bg-muted/5"
-          : "hover:bg-muted/20 cursor-pointer",
+        isFillMode
+          ? "cursor-default opacity-85"
+          : isDisabled
+            ? "opacity-35 cursor-not-allowed bg-muted/5"
+            : "hover:bg-muted/20 cursor-pointer",
       )}
       onClick={handleClick}
       title={
-        isDisabled
-          ? disabledReason?.startsWith("Disabled:")
-            ? disabledReason
-            : `Disabled: ${disabledReason}`
-          : `Insert ${token}`
+        isFillMode
+          ? undefined
+          : isDisabled
+            ? disabledReason?.startsWith("Disabled:")
+              ? disabledReason
+              : `Disabled: ${disabledReason}`
+            : `Insert ${token}`
       }
     >
       <span
@@ -299,7 +322,27 @@ export function FileTokenRow({
         {isInvalid && <AlertTriangle className="w-3 h-3 text-accent-foreground shrink-0 mr-0.5" />}
         {token}
       </span>
-      <span className="text-xs text-muted-foreground truncate">{label}</span>
+      <div className="flex items-center gap-2 min-w-0">
+        {!isDuplicateLabel && (
+          <span className="text-xs text-muted-foreground truncate">{label}</span>
+        )}
+        {isNumeric && numVal != null && (
+          <span
+            className="font-mono shrink-0 tabular-nums text-sky-400 font-medium"
+            style={{ fontSize: 13 + zoomLevel }}
+          >
+            {fmt(numVal)}
+          </span>
+        )}
+        {!isNumeric && textVal != null && (
+          <span
+            className="font-sans text-xs text-foreground/80 truncate font-medium"
+            style={{ fontSize: 12 + zoomLevel }}
+          >
+            {String(textVal)}
+          </span>
+        )}
+      </div>
     </div>
   );
 }
@@ -325,17 +368,19 @@ export function ConstantTokenCard({
   onDelete?: (e: React.MouseEvent) => void;
   onLegendClick?: () => void;
 }) {
-  const { selectedCell, invalidTokens, hiddenTokens, getTokenDisabledReason } = useBuilderContext();
+  const { selectedCell, invalidTokens, hiddenTokens, getTokenDisabledReason, mode } = useBuilderContext();
+  const isFillMode = mode === "fill";
   const isFormulaMode = !!selectedCell;
   const isInvalid = isFormulaMode && invalidTokens.has(token);
   const isHidden = isFormulaMode && hiddenTokens.has(token);
-  const isDisabled = isInvalid || isHidden;
+  const isDisabled = isFillMode ? false : isInvalid || isHidden;
   const disabledReason = isDisabled
     ? getTokenDisabledReason(token) ||
       (isInvalid ? "Creates circular dependency" : "Not allowed in active cell")
     : undefined;
 
   const handleClick = () => {
+    if (isFillMode) return;
     if (isInvalid || isHidden) {
       toast.error(`Cannot insert: ${disabledReason || `"${token}" is not allowed.`}`);
       return;
@@ -357,15 +402,21 @@ export function ConstantTokenCard({
     <div
       className={cn(
         "group flex items-center justify-between gap-2 px-2 py-1 rounded transition-colors",
-        isDisabled ? "opacity-35 cursor-not-allowed bg-muted/5" : `cursor-pointer ${styles[type]}`,
+        isFillMode
+          ? "cursor-default opacity-85"
+          : isDisabled
+            ? "opacity-35 cursor-not-allowed bg-muted/5"
+            : `cursor-pointer ${styles[type]}`,
       )}
       onClick={handleClick}
       title={
-        isDisabled
-          ? disabledReason?.startsWith("Disabled:")
-            ? disabledReason
-            : `Disabled: ${disabledReason}`
-          : `Insert ${token}`
+        isFillMode
+          ? undefined
+          : isDisabled
+            ? disabledReason?.startsWith("Disabled:")
+              ? disabledReason
+              : `Disabled: ${disabledReason}`
+            : `Insert ${token}`
       }
     >
       <span
@@ -450,12 +501,14 @@ export function TemplateTokenPool({
   activeTab: propActiveTab,
   onTabChange: propOnTabChange,
   onAddRowToSection,
+  onClose,
 }: {
   templateId?: string;
   draftId?: string;
   activeTab?: "tokens" | "line-items";
   onTabChange?: (tab: "tokens" | "line-items") => void;
   onAddRowToSection?: (item: any, sectionId?: string) => void;
+  onClose?: () => void;
 }) {
   const isDraftMode = !!draftId;
   const apiBasePath = isDraftMode
@@ -470,7 +523,8 @@ export function TemplateTokenPool({
     ? ["draft-sections", draftId]
     : ["template-sections", templateId];
 
-  const { selectedCell, setClipboardToken, sidebarTab, setSidebarTab } = useBuilderContext();
+  const { selectedCell, setClipboardToken, sidebarTab, setSidebarTab, mode } =
+    useBuilderContext();
   const currentTab = propActiveTab ?? sidebarTab;
   const handleTabChange = propOnTabChange ?? setSidebarTab;
 
@@ -621,6 +675,7 @@ export function TemplateTokenPool({
   };
 
   const handleTokenClick = (token: string) => {
+    if (mode === "fill") return;
     if (selectedCell) {
       window.dispatchEvent(new CustomEvent("insert-token", { detail: token }));
     } else {
@@ -679,7 +734,7 @@ export function TemplateTokenPool({
             </button>
           </div>
 
-          <div className="flex items-center gap-1.5 pb-1">
+          <div className="flex items-center gap-1 pb-1">
             {currentTab === "tokens" && (
               <button
                 type="button"
@@ -692,25 +747,17 @@ export function TemplateTokenPool({
               </button>
             )}
 
-            <div className="flex items-center gap-1 border border-border rounded-md px-0.5 h-6 bg-background shadow-xs">
+            {onClose && (
               <button
-                onClick={() => setTokenZoomLevel((z) => Math.max(z - 1, -4))}
-                className="h-4 w-4 flex items-center justify-center text-muted-foreground hover:text-foreground hover:bg-muted rounded transition-colors"
-                title="Decrease Font Size"
+                type="button"
+                onClick={onClose}
+                className="p-1 rounded-md text-muted-foreground hover:text-foreground hover:bg-muted/60 transition-colors ml-0.5 cursor-pointer"
+                title="Collapse Studio sidebar"
+                aria-label="Collapse Studio sidebar"
               >
-                <span className="text-base leading-none font-medium mb-0.5">-</span>
+                <PanelRightClose className="w-3.5 h-3.5" />
               </button>
-              <span className="text-[10px] font-mono w-3.5 text-center select-none text-muted-foreground">
-                {tokenZoomLevel > 0 ? `+${tokenZoomLevel}` : tokenZoomLevel}
-              </span>
-              <button
-                onClick={() => setTokenZoomLevel((z) => Math.min(z + 1, 8))}
-                className="h-4 w-4 flex items-center justify-center text-muted-foreground hover:text-foreground hover:bg-muted rounded transition-colors"
-                title="Increase Font Size"
-              >
-                <span className="text-base leading-none font-medium mb-0.5">+</span>
-              </button>
-            </div>
+            )}
           </div>
         </div>
 

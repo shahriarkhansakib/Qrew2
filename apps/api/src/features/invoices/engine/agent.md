@@ -70,9 +70,9 @@ The evaluation engine natively supports the following financial and mathematical
 To ensure template formulas remain resilient when tokens or rows are renamed, formula strings are stored with immutable UUID references.
 
 ### Storage Syntax
-- **Row Tokens**: `{{$row:UUID}}`, `{{$row:UUID}}_BASE`, `{{$row:UUID}}_CHARGES`
-- **Section Tokens**: `{{$sec:UUID}}`, `{{$sec:UUID}}_BASE`, `{{$sec:UUID}}_CHARGES`
-- **Template Constants**: `{{$tpl:UUID}}`
+- **Row Tokens**: `{{$tok:UUID}}`, `{{$tok:UUID}}_BASE`, `{{$tok:UUID}}_CHARGES`
+- **Section Tokens**: `{{$tok:UUID}}`, `{{$tok:UUID}}_BASE`, `{{$tok:UUID}}_CHARGES`
+- **Template Constants**: `{{$tok:UUID}}`
 - **External Tokens**: `FILE_*`, `GBL_*`, `CAT_*` remain plain text.
 
 ### Codec Lifecycle

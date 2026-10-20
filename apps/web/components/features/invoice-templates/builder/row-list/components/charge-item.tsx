@@ -16,13 +16,25 @@ export function ChargeLabelCell({
   rowId,
   sectionId,
   zoomLevel = 0,
+  isEditing,
+  onEditingChange,
 }: {
   charge: any;
   rowId: string;
   sectionId: string;
   zoomLevel?: number;
+  isEditing?: boolean;
+  onEditingChange?: (editing: boolean) => void;
 }) {
-  const [editing, setEditing] = useState(false);
+  const [internalEditing, setInternalEditing] = useState(false);
+  const editing = isEditing !== undefined ? isEditing : internalEditing;
+  const setEditing = useCallback(
+    (val: boolean) => {
+      if (onEditingChange) onEditingChange(val);
+      else setInternalEditing(val);
+    },
+    [onEditingChange],
+  );
   const [draft, setDraft] = useState(charge.label);
   const inputRef = useRef<HTMLInputElement>(null);
   const queryClient = useQueryClient();
@@ -57,7 +69,7 @@ export function ChargeLabelCell({
     } catch {
       toast.error("Failed to save charge label");
     }
-  }, [draft, charge, rowId, sectionId, apiBasePath, queryClient, invalidateKey]);
+  }, [draft, charge, rowId, sectionId, apiBasePath, queryClient, invalidateKey, setEditing]);
 
   if (editing) {
     return (
@@ -126,17 +138,24 @@ export function RowChargeLine({
   isUsd1Selected?: boolean;
   zoomLevel?: number;
 }) {
+  const { templateConstants, headerFields } = useBuilderContext();
+  const [isEditingLabel, setIsEditingLabel] = useState(false);
+  const canEditLabel = Boolean(rowId && sectionId);
+
   return (
     <TableRow
       token={charge.chargeToken}
       onEditToken={onEditCharge}
       formula={
-        allSections && charge.formula ? decodeFormula(charge.formula, allSections) : charge.formula
+        allSections && charge.formula
+          ? decodeFormula(charge.formula, allSections, templateConstants, headerFields)
+          : charge.formula
       }
       zoomLevel={zoomLevel}
       onClickUsd1={onClickUsd1}
       onClickFormula={onClickUsd1}
       isUsd1Selected={isUsd1Selected}
+      onClickLabel={canEditLabel ? () => setIsEditingLabel(true) : undefined}
       style={
         sectionColor
           ? {
@@ -183,6 +202,8 @@ export function RowChargeLine({
               rowId={rowId}
               sectionId={sectionId}
               zoomLevel={zoomLevel}
+              isEditing={isEditingLabel}
+              onEditingChange={setIsEditingLabel}
             />
           ) : (
             <span

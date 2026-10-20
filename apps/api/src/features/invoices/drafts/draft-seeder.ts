@@ -1,4 +1,5 @@
 import {
+  invoiceTemplates,
   clients,
   customFieldDefinitions,
   db,
@@ -23,6 +24,13 @@ export class DraftSeeder {
     projectId?: string,
     organizationId?: string,
   ) {
+    const [tpl] = await db
+      .select({ version: invoiceTemplates.version })
+      .from(invoiceTemplates)
+      .where(eq(invoiceTemplates.id, templateId))
+      .limit(1);
+    const sourceTemplateVersion = tpl?.version ?? 1;
+
     // 1. Fetch template constants
     const tConstants = await db
       .select({
@@ -188,16 +196,12 @@ export class DraftSeeder {
       oldIdToNewId[tr.id] = crypto.randomUUID();
     }
 
-    /** Replace every {{$tok:OLD_UUID}} or {{$row:OLD_UUID}} occurrence with {{$tok:NEW_UUID}}. */
+    /** Replace every {{$tok:OLD_UUID}} occurrence with {{$tok:NEW_UUID}}. */
     function remapFormula(formula: string | null | undefined): string | null {
       if (!formula) return formula ?? null;
-      return formula
-        .replace(/\{\{\$tok:([^}]+)\}\}/g, (_, id) => {
-          return `{{$tok:${oldIdToNewId[id] ?? id}}}`;
-        })
-        .replace(/\{\{\$row:([^}]+)\}\}/g, (_, id) => {
-          return `{{$tok:${oldIdToNewId[id] ?? id}}}`;
-        });
+      return formula.replace(/\{\{\$tok:([^}]+)\}\}/g, (_, id) => {
+        return `{{$tok:${oldIdToNewId[id] ?? id}}}`;
+      });
     }
 
     for (const ts of tSections) {
@@ -265,6 +269,7 @@ export class DraftSeeder {
       draftConstants,
       draftHeaderValues,
       draftHeaderFields: tHeaders,
+      sourceTemplateVersion,
     };
   }
 }

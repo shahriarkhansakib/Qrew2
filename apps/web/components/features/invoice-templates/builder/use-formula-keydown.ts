@@ -35,6 +35,7 @@ export interface UseFormulaKeyDownProps {
   currentToken?: string;
   onUndo?: () => void;
   onRedo?: () => void;
+  isFormulaCell?: boolean;
 }
 
 export function useFormulaKeyDown({
@@ -54,6 +55,7 @@ export function useFormulaKeyDown({
   invalidTokens = new Set<string>(),
   onUndo,
   onRedo,
+  isFormulaCell = true,
 }: UseFormulaKeyDownProps & { invalidTokens?: Set<string> }) {
   return useCallback(
     (e: React.KeyboardEvent<HTMLInputElement>) => {
@@ -281,20 +283,31 @@ export function useFormulaKeyDown({
       // Digit or decimal: allowed (if it passed the space check)
       if (/^[0-9.]$/.test(e.key)) return;
 
-      // Prevent typing unmatched closing parenthesis
+      // Prevent typing unmatched closing parenthesis and collapse preceding whitespace
       if (e.key === ")") {
+        e.preventDefault();
         const target = e.target as HTMLInputElement;
         const selStart = target.selectionStart ?? inputValue.length;
+        const selEnd = target.selectionEnd ?? inputValue.length;
         const before = inputValue.slice(0, selStart);
+        const after = inputValue.slice(selEnd);
         const openCount = (before.match(/\(/g) || []).length;
         const closeCount = (before.match(/\)/g) || []).length;
 
         if (closeCount >= openCount) {
-          e.preventDefault();
           toast.error("Cannot add closing parenthesis (no open pair)");
           return;
         }
-        // ) is valid — let it pass through natively
+
+        const cleanBefore = before.trimEnd();
+        const cleanAfter = after.trimStart();
+        const newVal = `${cleanBefore})${cleanAfter}`;
+        setInputValue(newVal);
+        isDirty.current = true;
+        setTimeout(() => {
+          const newPos = cleanBefore.length + 1;
+          inputRef.current?.setSelectionRange(newPos, newPos);
+        }, 0);
         return;
       }
 
@@ -458,11 +471,13 @@ export function useFormulaKeyDown({
 
           // If preceded by a whitelisted math function (e.g. MAX, MIN, ROUND, CLAMP, ABS), allow ( directly without an operator!
           if (lastWordInBuf && (MATH_FUNCTIONS as readonly string[]).includes(lastWordInBuf)) {
-            const newVal = `${before}(${after}`;
+            const cleanBefore = before.trimEnd();
+            const cleanAfter = after.trimStart();
+            const newVal = `${cleanBefore}(${cleanAfter}`;
             setInputValue(newVal);
             isDirty.current = true;
             setTimeout(() => {
-              const newPos = before.length + 1;
+              const newPos = cleanBefore.length + 1;
               inputRef.current?.setSelectionRange(newPos, newPos);
             }, 0);
             return;
@@ -498,7 +513,8 @@ export function useFormulaKeyDown({
           }
 
           const prefix = before.endsWith(" ") || before === "" ? "" : " ";
-          const newVal = `${before + prefix}(${after}`;
+          const cleanAfter = after.trimStart();
+          const newVal = `${before + prefix}(${cleanAfter}`;
           setInputValue(newVal);
           isDirty.current = true;
           setTimeout(() => {
@@ -569,9 +585,11 @@ export function useFormulaKeyDown({
 
         // Exact match continuation (e.g. typing "P", "PO", "PORT" or "M", "MA", "MAX")
         const directCandidate = currentLastWord ? currentLastWord + upper : upper;
-        const hasDirectMatch =
-          allTokens.some((t) => t.startsWith(directCandidate) || t.includes(directCandidate)) ||
-          MATH_FUNCTIONS.some((fn) => fn.startsWith(directCandidate));
+        const tokenMatches = isFormulaCell
+          ? allTokens.some((t) => t.startsWith(directCandidate) || t.includes(directCandidate))
+          : false;
+        const fnMatches = MATH_FUNCTIONS.some((fn) => fn.startsWith(directCandidate));
+        const hasDirectMatch = tokenMatches || fnMatches;
 
         if (hasDirectMatch) {
           const newVal = before + upper + after;
@@ -581,6 +599,9 @@ export function useFormulaKeyDown({
           return;
         }
 
+        if (!isFormulaCell) {
+          toast.error("Tokens can only be used in Builder Mode.");
+        }
         // Keystroke does not match any token path or math function -> reject
         return;
       }

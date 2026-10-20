@@ -11,7 +11,7 @@
 - Enforces UUID formula codec (`encodeFormula` before writing, `decodeFormula` before responding).
 
 ## 2. Invariants & Rules
-1. **Formula Storage Format**: Rows and row charges store formulas in database using `{{$row:UUID}}` references. Never store raw token names in DB formulas.
+1. **Formula Storage Format**: Rows and row charges store formulas in database using `{{$tok:UUID}}` references. Never store raw token names in DB formulas.
 2. **Base Token Publishing**: The row's token (`rowToken`) represents its base value. Derived total token is `<rowToken>_TOTAL` (base + sum of row charges).
 3. **Circular Reference Prevention**: A row or row charge cannot reference its own token or its `_TOTAL` variant (enforced via `validateFormulaChars`).
 4. **Token/Label Independence**: Updating `rowToken` or `chargeToken` must NEVER overwrite or mutate `parentLabel` or `label`.

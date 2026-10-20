@@ -12,7 +12,9 @@ import {
   X,
   XCircle,
 } from "lucide-react";
-import { useState } from "react";
+import { useRef, useState } from "react";
+import { toast } from "sonner";
+import { cn } from "@/lib/utils";
 
 // --- Constants ---------------------------------------------------------------
 
@@ -435,16 +437,36 @@ function WorkflowNodeCircle({
 
   let ringColor = style.ring;
   let ringWidth = "border-2";
-  let extraShadow = `0 0 0 4px ${style.glow}`;
+  let extraShadow = "none";
 
-  if (isConnectSource) {
+  const isSelectedSource = isConnectSource;
+  const isAwaitingTarget = connectMode && isConnectTarget;
+  const isAwaitingSource = connectMode && !isConnectSource && !isConnectTarget;
+
+  if (isSelectedSource) {
     ringColor = "#6366f1";
     ringWidth = "border-[3px]";
-    extraShadow = "0 0 0 6px rgba(99,102,241,0.3)";
-  } else if (isConnectTarget && connectMode) {
-    ringColor = "#f59e0b";
-    ringWidth = "border-[3px]";
-    extraShadow = "0 0 0 6px rgba(245,158,11,0.3)";
+    extraShadow = "0 0 0 8px rgba(99,102,241,0.45)";
+  } else if (isAwaitingTarget) {
+    if (s.isInitial) {
+      ringColor = "#64748b";
+      ringWidth = "border-2";
+      extraShadow = "none";
+    } else {
+      ringColor = "#10b981";
+      ringWidth = "border-[3px]";
+      extraShadow = "0 0 0 6px rgba(16,185,129,0.35)";
+    }
+  } else if (isAwaitingSource) {
+    if (s.isTerminal) {
+      ringColor = "#64748b";
+      ringWidth = "border-2";
+      extraShadow = "none";
+    } else {
+      ringColor = "#818cf8";
+      ringWidth = "border-2";
+      extraShadow = "0 0 0 5px rgba(129,140,248,0.3)";
+    }
   }
 
   // Short label to show inside the circle (up to 4 chars)
@@ -456,6 +478,10 @@ function WorkflowNodeCircle({
 
   return (
     <div
+      onClick={(e) => {
+        e.stopPropagation();
+        onClick();
+      }}
       onPointerDown={(e) => onDragStart?.(e, node.status.id, node.cx, node.cy)}
       onPointerMove={onDragMove}
       onPointerUp={onDragEnd}
@@ -468,7 +494,20 @@ function WorkflowNodeCircle({
         height: NODE_D,
         zIndex: 20,
       }}
-      className="group cursor-pointer select-none"
+      className={cn(
+        "group select-none",
+        connectMode
+          ? isSelectedSource
+            ? "cursor-pointer scale-110"
+            : isAwaitingTarget
+              ? s.isInitial
+                ? "cursor-not-allowed opacity-40"
+                : "cursor-pointer hover:scale-115 transition-transform"
+              : s.isTerminal
+                ? "cursor-not-allowed opacity-40"
+                : "cursor-pointer hover:scale-115 transition-transform"
+          : "cursor-pointer",
+      )}
     >
       <div
         className={`w-full h-full rounded-full bg-background flex items-center justify-center transition-all duration-200 group-hover:scale-110 relative ${ringWidth}`}
@@ -607,6 +646,8 @@ export function WorkflowGraph({
   } | null>(null);
   const [hoveredEdge, setHoveredEdge] = useState<string | null>(null);
   const [connectState, setConnectState] = useState<null | "source" | string>(null);
+  const dragMovedRef = useRef(false);
+  const isDraggingRef = useRef(false);
   const isConnectMode = connectState !== null;
   const connectSourceId = connectState !== null && connectState !== "source" ? connectState : null;
 
@@ -666,12 +707,14 @@ export function WorkflowGraph({
     const { d, mx, my } = edgePath(fromNode, toNode, isBidirectional);
     return { fromNode, toNode, edgeId, d, mx, my };
   });
-
   const handlePointerDown = (e: React.PointerEvent, id: string, nodeCx: number, nodeCy: number) => {
     if (isConnectMode || disabled) return;
     e.stopPropagation();
-    e.preventDefault();
-    (e.target as HTMLElement).setPointerCapture(e.pointerId);
+    isDraggingRef.current = true;
+    dragMovedRef.current = false;
+    try {
+      (e.currentTarget as HTMLElement).setPointerCapture(e.pointerId);
+    } catch (_err) {}
     setDragState({
       id,
       pointerStartX: e.clientX,
@@ -684,19 +727,32 @@ export function WorkflowGraph({
   };
 
   const handlePointerMove = (e: React.PointerEvent) => {
-    if (!dragState) return;
+    if (!isDraggingRef.current || !dragState) return;
     const deltaX = (e.clientX - dragState.pointerStartX) / zoom;
     const deltaY = (e.clientY - dragState.pointerStartY) / zoom;
-    setDragState((prev) =>
-      prev
-        ? { ...prev, currentX: prev.nodeStartX + deltaX, currentY: prev.nodeStartY + deltaY }
-        : null,
-    );
+    if (Math.hypot(deltaX, deltaY) > 5) {
+      dragMovedRef.current = true;
+    }
+    if (dragMovedRef.current) {
+      setDragState((prev) =>
+        prev
+          ? { ...prev, currentX: prev.nodeStartX + deltaX, currentY: prev.nodeStartY + deltaY }
+          : null,
+      );
+    }
   };
 
   const handlePointerUp = (e: React.PointerEvent) => {
-    if (!dragState) return;
-    (e.target as HTMLElement).releasePointerCapture(e.pointerId);
+    if (!isDraggingRef.current) return;
+    isDraggingRef.current = false;
+    try {
+      (e.currentTarget as HTMLElement).releasePointerCapture(e.pointerId);
+    } catch (_err) {}
+
+    if (!dragState || !dragMovedRef.current) {
+      setDragState(null);
+      return;
+    }
 
     const allRows = layoutNodes.map((n) => n.row);
     const minRow = allRows.length > 0 ? Math.min(0, ...allRows) : 0;
@@ -733,15 +789,28 @@ export function WorkflowGraph({
 
     setDragState(null);
   };
+
   const handleNodeClick = (node: LayoutNode) => {
+    if (dragMovedRef.current) {
+      dragMovedRef.current = false;
+      return;
+    }
     if (connectState === "source") {
       // Guard: terminal node cannot be a source
-      if (node.status.isTerminal) return;
+      if (node.status.isTerminal) {
+        toast.error(
+          `"${node.status.name}" is a terminal stage and cannot have outbound transitions.`,
+        );
+        return;
+      }
       setConnectState(node.status.id);
     } else if (connectSourceId !== null) {
       // Guard: cannot connect TO the initial node
-      if (node.status.isInitial) return;
-      // Guard: no direct self-loop
+      if (node.status.isInitial) {
+        toast.error("Cannot connect back to the starting stage.");
+        return;
+      }
+      // Guard: clicking self cancels selection
       if (connectSourceId === node.status.id) {
         setConnectState(null);
         return;
@@ -782,14 +851,22 @@ export function WorkflowGraph({
         </button>
       </div>
       {isConnectMode && (
-        <div className="absolute top-3 left-1/2 -translate-x-1/2 z-50 flex items-center gap-2 px-4 py-2 bg-indigo-600 text-white rounded-full text-sm font-medium shadow-lg">
+        <div className="absolute top-3 left-1/2 -translate-x-1/2 z-50 flex items-center gap-2 px-4 py-2 bg-indigo-600 text-white rounded-full text-sm font-medium shadow-lg animate-in fade-in slide-in-from-top-2">
           <Link2 className="h-4 w-4 shrink-0" />
-          {connectState === "source"
-            ? "Select the source node"
-            : "Now click the target node to connect"}
+          {connectState === "source" ? (
+            <span>
+              Click any non-terminal stage to select as <strong>Source</strong>
+            </span>
+          ) : (
+            <span>
+              Source: <strong>{nodeMap[connectSourceId!]?.status.name}</strong> → Click{" "}
+              <strong>Target</strong> stage to connect
+            </span>
+          )}
           <button
             onClick={() => setConnectState(null)}
-            className="ml-1 hover:text-indigo-200 transition-colors"
+            className="ml-2 hover:text-indigo-200 transition-colors p-0.5 rounded-full hover:bg-indigo-700"
+            title="Cancel connection mode"
           >
             <X className="h-4 w-4" />
           </button>
@@ -800,8 +877,8 @@ export function WorkflowGraph({
         onClick={() => setConnectState(isConnectMode ? null : "source")}
         className={`absolute top-3 right-3 z-40 flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium rounded-full border transition-all ${
           isConnectMode
-            ? "bg-indigo-600 text-white border-indigo-700"
-            : "bg-background text-muted-foreground border-muted-foreground/30 hover:border-primary hover:text-primary"
+            ? "bg-indigo-600 text-white border-indigo-700 shadow-md ring-2 ring-indigo-400/50"
+            : "bg-background text-muted-foreground border-muted-foreground/30 hover:border-primary hover:text-primary shadow-xs"
         }`}
       >
         <Link2 className="h-3 w-3" />

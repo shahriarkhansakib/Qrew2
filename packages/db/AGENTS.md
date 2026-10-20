@@ -49,7 +49,7 @@ erDiagram
    - `invoice_drafts` allows unlimited concurrent drafts per project.
    - `editHistory` logs JSONB audit entries (`userId`, `userName`, `userEmail`, `editedAt`, `action`).
 3. **Formula Codec Tags**:
-   - Formulas are stored in the database with immutable UUID references: `{{$row:UUID}}`, `{{$sec:UUID}}`, `{{$tpl:UUID}}`.
+   - Formulas are stored in the database with immutable UUID references: `{{$tok:UUID}}`, `{{$tok:UUID}}`, `{{$tok:UUID}}`.
    - External tokens (`FILE_*`, `GBL_*`, `EXP_*`) remain plain text UPPER_SNAKE_CASE.
 
 ---

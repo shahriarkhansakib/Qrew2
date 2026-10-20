@@ -1,4 +1,10 @@
-import { db, invoiceTemplates, templateHeaderFields, tokens } from "@starter/db";
+import {
+  customFieldDefinitions,
+  db,
+  invoiceTemplates,
+  templateHeaderFields,
+  tokens,
+} from "@starter/db";
 import { and, asc, eq } from "drizzle-orm";
 import { Context } from "hono";
 import { z } from "zod";
@@ -44,6 +50,7 @@ export class TemplateHeaderFieldsController {
         orgConfigKey: templateHeaderFields.orgConfigKey,
         defaultManualValue: templateHeaderFields.defaultManualValue,
         placeholder: templateHeaderFields.placeholder,
+        fieldKey: customFieldDefinitions.fieldKey,
         tokenKey: tokens.tokenKey,
         label: tokens.label,
         description: tokens.description,
@@ -52,6 +59,10 @@ export class TemplateHeaderFieldsController {
       })
       .from(templateHeaderFields)
       .innerJoin(tokens, eq(tokens.id, templateHeaderFields.id))
+      .leftJoin(
+        customFieldDefinitions,
+        eq(templateHeaderFields.customFieldDefinitionId, customFieldDefinitions.id),
+      )
       .where(eq(templateHeaderFields.templateId, templateId))
       .orderBy(asc(tokens.sortOrder));
 

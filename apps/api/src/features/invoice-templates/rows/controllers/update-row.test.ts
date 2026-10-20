@@ -236,5 +236,21 @@ describe("TemplateRowsController - updateRow", () => {
       const res = await updateRow(ctx);
       expect(res.status).toBe(200);
     });
+
+    it("updates sectionId when transferred to another section", async () => {
+      const row = makeRow();
+      const NEW_SEC_ID = "new-section-456";
+      (db.select as any)
+        .mockReturnValueOnce(hoistedChain([{ row, token: makeToken(), orgId: ORG_ID }]))
+        .mockReturnValueOnce(hoistedChain([{ id: NEW_SEC_ID }]))
+        .mockReturnValueOnce(hoistedChain([{ ...row, sectionId: NEW_SEC_ID }]));
+      const ctx = makeCtx({
+        params: { rowId: ROW_ID },
+        body: { sectionId: NEW_SEC_ID },
+      });
+      const res = await updateRow(ctx);
+      expect(res.status).toBe(200);
+      expect((res as any).data.sectionId).toBe(NEW_SEC_ID);
+    });
   });
 });

@@ -1,3 +1,4 @@
+import { touchTemplate } from "../../invoice-templates.controller";
 import { db, templateConstants, tokens } from "@starter/db";
 import { and, eq } from "drizzle-orm";
 import { Context } from "hono";
@@ -9,7 +10,7 @@ export async function deleteConstant(c: Context) {
   if (!organizationId) return c.json({ error: "Unauthorized" }, 401);
 
   const existing = await db
-    .select({ id: templateConstants.id })
+    .select({ id: templateConstants.id, templateId: templateConstants.templateId })
     .from(templateConstants)
     .innerJoin(tokens, eq(tokens.id, templateConstants.id))
     .where(and(eq(templateConstants.id, id), eq(tokens.organizationId, organizationId)))
@@ -19,5 +20,6 @@ export async function deleteConstant(c: Context) {
   const deleted = await TokenService.deleteToken(id, db);
   if (!deleted) return c.json({ error: "Not found" }, 404);
 
+  await touchTemplate(existing[0].templateId);
   return c.json({ success: true });
 }

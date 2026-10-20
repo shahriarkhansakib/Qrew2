@@ -1,5 +1,5 @@
 import { db, invoiceDocumentSequences, invoiceTemplates, TemplateOptionalRow } from "@starter/db";
-import { and, eq } from "drizzle-orm";
+import { and, eq, sql } from "drizzle-orm";
 import { Context } from "hono";
 import { z } from "zod";
 import { TokenService } from "../tokens/token.service";
@@ -170,7 +170,11 @@ export class InvoiceTemplatesController {
 
     const [updated] = await db
       .update(invoiceTemplates)
-      .set(parsed.data)
+      .set({
+        ...parsed.data,
+        version: sql`${invoiceTemplates.version} + 1`,
+        updatedAt: new Date(),
+      })
       .where(and(eq(invoiceTemplates.id, id), eq(invoiceTemplates.organizationId, organizationId)))
       .returning();
 
@@ -236,6 +240,12 @@ export class InvoiceTemplatesController {
 
     if (!tpl) return c.json({ error: "Template not found" }, 404);
     const currentRows = (tpl.optionalRows as TemplateOptionalRow[]) || [];
+    if (currentRows.some((r) => r.rowToken === rowToken)) {
+      return c.json(
+        { error: `An additional line item with token "${rowToken}" already exists in this template.` },
+        409,
+      );
+    }
     const updatedRows = [...currentRows, newRow];
 
     await db
@@ -260,7 +270,9 @@ export class InvoiceTemplatesController {
 
     if (!tpl) return c.json({ error: "Template not found" }, 404);
     const currentRows = (tpl.optionalRows as TemplateOptionalRow[]) || [];
-    const updatedRows = currentRows.filter((r) => r.id !== optionalRowId);
+    const updatedRows = currentRows.filter(
+      (r) => r.id !== optionalRowId && r.rowToken !== optionalRowId,
+    );
 
     await db
       .update(invoiceTemplates)
@@ -268,5 +280,77 @@ export class InvoiceTemplatesController {
       .where(and(eq(invoiceTemplates.id, id), eq(invoiceTemplates.organizationId, organizationId)));
 
     return c.json({ success: true });
+  }
+
+  static async updateOptionalRow(c: Context) {
+    const id = c.req.param("id") as string;
+    const optionalRowId = c.req.param("optionalRowId") as string;
+    const organizationId = c.get("organizationId");
+    if (!organizationId) return c.json({ error: "Unauthorized" }, 401);
+
+    const body = await c.req.json();
+    const [tpl] = await db
+      .select({ optionalRows: invoiceTemplates.optionalRows })
+      .from(invoiceTemplates)
+      .where(and(eq(invoiceTemplates.id, id), eq(invoiceTemplates.organizationId, organizationId)))
+      .limit(1);
+
+    if (!tpl) return c.json({ error: "Template not found" }, 404);
+    const currentRows = (tpl.optionalRows as TemplateOptionalRow[]) || [];
+
+    let matched = false;
+    const updatedRows = currentRows.map((r) => {
+      if (r.id === optionalRowId || r.rowToken === optionalRowId) {
+        matched = true;
+        const newFormula = body.formula !== undefined ? body.formula : r.formula;
+        const newValueType =
+          body.valueType !== undefined
+            ? body.valueType
+            : newFormula && newFormula.trim()
+              ? "formula"
+              : r.valueType || "normal";
+
+        return {
+          ...r,
+          label: body.label !== undefined ? String(body.label).trim() : r.label,
+          subDescription:
+            body.subDescription !== undefined
+              ? body.subDescription
+              : body.description !== undefined
+                ? body.description
+                : r.subDescription,
+          initialValue: body.initialValue !== undefined ? body.initialValue : r.initialValue,
+          formula: newFormula,
+          valueType: newValueType,
+        };
+      }
+      return r;
+    });
+
+    if (!matched) return c.json({ error: "Optional row not found" }, 404);
+
+    await db
+      .update(invoiceTemplates)
+      .set({ optionalRows: updatedRows })
+      .where(and(eq(invoiceTemplates.id, id), eq(invoiceTemplates.organizationId, organizationId)));
+
+    const updatedRow = updatedRows.find(
+      (r) => r.id === optionalRowId || r.rowToken === optionalRowId,
+    );
+    return c.json(updatedRow || { success: true });
+  }
+}
+
+export async function touchTemplate(templateId: string, tx: any = db) {
+  try {
+    await tx
+      .update(invoiceTemplates)
+      .set({
+        version: sql`${invoiceTemplates.version} + 1`,
+        updatedAt: new Date(),
+      })
+      .where(eq(invoiceTemplates.id, templateId));
+  } catch (err) {
+    console.error("[touchTemplate] Failed to bump version", err);
   }
 }

@@ -14,7 +14,8 @@
     "push": "drizzle-kit push --config=drizzle.config.ts",
     "migrate": "drizzle-kit migrate --config=drizzle.config.ts",
     "studio": "drizzle-kit studio --config=drizzle.config.ts --port=5558",
-    "seed": "tsx src/seed.ts"
+    "seed": "tsx src/seed.ts",
+    "rebuild": "tsx src/wipe-and-rebuild.ts"
   },
   "dependencies": {
     "@neondatabase/serverless": "^0.10.4",

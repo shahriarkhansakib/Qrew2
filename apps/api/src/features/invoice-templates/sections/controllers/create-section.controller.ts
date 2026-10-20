@@ -1,3 +1,4 @@
+import { touchTemplate } from "../../invoice-templates.controller";
 import { db, invoiceTemplates, tokens } from "@starter/db";
 import { and, eq } from "drizzle-orm";
 import { Context } from "hono";
@@ -58,5 +59,6 @@ export async function createSection(c: Context) {
     sortOrder: parsed.data.orderIndex,
   });
 
+  await touchTemplate(templateId);
   return c.json(newSection, 201);
 }

@@ -3,7 +3,7 @@
 ## 1. Core Behavior and Invariants
 - The template builder manages the schema that dictates how invoices are structured.
 - **Single-Value Row Model:** Rows directly contain their calculation metadata (`valueType`, `formula`, `initialValue`). Sub-components are obsolete.
-- **Unified Formula Storage:** Formulas are stored as single expressions referencing row UUIDs via the formula codec (`{{$row:UUID}}` and `{{$row:UUID}}_TOTAL`).
+- **Unified Formula Storage:** Formulas are stored as single expressions referencing row UUIDs via the formula codec (`{{$tok:UUID}}` and `{{$tok:UUID}}_TOTAL`).
 - **Formula Codec (Codec-on-Read / Codec-on-Write):** Stored formulas use immutable row UUIDs. When reading or returning rows to the client, the API decodes UUIDs into current human-readable token names using `buildRowIndex`. When updating/creating, formulas are encoded into UUID form.
 - **Label Independence:** The `label` / `parentLabel` field drives human-readable names. Editing or updating `chargeToken` or `rowToken` must NEVER overwrite or mutate labels.
 - **Circular Reference Prevention:** A formula for a row or charge cannot reference its own token or its `_TOTAL` variant.

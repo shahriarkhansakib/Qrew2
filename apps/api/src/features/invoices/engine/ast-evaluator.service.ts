@@ -17,7 +17,7 @@
  *  INVOICE_TOTAL = SUM(SEC_X_TOTAL for all X + section charge values)
  *
  * Formula expressions use BARE token names (no {{}} delimiters).
- * Row references are stored as {{$row:UUID}} in DB and decoded before evaluation.
+ * Token references are stored as {{$tok:UUID}} in DB and decoded before evaluation.
  * Text interpolation ({{TOKEN}} / ${{TOKEN}}) is handled separately by
  * text-interpolator.service.ts.
  */

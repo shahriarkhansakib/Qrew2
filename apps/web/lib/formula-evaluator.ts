@@ -25,13 +25,14 @@ export type TokenMap = Record<string, number>;
 
 /**
  * Decode an AST formula string from the database back to human-readable tokens.
- * - Replaces {{$row:UUID}} with the row's rowToken
- * - Strips {{ and }} from external tokens like {{FILE_GRT}}
+ * - Replaces {{$tok:UUID}} with the row/section/charge/constant token name
+ * - Strips {{ and }} from external tokens
  */
 export function decodeFormula(
   formula: string | null | undefined,
   sections: any[],
   templateConstants?: any[],
+  headerFields?: any[],
 ): string {
   if (!formula) return "";
   let decoded = formula;
@@ -79,75 +80,24 @@ export function decodeFormula(
         : Object.values(templateConstants);
       const constant = arr.find((c: any) => c.id === id);
       if (constant?.token) return constant.token;
+      if (constant?.tokenKey) return constant.tokenKey;
+    }
+    if (headerFields) {
+      const arr = Array.isArray(headerFields)
+        ? headerFields
+        : Object.values(headerFields);
+      const field = arr.find((f: any) => f.id === id);
+      if (field?.tokenKey) {
+        return field.tokenKey.startsWith("FILE_") ? field.tokenKey : `FILE_${field.tokenKey.toUpperCase()}`;
+      }
+      if (field?.fieldKey) {
+        return field.fieldKey.startsWith("FILE_") ? field.fieldKey : `FILE_${field.fieldKey.toUpperCase()}`;
+      }
     }
     return match;
   });
 
-  // 1. Replace row UUIDs (legacy)
-  decoded = decoded.replace(/\{\{\$row:([0-9a-fA-F-]+)\}\}_BASE/g, (match, id) => {
-    for (const sec of sections || []) {
-      const row = sec.rows?.find((r: any) => r.id === id);
-      if (row?.rowToken) return `${row.rowToken}_BASE`;
-    }
-    return match;
-  });
-  decoded = decoded.replace(/\{\{\$row:([0-9a-fA-F-]+)\}\}_CHARGES/g, (match, id) => {
-    for (const sec of sections || []) {
-      const row = sec.rows?.find((r: any) => r.id === id);
-      if (row?.rowToken) return `${row.rowToken}_CHARGES`;
-    }
-    return match;
-  });
-  decoded = decoded.replace(/\{\{\$row:([0-9a-fA-F-]+)\}\}_TOTAL/g, (match, id) => {
-    for (const sec of sections || []) {
-      const row = sec.rows?.find((r: any) => r.id === id);
-      if (row?.rowToken) return row.rowToken;
-    }
-    return match;
-  });
-  decoded = decoded.replace(/\{\{\$row:([0-9a-fA-F-]+)\}\}/g, (match, id) => {
-    for (const sec of sections || []) {
-      const row = sec.rows?.find((r: any) => r.id === id);
-      if (row?.rowToken) return row.rowToken;
-    }
-    return match;
-  });
-
-  // 1.5 Replace sec UUIDs (legacy)
-  decoded = decoded.replace(/\{\{\$sec:([0-9a-fA-F-]+)\}\}_BASE/g, (match, id) => {
-    const sec = (sections || []).find((s: any) => s.id === id);
-    if (sec?.sectionToken) return `SEC_${sec.sectionToken}_BASE`;
-    return match;
-  });
-  decoded = decoded.replace(/\{\{\$sec:([0-9a-fA-F-]+)\}\}_CHARGES/g, (match, id) => {
-    const sec = (sections || []).find((s: any) => s.id === id);
-    if (sec?.sectionToken) return `SEC_${sec.sectionToken}_CHARGES`;
-    return match;
-  });
-  decoded = decoded.replace(/\{\{\$sec:([0-9a-fA-F-]+)\}\}_TOTAL/g, (match, id) => {
-    const sec = (sections || []).find((s: any) => s.id === id);
-    if (sec?.sectionToken) return `SEC_${sec.sectionToken}`;
-    return match;
-  });
-  decoded = decoded.replace(/\{\{\$sec:([0-9a-fA-F-]+)\}\}/g, (match, id) => {
-    const sec = (sections || []).find((s: any) => s.id === id);
-    if (sec?.sectionToken) return `SEC_${sec.sectionToken}`;
-    return match;
-  });
-
-  // 1.7 Replace tpl UUIDs (legacy)
-  const tplRegex = /\{\{\$tpl:([0-9a-fA-F-]+)\}\}/g;
-  decoded = decoded.replace(tplRegex, (match, id) => {
-    if (!templateConstants) return match;
-    const arr = Array.isArray(templateConstants)
-      ? templateConstants
-      : Object.values(templateConstants);
-    const constant = arr.find((c: any) => c.id === id);
-    if (constant?.token) return constant.token;
-    return match;
-  });
-
-  // 2. Strip {{ and }} from other tokens
+  // Strip {{ and }} from other tokens
   decoded = decoded.replace(/\{\{([A-Z0-9_]+)\}\}/g, "$1");
 
   // 3. Strip FILE_, GBL_/ORG_, and EXP_ (except EXP_TOTAL) prefixes to bare tokens for UI display
@@ -650,10 +600,11 @@ export function buildTokenMap(
   templateConstants?: any[],
   fileFields?: any[],
   categoriesData?: any[],
+  externalTokenValues?: Record<string, any>,
 ): TokenMap {
   const tokens: TokenMap = {};
 
-  // Inject global constants first so they are available for formulas (bare canonical key only)
+  // Inject global constants first so they are available for formulas
   if (orgConfigs) {
     for (const config of orgConfigs) {
       if (config.isFormulaInjectable && config.configKey) {
@@ -662,11 +613,12 @@ export function buildTokenMap(
         const numVal = config.valueType === "percentage" ? val / 100 : val;
         const baseKey = config.configKey.replace(/^(ORG_|GBL_)/, "");
         tokens[baseKey] = numVal;
+        tokens[`GBL_${baseKey}`] = numVal;
       }
     }
   }
 
-  // Inject template constants next (bare canonical key only)
+  // Inject template constants next
   if (templateConstants) {
     const constantsArray = Array.isArray(templateConstants)
       ? templateConstants
@@ -677,11 +629,14 @@ export function buildTokenMap(
       const key = constant.key ?? constant.token;
       if (key) {
         tokens[key] = val;
+        const bare = key.replace(/^TPL_/, "");
+        tokens[bare] = val;
+        tokens[`TPL_${bare}`] = val;
       }
     }
   }
 
-  // Inject file fields (bare canonical key only)
+  // Inject file fields
   if (fileFields) {
     for (const field of fileFields) {
       if (field.isFormulaInjectable) {
@@ -694,19 +649,66 @@ export function buildTokenMap(
         } else if (field.fieldType === "org_config" && field.orgConfigKey) {
           bareToken = field.orgConfigKey.toUpperCase().replace(/^(GBL_|ORG_)/, "");
         }
-        tokens[bareToken] = 0;
+        let val = 0;
+        if (externalTokenValues) {
+          const raw =
+            externalTokenValues[bareToken] ??
+            externalTokenValues[`FILE_${bareToken}`] ??
+            (field.fileFieldKey ? externalTokenValues[field.fileFieldKey] : undefined) ??
+            (field.label ? externalTokenValues[field.label] : undefined);
+          if (raw !== undefined && raw !== null) {
+            const parsed = parseFloat(String(raw));
+            if (!Number.isNaN(parsed)) val = parsed;
+          }
+        }
+        tokens[bareToken] = val;
+        tokens[`FILE_${bareToken}`] = val;
       }
     }
   }
 
   // Inject expense categories (bare canonical key and EXP_TOTAL)
-  tokens.EXP_TOTAL = 0;
+  let expTotalVal = 0;
+  if (externalTokenValues?.EXP_TOTAL !== undefined) {
+    const parsed = parseFloat(String(externalTokenValues.EXP_TOTAL));
+    if (!Number.isNaN(parsed)) expTotalVal = parsed;
+  }
+  tokens.EXP_TOTAL = expTotalVal;
+
   if (categoriesData) {
     for (const cat of categoriesData) {
       const key = cat.tokenKey;
       if (key && key !== "EXP_TOTAL") {
         const bare = key.replace(/^EXP_/, "");
-        tokens[bare] = 0;
+        let catVal = 0;
+        if (externalTokenValues) {
+          const raw =
+            externalTokenValues[bare] ??
+            externalTokenValues[key] ??
+            externalTokenValues[`EXP_${bare}`];
+          if (raw !== undefined && raw !== null) {
+            const parsed = parseFloat(String(raw));
+            if (!Number.isNaN(parsed)) catVal = parsed;
+          }
+        }
+        tokens[bare] = catVal;
+        tokens[`EXP_${bare}`] = catVal;
+      }
+    }
+  }
+
+  // Any other external tokens passed in (e.g. from engine preview scope)
+  if (externalTokenValues) {
+    for (const [k, v] of Object.entries(externalTokenValues)) {
+      if (tokens[k] === undefined || tokens[k] === 0) {
+        const parsed = parseFloat(String(v));
+        if (!Number.isNaN(parsed)) {
+          tokens[k] = parsed;
+          const upper = k.toUpperCase();
+          if (tokens[upper] === undefined || tokens[upper] === 0) {
+            tokens[upper] = parsed;
+          }
+        }
       }
     }
   }

@@ -1,3 +1,4 @@
+import { touchTemplate } from "../../invoice-templates.controller";
 import {
   db,
   decodeFormula,
@@ -5,6 +6,7 @@ import {
   invoiceTemplates,
   templateRowCharges,
   templateRows,
+  templateSections,
   tokens,
 } from "@starter/db";
 import { and, asc, eq } from "drizzle-orm";
@@ -30,6 +32,7 @@ const updateRowSchema = z.object({
   valueType: z.enum(["normal", "formula"]).optional(),
   formula: z.string().optional().nullable(),
   initialValue: z.number().optional().nullable(),
+  sectionId: z.string().min(1).optional(),
 });
 
 export async function updateRow(c: Context): Promise<any> {
@@ -120,6 +123,23 @@ export async function updateRow(c: Context): Promise<any> {
     if (parsed.data.initialValue != null) rowPatch.formula = null;
   }
 
+  if (parsed.data.sectionId && parsed.data.sectionId !== existingRow.sectionId) {
+    const secCheck = await db
+      .select({ id: templateSections.id })
+      .from(templateSections)
+      .where(
+        and(
+          eq(templateSections.id, parsed.data.sectionId),
+          eq(templateSections.templateId, existingRow.templateId),
+        ),
+      )
+      .limit(1);
+    if (secCheck.length === 0) {
+      return c.json({ error: "Target section not found in this template" }, 404);
+    }
+    rowPatch.sectionId = parsed.data.sectionId;
+  }
+
   if (Object.keys(tokenPatch).length === 0 && Object.keys(rowPatch).length === 0) {
     return c.json({ error: "No values to set" }, 400);
   }
@@ -140,6 +160,8 @@ export async function updateRow(c: Context): Promise<any> {
           throw new Error(`DAG_ERROR:${validation.errors[0].message}`);
         }
       }
+
+      await touchTemplate(existingRow.templateId, tx);
 
       const [finalRow] = await tx
         .select({

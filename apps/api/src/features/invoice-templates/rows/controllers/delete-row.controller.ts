@@ -1,3 +1,4 @@
+import { touchTemplate } from "../../invoice-templates.controller";
 import { db, invoiceTemplates, templateRows } from "@starter/db";
 import { and, eq } from "drizzle-orm";
 import { Context } from "hono";
@@ -9,7 +10,7 @@ export async function deleteRow(c: Context) {
   if (!organizationId) return c.json({ error: "Unauthorized" }, 401);
 
   const rowCheck = await db
-    .select({ id: templateRows.id })
+    .select({ id: templateRows.id, templateId: templateRows.templateId })
     .from(templateRows)
     .innerJoin(invoiceTemplates, eq(templateRows.templateId, invoiceTemplates.id))
     .where(and(eq(templateRows.id, rowId), eq(invoiceTemplates.organizationId, organizationId)))
@@ -19,6 +20,7 @@ export async function deleteRow(c: Context) {
 
   // Deleting token cascades to templateRows and charges
   await TokenService.deleteToken(rowId);
+  await touchTemplate(rowCheck[0].templateId);
 
   return c.json({ success: true });
 }

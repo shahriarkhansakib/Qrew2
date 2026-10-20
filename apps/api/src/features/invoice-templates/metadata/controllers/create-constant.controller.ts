@@ -1,3 +1,4 @@
+import { touchTemplate } from "../../invoice-templates.controller";
 import { db, invoiceTemplates } from "@starter/db";
 import { and, eq } from "drizzle-orm";
 import { Context } from "hono";
@@ -41,5 +42,6 @@ export async function createConstant(c: Context) {
     organizationId,
   });
 
+  await touchTemplate(templateId);
   return c.json(newConstant, 201);
 }

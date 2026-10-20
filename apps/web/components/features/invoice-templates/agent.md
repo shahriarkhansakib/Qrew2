@@ -94,7 +94,7 @@ Before saving on Enter, button click, or outside blur, `handleSave` strictly enf
 |---|---|---|
 | Percentage | `50%` or `.5%` | `(50/100)` or `(0.5/100)` |
 | Modulo / Remainder | `//` | `%` |
-| Row Reference | `ROW_TOKEN` | Internal DB UUID `{{$row:UUID}}` via codec |
+| Row Reference | `ROW_TOKEN` | Internal DB UUID `{{$tok:UUID}}` via codec |
 
 ---
 

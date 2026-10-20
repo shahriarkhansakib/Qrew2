@@ -25,7 +25,8 @@ import { apiUrl } from "@/lib/constants";
 interface AddHeaderFieldModalProps {
   isOpen: boolean;
   onClose: () => void;
-  templateId: string;
+  templateId?: string;
+  draftId?: string;
   editField?: any;
   onSuccess: () => void;
 }
@@ -34,6 +35,7 @@ export function AddHeaderFieldModal({
   isOpen,
   onClose,
   templateId,
+  draftId,
   editField,
   onSuccess,
 }: AddHeaderFieldModalProps) {
@@ -104,9 +106,13 @@ export function AddHeaderFieldModal({
         columnPosition,
       };
 
-      const url = isEdit
-        ? `${apiUrl}/api/invoice-templates/${templateId}/header-fields/${editField.id}`
-        : `${apiUrl}/api/invoice-templates/${templateId}/header-fields`;
+      const url = draftId
+        ? isEdit
+          ? `${apiUrl}/api/invoices/drafts/${draftId}/header-fields/${editField.id}`
+          : `${apiUrl}/api/invoices/drafts/${draftId}/header-fields`
+        : isEdit
+          ? `${apiUrl}/api/invoice-templates/${templateId}/header-fields/${editField.id}`
+          : `${apiUrl}/api/invoice-templates/${templateId}/header-fields`;
 
       const method = isEdit ? "PATCH" : "POST";
 
@@ -122,7 +128,13 @@ export function AddHeaderFieldModal({
         throw new Error(err.error || `Failed to ${isEdit ? "update" : "create"} header field`);
       }
 
-      toast.success(isEdit ? "Header field updated" : "Header field added to template");
+      toast.success(
+        isEdit
+          ? "Header field updated"
+          : draftId
+            ? "Header field added to draft"
+            : "Header field added to template",
+      );
       onSuccess();
       onClose();
     } catch (error: any) {
