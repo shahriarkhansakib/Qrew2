@@ -20,7 +20,8 @@ import {
   PanelRightClose,
   PanelRightOpen,
   Pencil,
-  Printer, RefreshCw,
+  Printer,
+  RefreshCw,
   Trash2,
   X,
 } from "lucide-react";
@@ -275,7 +276,8 @@ export default function DraftBuilderPage() {
           id: draft.id,
           projectId: draft.projectId,
           [field]: value,
-          action: actionDesc || (field === "name" ? `Renamed draft to "${value}"` : `Updated ${field}`),
+          action:
+            actionDesc || (field === "name" ? `Renamed draft to "${value}"` : `Updated ${field}`),
         }),
       });
       if (!res.ok) throw new Error("Failed to update draft");
@@ -355,7 +357,8 @@ export default function DraftBuilderPage() {
                       <AlertDialogHeader>
                         <AlertDialogTitle>Are you absolutely sure?</AlertDialogTitle>
                         <AlertDialogDescription>
-                          This action cannot be undone. This will permanently delete your invoice draft.
+                          This action cannot be undone. This will permanently delete your invoice
+                          draft.
                         </AlertDialogDescription>
                       </AlertDialogHeader>
                       <AlertDialogFooter>
@@ -379,182 +382,189 @@ export default function DraftBuilderPage() {
                 </Can>
               </div>
 
-            {/* Secondary line: File name and client name in brackets + template info */}
-            <div className="flex items-center gap-1.5 text-xs text-muted-foreground min-w-0 truncate mt-0.5">
-              <span className="truncate font-medium text-foreground/80">
-                {draft?.project?.name || "Untitled File"}
-              </span>
-              {draft?.project?.client?.name && (
-                <span className="text-muted-foreground/80 truncate">
-                  ({draft.project.client.name})
+              {/* Secondary line: File name and client name in brackets + template info */}
+              <div className="flex items-center gap-1.5 text-xs text-muted-foreground min-w-0 truncate mt-0.5">
+                <span className="truncate font-medium text-foreground/80">
+                  {draft?.project?.name || "Untitled File"}
                 </span>
-              )}
+                {draft?.project?.client?.name && (
+                  <span className="text-muted-foreground/80 truncate">
+                    ({draft.project.client.name})
+                  </span>
+                )}
 
-              <span className="text-muted-foreground/40 shrink-0">•</span>
+                <span className="text-muted-foreground/40 shrink-0">•</span>
 
-              <div className="flex items-center gap-1 shrink-0 text-[11px]">
-                <span className="truncate max-w-[120px]">
-                  Template: <span className="text-foreground/80 font-medium">{template?.name || "Master"}</span>
-                </span>
-                {draft?.sourceTemplateId && (
-                  <Can I={["template:edit", "workspace:manage_settings"]}>
-                    <Link
-                      href={`/org-admin/invoice-templates/${draft.sourceTemplateId}`}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="inline-flex items-center gap-0.5 text-[10px] text-primary hover:underline ml-0.5"
-                      title="Open master template in new tab"
+                <div className="flex items-center gap-1 shrink-0 text-[11px]">
+                  <span className="truncate max-w-[120px]">
+                    Template:{" "}
+                    <span className="text-foreground/80 font-medium">
+                      {template?.name || "Master"}
+                    </span>
+                  </span>
+                  {draft?.sourceTemplateId && (
+                    <Can I={["template:edit", "workspace:manage_settings"]}>
+                      <Link
+                        href={`/org-admin/invoice-templates/${draft.sourceTemplateId}`}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="inline-flex items-center gap-0.5 text-[10px] text-primary hover:underline ml-0.5"
+                        title="Open master template in new tab"
+                      >
+                        <ExternalLink className="h-2.5 w-2.5" />
+                        <span>Edit Master</span>
+                      </Link>
+                    </Can>
+                  )}
+                  {syncStatus?.hasTemplateDrift && (
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="sm"
+                      onClick={() => setIsSyncModalOpen(true)}
+                      className="h-5 px-1.5 py-0 text-[10px] gap-1 font-semibold border-amber-500/50 bg-amber-500/10 text-amber-600 dark:text-amber-400 hover:bg-amber-500/20 ml-1 rounded cursor-pointer"
+                      title={`Master template was updated (v${syncStatus.templateVersion}). Click to review and sync.`}
                     >
-                      <ExternalLink className="h-2.5 w-2.5" />
-                      <span>Edit Master</span>
-                    </Link>
-                  </Can>
-                )}
-                {syncStatus?.hasTemplateDrift && (
-                  <Button
-                    type="button"
-                    variant="outline"
-                    size="sm"
-                    onClick={() => setIsSyncModalOpen(true)}
-                    className="h-5 px-1.5 py-0 text-[10px] gap-1 font-semibold border-amber-500/50 bg-amber-500/10 text-amber-600 dark:text-amber-400 hover:bg-amber-500/20 ml-1 rounded cursor-pointer"
-                    title={`Master template was updated (v${syncStatus.templateVersion}). Click to review and sync.`}
-                  >
-                    <RefreshCw className="w-2.5 h-2.5" />
-                    <span>Sync v${syncStatus.templateVersion}</span>
-                  </Button>
-                )}
+                      <RefreshCw className="w-2.5 h-2.5" />
+                      <span>Sync v${syncStatus.templateVersion}</span>
+                    </Button>
+                  )}
+                </div>
               </div>
             </div>
           </div>
-        </div>
 
-        {/* ── CENTER ZONE: Mode Switcher on Left, Mode-Specific Action Button on Right ── */}
-        <div className="absolute left-1/2 -translate-x-1/2 flex items-center gap-2.5 z-20">
-          {/* Segmented Mode Switcher Tab (Fill | Edit | PDF) — NO DOTS */}
-          <div className="flex items-center p-0.5 bg-muted/60 dark:bg-muted/40 rounded-lg border border-border/60 text-xs shadow-xs">
-            {/* 1. Fill */}
-            <button
-              type="button"
-              onClick={() => setDraftMode("fill")}
-              className={cn(
-                "flex items-center justify-center px-3.5 py-1.5 rounded-md font-medium transition-all text-xs min-w-[62px]",
-                draftMode === "fill"
-                  ? "bg-background text-emerald-600 dark:text-emerald-400 shadow-xs font-semibold border border-emerald-500/20"
-                  : "text-muted-foreground hover:text-foreground",
-              )}
-              title="Fill: Enter numeric rates and values without altering table structure"
-            >
-              Fill
-            </button>
-
-            {/* 2. Edit */}
-            <Can I={["invoice:author_formulas", "finance:manage_invoices"]}>
+          {/* ── CENTER ZONE: Mode Switcher on Left, Mode-Specific Action Button on Right ── */}
+          <div className="absolute left-1/2 -translate-x-1/2 flex items-center gap-2.5 z-20">
+            {/* Segmented Mode Switcher Tab (Fill | Edit | PDF) — NO DOTS */}
+            <div className="flex items-center p-0.5 bg-muted/60 dark:bg-muted/40 rounded-lg border border-border/60 text-xs shadow-xs">
+              {/* 1. Fill */}
               <button
                 type="button"
-                onClick={() => setDraftMode("builder")}
+                onClick={() => setDraftMode("fill")}
                 className={cn(
                   "flex items-center justify-center px-3.5 py-1.5 rounded-md font-medium transition-all text-xs min-w-[62px]",
-                  draftMode === "builder"
-                    ? "bg-background text-amber-600 dark:text-amber-400 shadow-xs font-semibold border border-amber-500/20"
+                  draftMode === "fill"
+                    ? "bg-background text-emerald-600 dark:text-emerald-400 shadow-xs font-semibold border border-emerald-500/20"
                     : "text-muted-foreground hover:text-foreground",
                 )}
-                title="Edit: Customize rows, drag line items, and author formulas for this draft"
+                title="Fill: Enter numeric rates and values without altering table structure"
               >
-                Edit
+                Fill
               </button>
-            </Can>
 
-            {/* 3. PDF */}
-            <button
-              type="button"
-              onClick={handleEnterPreview}
-              className={cn(
-                "flex items-center justify-center px-3.5 py-1.5 rounded-md font-medium transition-all text-xs min-w-[62px]",
-                draftMode === "preview"
-                  ? "bg-background text-blue-600 dark:text-blue-400 shadow-xs font-semibold border border-blue-500/20"
-                  : "text-muted-foreground hover:text-foreground",
-              )}
-              title="PDF: Clean, read-only presentation equivalent to generated invoice PDF"
-            >
-              PDF
-            </button>
-          </div>
-
-          {/* Mode-Specific Action Button with fixed width to eliminate layout shifts */}
-          <div className="w-[145px] shrink-0 flex items-center">
-            {draftMode === "preview" ? (
-              <Button
-                size="sm"
-                onClick={() => window.print()}
-                className="w-full gap-1.5 h-8 text-xs font-semibold bg-emerald-600 hover:bg-emerald-700 text-white shadow-xs border border-emerald-600 justify-center"
-                title="Print or export as PDF"
-              >
-                <Printer className="h-3.5 w-3.5" />
-                <span>Print / PDF</span>
-              </Button>
-            ) : draftMode === "builder" ? (
-              <Can I={["template:create", "finance:manage_invoices", "workspace:manage_settings"]}>
-                <Button
-                  size="sm"
-                  onClick={() => setIsSaveTemplateModalOpen(true)}
-                  className="w-full gap-1.5 h-8 text-xs font-semibold bg-emerald-600 hover:bg-emerald-700 text-white shadow-xs border border-emerald-600 justify-center"
-                  title="Save current draft structure, formulas, and headers as a new reusable template"
+              {/* 2. Edit */}
+              <Can I={["invoice:author_formulas", "finance:manage_invoices"]}>
+                <button
+                  type="button"
+                  onClick={() => setDraftMode("builder")}
+                  className={cn(
+                    "flex items-center justify-center px-3.5 py-1.5 rounded-md font-medium transition-all text-xs min-w-[62px]",
+                    draftMode === "builder"
+                      ? "bg-background text-amber-600 dark:text-amber-400 shadow-xs font-semibold border border-amber-500/20"
+                      : "text-muted-foreground hover:text-foreground",
+                  )}
+                  title="Edit: Customize rows, drag line items, and author formulas for this draft"
                 >
-                  <BookmarkPlus className="h-3.5 w-3.5" />
-                  <span>Save Template</span>
-                </Button>
+                  Edit
+                </button>
               </Can>
-            ) : (
-              <Can I={["invoice:finalize", "finance:manage_invoices"]}>
-                <Button
-                  size="sm"
-                  onClick={() => finalizeMutation.mutate()}
-                  disabled={finalizeMutation.isPending}
-                  className="w-full gap-1.5 h-8 text-xs font-semibold bg-emerald-600 hover:bg-emerald-700 text-white shadow-xs border border-emerald-600 justify-center"
-                >
-                  <CheckCircle className="h-3.5 w-3.5" />
-                  <span>{finalizeMutation.isPending ? "Finalizing..." : "Finalize"}</span>
-                </Button>
-              </Can>
-            )}
-          </div>
-        </div>
 
-        {/* ── RIGHT ZONE: Logical Action Clusters ── */}
-        <div className="flex items-center gap-2 shrink-0">
-          {/* Cluster 1: Unified Scope & Audit History Popover Trigger */}
-          <Popover>
-            <PopoverTrigger asChild>
-              <Button
-                variant="outline"
-                size="sm"
-                className="h-8 gap-1.5 text-xs font-medium border-emerald-500/30 bg-emerald-500/5 hover:bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 select-none cursor-pointer"
-                title="Click to view draft audit trail"
-              >
-                <Clock className="w-3.5 h-3.5 shrink-0" />
-                {draft?.draftHeaderValues?.PERIOD_START && draft?.draftHeaderValues?.PERIOD_END ? (
-                  <span className="hidden xl:inline">
-                    {format(new Date(draft.draftHeaderValues.PERIOD_START), "MMM d")} –{" "}
-                    {format(new Date(draft.draftHeaderValues.PERIOD_END), "MMM d, yyyy")}
-                  </span>
-                ) : (
-                  <span>Live Sync</span>
+              {/* 3. PDF */}
+              <button
+                type="button"
+                onClick={handleEnterPreview}
+                className={cn(
+                  "flex items-center justify-center px-3.5 py-1.5 rounded-md font-medium transition-all text-xs min-w-[62px]",
+                  draftMode === "preview"
+                    ? "bg-background text-blue-600 dark:text-blue-400 shadow-xs font-semibold border border-blue-500/20"
+                    : "text-muted-foreground hover:text-foreground",
                 )}
-                <span className="text-muted-foreground/40">•</span>
-                <span className="font-mono text-[11px] font-semibold">
-                  {Array.isArray(draft?.editHistory) && draft.editHistory.length > 0
-                    ? `${draft.editHistory.length} edit${draft.editHistory.length === 1 ? "" : "s"}`
-                    : "1 edit"}
-                </span>
-              </Button>
-            </PopoverTrigger>
-            <PopoverContent align="end" className="w-80 p-3">
+                title="PDF: Clean, read-only presentation equivalent to generated invoice PDF"
+              >
+                PDF
+              </button>
+            </div>
+
+            {/* Mode-Specific Action Button with fixed width to eliminate layout shifts */}
+            <div className="w-[145px] shrink-0 flex items-center">
+              {draftMode === "preview" ? (
+                <Button
+                  size="sm"
+                  onClick={() => window.print()}
+                  className="w-full gap-1.5 h-8 text-xs font-semibold bg-emerald-600 hover:bg-emerald-700 text-white shadow-xs border border-emerald-600 justify-center"
+                  title="Print or export as PDF"
+                >
+                  <Printer className="h-3.5 w-3.5" />
+                  <span>Print / PDF</span>
+                </Button>
+              ) : draftMode === "builder" ? (
+                <Can
+                  I={["template:create", "finance:manage_invoices", "workspace:manage_settings"]}
+                >
+                  <Button
+                    size="sm"
+                    onClick={() => setIsSaveTemplateModalOpen(true)}
+                    className="w-full gap-1.5 h-8 text-xs font-semibold bg-emerald-600 hover:bg-emerald-700 text-white shadow-xs border border-emerald-600 justify-center"
+                    title="Save current draft structure, formulas, and headers as a new reusable template"
+                  >
+                    <BookmarkPlus className="h-3.5 w-3.5" />
+                    <span>Save Template</span>
+                  </Button>
+                </Can>
+              ) : (
+                <Can I={["invoice:finalize", "finance:manage_invoices"]}>
+                  <Button
+                    size="sm"
+                    onClick={() => finalizeMutation.mutate()}
+                    disabled={finalizeMutation.isPending}
+                    className="w-full gap-1.5 h-8 text-xs font-semibold bg-emerald-600 hover:bg-emerald-700 text-white shadow-xs border border-emerald-600 justify-center"
+                  >
+                    <CheckCircle className="h-3.5 w-3.5" />
+                    <span>{finalizeMutation.isPending ? "Finalizing..." : "Finalize"}</span>
+                  </Button>
+                </Can>
+              )}
+            </div>
+          </div>
+
+          {/* ── RIGHT ZONE: Logical Action Clusters ── */}
+          <div className="flex items-center gap-2 shrink-0">
+            {/* Cluster 1: Unified Scope & Audit History Popover Trigger */}
+            <Popover>
+              <PopoverTrigger asChild>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className="h-8 gap-1.5 text-xs font-medium border-emerald-500/30 bg-emerald-500/5 hover:bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 select-none cursor-pointer"
+                  title="Click to view draft audit trail"
+                >
+                  <Clock className="w-3.5 h-3.5 shrink-0" />
+                  {draft?.draftHeaderValues?.PERIOD_START &&
+                  draft?.draftHeaderValues?.PERIOD_END ? (
+                    <span className="hidden xl:inline">
+                      {format(new Date(draft.draftHeaderValues.PERIOD_START), "MMM d")} –{" "}
+                      {format(new Date(draft.draftHeaderValues.PERIOD_END), "MMM d, yyyy")}
+                    </span>
+                  ) : (
+                    <span>Live Sync</span>
+                  )}
+                  <span className="text-muted-foreground/40">•</span>
+                  <span className="font-mono text-[11px] font-semibold">
+                    {Array.isArray(draft?.editHistory) && draft.editHistory.length > 0
+                      ? `${draft.editHistory.length} edit${draft.editHistory.length === 1 ? "" : "s"}`
+                      : "1 edit"}
+                  </span>
+                </Button>
+              </PopoverTrigger>
+              <PopoverContent align="end" className="w-80 p-3">
                 <div className="flex items-center justify-between pb-2 mb-2 border-b">
                   <div className="flex flex-col">
                     <span className="font-semibold text-xs text-foreground">Draft Audit Trail</span>
                     <span className="text-[10px] text-muted-foreground">
                       Created by {draft?.user?.name || draft?.user?.email || "Team Member"}
-                      {draft?.createdAt && ` on ${format(new Date(draft.createdAt), "MMM d, yyyy")}`}
+                      {draft?.createdAt &&
+                        ` on ${format(new Date(draft.createdAt), "MMM d, yyyy")}`}
                     </span>
                   </div>
                   <Badge variant="secondary" className="text-[10px] font-mono">
@@ -592,69 +602,73 @@ export default function DraftBuilderPage() {
               </PopoverContent>
             </Popover>
 
-          {/* Cluster 2: Stable Zoom Widget (Fixed-width, click-to-reset, exactly matches template builder) */}
-          <div className="flex items-center gap-0.5 border border-border rounded-md px-1 h-8 shrink-0 bg-background/80 select-none">
+            {/* Cluster 2: Stable Zoom Widget (Fixed-width, click-to-reset, exactly matches template builder) */}
+            <div className="flex items-center gap-0.5 border border-border rounded-md px-1 h-8 shrink-0 bg-background/80 select-none">
+              <Button
+                variant="ghost"
+                size="icon"
+                className="h-6 w-6 text-muted-foreground hover:text-foreground"
+                onClick={() =>
+                  setBuilderScale((s) => Math.max(Number((s - 0.05).toFixed(2)), 0.75))
+                }
+                title="Zoom Out"
+              >
+                <span className="text-base leading-none font-medium mb-0.5">-</span>
+              </Button>
+              <button
+                type="button"
+                onClick={() => setBuilderScale(1)}
+                className={cn(
+                  "text-xs font-mono w-12 text-center rounded px-1 py-0.5 transition-colors cursor-pointer",
+                  builderScale !== 1
+                    ? "text-primary font-bold hover:bg-primary/10 hover:underline"
+                    : "text-muted-foreground font-semibold hover:text-foreground",
+                )}
+                title={builderScale !== 1 ? "Click to reset to 100%" : "Current Zoom: 100%"}
+              >
+                {Math.round(builderScale * 100)}%
+              </button>
+              <Button
+                variant="ghost"
+                size="icon"
+                className="h-6 w-6 text-muted-foreground hover:text-foreground"
+                onClick={() =>
+                  setBuilderScale((s) => Math.min(Number((s + 0.05).toFixed(2)), 1.35))
+                }
+                title="Zoom In"
+              >
+                <span className="text-base leading-none font-medium mb-0.5">+</span>
+              </Button>
+            </div>
+
+            {/* Cluster 3: Section View Options Popover (Outside the table in the top bar!) */}
+            <SectionViewOptionsPopover />
+
+            {/* Cluster 4: Studio Button on the FAR RIGHT */}
             <Button
-              variant="ghost"
-              size="icon"
-              className="h-6 w-6 text-muted-foreground hover:text-foreground"
-              onClick={() => setBuilderScale((s) => Math.max(Number((s - 0.05).toFixed(2)), 0.75))}
-              title="Zoom Out"
-            >
-              <span className="text-base leading-none font-medium mb-0.5">-</span>
-            </Button>
-            <button
-              type="button"
-              onClick={() => setBuilderScale(1)}
+              variant={tokenPoolOpen ? "secondary" : "outline"}
+              size="sm"
+              onClick={() => setTokenPoolOpen((open) => !open)}
+              disabled={draftMode === "preview"}
               className={cn(
-                "text-xs font-mono w-12 text-center rounded px-1 py-0.5 transition-colors cursor-pointer",
-                builderScale !== 1
-                  ? "text-primary font-bold hover:bg-primary/10 hover:underline"
-                  : "text-muted-foreground font-semibold hover:text-foreground",
+                "gap-1.5 text-xs h-8 shrink-0 ml-0.5",
+                tokenPoolOpen && "bg-primary/10 border-primary text-primary font-semibold",
+                draftMode === "preview" && "opacity-40 cursor-not-allowed",
               )}
-              title={builderScale !== 1 ? "Click to reset to 100%" : "Current Zoom: 100%"}
+              title={tokenPoolOpen ? "Close Studio Sidebar" : "Open Studio Sidebar"}
             >
-              {Math.round(builderScale * 100)}%
-            </button>
-            <Button
-              variant="ghost"
-              size="icon"
-              className="h-6 w-6 text-muted-foreground hover:text-foreground"
-              onClick={() => setBuilderScale((s) => Math.min(Number((s + 0.05).toFixed(2)), 1.35))}
-              title="Zoom In"
-            >
-              <span className="text-base leading-none font-medium mb-0.5">+</span>
+              {tokenPoolOpen ? (
+                <PanelRightClose className="h-4 w-4" />
+              ) : (
+                <PanelRightOpen className="h-4 w-4" />
+              )}
+              <span className="hidden sm:inline">Studio</span>
             </Button>
           </div>
-
-          {/* Cluster 3: Section View Options Popover (Outside the table in the top bar!) */}
-          <SectionViewOptionsPopover />
-
-          {/* Cluster 4: Studio Button on the FAR RIGHT */}
-          <Button
-            variant={tokenPoolOpen ? "secondary" : "outline"}
-            size="sm"
-            onClick={() => setTokenPoolOpen((open) => !open)}
-            disabled={draftMode === "preview"}
-            className={cn(
-              "gap-1.5 text-xs h-8 shrink-0 ml-0.5",
-              tokenPoolOpen && "bg-primary/10 border-primary text-primary font-semibold",
-              draftMode === "preview" && "opacity-40 cursor-not-allowed",
-            )}
-            title={tokenPoolOpen ? "Close Studio Sidebar" : "Open Studio Sidebar"}
-          >
-            {tokenPoolOpen ? (
-              <PanelRightClose className="h-4 w-4" />
-            ) : (
-              <PanelRightOpen className="h-4 w-4" />
-            )}
-            <span className="hidden sm:inline">Studio</span>
-          </Button>
         </div>
-      </div>
-      {/* -- Body -------------------------------------------------- */}
-      <div className="flex-1 flex overflow-hidden relative border-t">
-        <DragDropContext
+        {/* -- Body -------------------------------------------------- */}
+        <div className="flex-1 flex overflow-hidden relative border-t">
+          <DragDropContext
             onDragEnd={async (result: DropResult) => {
               if (!result.destination) return;
               const { source, destination, draggableId } = result;
@@ -784,7 +798,8 @@ export default function DraftBuilderPage() {
               // 4. Reordering draft header description fields (Case D)
               if (
                 (source.droppableId === "header-left" || source.droppableId === "header-right") &&
-                (destination.droppableId === "header-left" || destination.droppableId === "header-right")
+                (destination.droppableId === "header-left" ||
+                  destination.droppableId === "header-right")
               ) {
                 const sourceCol = source.droppableId.replace(/^header-/, "") as "left" | "right";
                 const destCol = destination.droppableId.replace(/^header-/, "") as "left" | "right";
@@ -867,7 +882,9 @@ export default function DraftBuilderPage() {
                 draftHeaderValues={draft?.draftHeaderValues}
                 isSharedDnd={true}
                 resolvedTokens={preview?.resolvedScope?.tokens}
-                projectedDocumentNumber={preview?.projectedDocumentNumber || draft?.projectedDocumentNumber}
+                projectedDocumentNumber={
+                  preview?.projectedDocumentNumber || draft?.projectedDocumentNumber
+                }
               />
             </div>
 
@@ -917,35 +934,35 @@ export default function DraftBuilderPage() {
               </div>
             )}
           </DragDropContext>
-      </div>
+        </div>
 
-      {isAddOptionalServiceModalOpen && (
-        <AddOptionalServiceModal
-          isOpen={isAddOptionalServiceModalOpen}
-          onClose={() => setIsAddOptionalServiceModalOpen(false)}
-          draftId={draftId}
-          sections={draft.draftSections || []}
-        />
-      )}
+        {isAddOptionalServiceModalOpen && (
+          <AddOptionalServiceModal
+            isOpen={isAddOptionalServiceModalOpen}
+            onClose={() => setIsAddOptionalServiceModalOpen(false)}
+            draftId={draftId}
+            sections={draft.draftSections || []}
+          />
+        )}
 
-      {isSaveTemplateModalOpen && (
-        <SaveDraftAsTemplateModal
-          isOpen={isSaveTemplateModalOpen}
-          onClose={() => setIsSaveTemplateModalOpen(false)}
-          draftId={draftId}
-          defaultName={draft?.name}
-          defaultDescription={`Master template created from draft "${draft?.name || draftId}"`}
-        />
-      )}
+        {isSaveTemplateModalOpen && (
+          <SaveDraftAsTemplateModal
+            isOpen={isSaveTemplateModalOpen}
+            onClose={() => setIsSaveTemplateModalOpen(false)}
+            draftId={draftId}
+            defaultName={draft?.name}
+            defaultDescription={`Master template created from draft "${draft?.name || draftId}"`}
+          />
+        )}
 
-      {isSyncModalOpen && (
-        <TemplateSyncModal
-          isOpen={isSyncModalOpen}
-          onClose={() => setIsSyncModalOpen(false)}
-          draftId={draftId}
-          syncStatus={syncStatus}
-        />
-      )}
+        {isSyncModalOpen && (
+          <TemplateSyncModal
+            isOpen={isSyncModalOpen}
+            onClose={() => setIsSyncModalOpen(false)}
+            draftId={draftId}
+            syncStatus={syncStatus}
+          />
+        )}
       </div>
     </BuilderProvider>
   );

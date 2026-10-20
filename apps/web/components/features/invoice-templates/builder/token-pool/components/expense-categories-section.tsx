@@ -3,8 +3,8 @@
 import { ChevronDown, ChevronRight, ExternalLink } from "lucide-react";
 import Link from "next/link";
 import { useState } from "react";
-import { cn } from "@/lib/utils";
 import { fmt } from "@/lib/formula-evaluator";
+import { cn } from "@/lib/utils";
 import { useBuilderContext } from "../../builder-context";
 import { PoolSectionHeader } from "../index";
 import { EXPENSE_CATEGORIES_INFO } from "./section-info-popover";

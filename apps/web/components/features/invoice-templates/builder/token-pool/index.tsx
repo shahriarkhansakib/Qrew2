@@ -266,19 +266,18 @@ export function FileTokenRow({
   const type: TokenEntry["type"] = isNumeric ? "file" : "file-text";
   const cfg = TOKEN_TYPE_CONFIG[type];
   const numVal = isNumeric
-    ? (tokenMap[token] ??
-       tokenMap[`FILE_${token}`] ??
-       tokenMap[token.replace(/^FILE_/, "")])
+    ? (tokenMap[token] ?? tokenMap[`FILE_${token}`] ?? tokenMap[token.replace(/^FILE_/, "")])
     : null;
 
   const textVal = !isNumeric
-    ? (tokenMap[token] ??
-       tokenMap[`FILE_${token}`] ??
-       tokenMap[token.replace(/^FILE_/, "")])
+    ? (tokenMap[token] ?? tokenMap[`FILE_${token}`] ?? tokenMap[token.replace(/^FILE_/, "")])
     : null;
 
   const normLabel = (label || "").toUpperCase().replace(/[^A-Z0-9]/g, "");
-  const normToken = (token || "").replace(/^FILE_/, "").toUpperCase().replace(/[^A-Z0-9]/g, "");
+  const normToken = (token || "")
+    .replace(/^FILE_/, "")
+    .toUpperCase()
+    .replace(/[^A-Z0-9]/g, "");
   const isDuplicateLabel = normLabel === normToken;
 
   return (
@@ -368,7 +367,8 @@ export function ConstantTokenCard({
   onDelete?: (e: React.MouseEvent) => void;
   onLegendClick?: () => void;
 }) {
-  const { selectedCell, invalidTokens, hiddenTokens, getTokenDisabledReason, mode } = useBuilderContext();
+  const { selectedCell, invalidTokens, hiddenTokens, getTokenDisabledReason, mode } =
+    useBuilderContext();
   const isFillMode = mode === "fill";
   const isFormulaMode = !!selectedCell;
   const isInvalid = isFormulaMode && invalidTokens.has(token);
@@ -523,8 +523,7 @@ export function TemplateTokenPool({
     ? ["draft-sections", draftId]
     : ["template-sections", templateId];
 
-  const { selectedCell, setClipboardToken, sidebarTab, setSidebarTab, mode } =
-    useBuilderContext();
+  const { selectedCell, setClipboardToken, sidebarTab, setSidebarTab, mode } = useBuilderContext();
   const currentTab = propActiveTab ?? sidebarTab;
   const handleTabChange = propOnTabChange ?? setSidebarTab;
 

@@ -1,15 +1,14 @@
 import "dotenv/config";
 import { execSync } from "child_process";
+import { eq } from "drizzle-orm";
+import { drizzle } from "drizzle-orm/postgres-js";
 import fs from "fs";
 import path from "path";
 import postgres from "postgres";
-import { drizzle } from "drizzle-orm/postgres-js";
-import { eq } from "drizzle-orm";
 import { v4 as uuidv4 } from "uuid";
-
+import { seedOrganizationDefaults } from "./org-initializer";
 import * as schema from "./schema";
 import { seedPermissionsDefaults } from "./seed-permissions";
-import { seedOrganizationDefaults } from "./org-initializer";
 
 const connectionString = process.env.DATABASE_URL;
 if (!connectionString) {
@@ -39,7 +38,9 @@ async function run() {
   }
 
   // 2. Push Drizzle Schema
-  console.log("\n📦 Step 2: Running drizzle-kit push to create all tables fresh from TypeScript schema...");
+  console.log(
+    "\n📦 Step 2: Running drizzle-kit push to create all tables fresh from TypeScript schema...",
+  );
   try {
     const pnpmCmd = process.platform === "win32" ? "pnpm.cmd" : "pnpm";
     const pushOutput = execSync(`${pnpmCmd} --filter @starter/db push --force`, {
@@ -85,7 +86,8 @@ async function run() {
       name: "Shahriar Khan Sakib",
       email: "sakibshahriarkhan.88@gmail.com",
       emailVerified: true,
-      image: "https://lh3.googleusercontent.com/a/ACg8ocKNrW9S6d1Q_Lh0D4oshG6nX4zRSUtVMzWQy6jDDj_4Z0KAoTtQ=s96-c",
+      image:
+        "https://lh3.googleusercontent.com/a/ACg8ocKNrW9S6d1Q_Lh0D4oshG6nX4zRSUtVMzWQy6jDDj_4Z0KAoTtQ=s96-c",
       role: "user",
       status: "active",
       theme: "system",
@@ -96,7 +98,8 @@ async function run() {
       accountId: "107399631414764468906",
       providerId: "google",
       userId: userId,
-      scope: "https://www.googleapis.com/auth/userinfo.email,openid,https://www.googleapis.com/auth/userinfo.profile",
+      scope:
+        "https://www.googleapis.com/auth/userinfo.email,openid,https://www.googleapis.com/auth/userinfo.profile",
     });
 
     await db.insert(schema.organizations).values({
@@ -114,12 +117,16 @@ async function run() {
     console.log("✅ User, Google OAuth account, organization org1, and Owner membership seeded.");
 
     // 7. Seed Organization Defaults (Roles, PBAC, Categories, Statuses, Sequences, Templates)
-    console.log("\n🏢 Step 6: Initializing organization defaults (PBAC, Expenses, Statuses, Agency Templates)...");
+    console.log(
+      "\n🏢 Step 6: Initializing organization defaults (PBAC, Expenses, Statuses, Agency Templates)...",
+    );
     await seedOrganizationDefaults(db, orgId, userId);
     console.log("✅ Organization defaults initialized successfully.");
 
     // 8. Seed Sample Client & Projects
-    console.log("\n📁 Step 7: Seeding baseline Client & Projects for immediate drafting/invoicing...");
+    console.log(
+      "\n📁 Step 7: Seeding baseline Client & Projects for immediate drafting/invoicing...",
+    );
     const clientId = uuidv4();
     await db.insert(schema.clients).values({
       id: clientId,
@@ -165,7 +172,8 @@ async function run() {
 
     // 9. Verification & Summary
     console.log("\n📊 Step 8: Database Integrity Audit:");
-    const tableCount = await sql`SELECT count(*)::int as count FROM information_schema.tables WHERE table_schema = 'public'`;
+    const tableCount =
+      await sql`SELECT count(*)::int as count FROM information_schema.tables WHERE table_schema = 'public'`;
     const permCount = await db.select().from(schema.permissions);
     const orgCount = await db.select().from(schema.organizations);
     const userCount = await db.select().from(schema.users);

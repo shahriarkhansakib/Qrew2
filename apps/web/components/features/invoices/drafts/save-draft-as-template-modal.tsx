@@ -106,7 +106,8 @@ export function SaveDraftAsTemplateModal({
             <div>
               <DialogTitle className="text-base font-bold">Save Draft as Template</DialogTitle>
               <DialogDescription className="text-xs">
-                Turn this draft's sections, line items, and formulas into a reusable master template.
+                Turn this draft's sections, line items, and formulas into a reusable master
+                template.
               </DialogDescription>
             </div>
           </div>

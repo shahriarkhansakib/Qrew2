@@ -74,9 +74,7 @@ export function TemplateFormulaBar() {
   // In Builder/Template mode with formula authoring permissions, any row cell can accept formulas or numbers dynamically.
   // In Fill mode, only formula cells (which are locked) are formula inputs; normal cells are manual rate/quantity inputs.
   const isFormulaInput =
-    mode !== "fill" && canAuthorFormulas
-      ? true
-      : selectedCell?.valueType === "formula";
+    mode !== "fill" && canAuthorFormulas ? true : selectedCell?.valueType === "formula";
   const isActive = !!selectedCell;
   const isLocked =
     isActive &&

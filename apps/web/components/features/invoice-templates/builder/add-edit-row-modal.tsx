@@ -4,6 +4,8 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { AlertCircle, Layers, Loader2 } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
+import { invoiceApi } from "@/components/features/invoices/shared/invoice-api";
+import { invoiceKeys } from "@/components/features/invoices/shared/invoice-keys";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
@@ -22,8 +24,6 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { invoiceApi } from "@/components/features/invoices/shared/invoice-api";
-import { invoiceKeys } from "@/components/features/invoices/shared/invoice-keys";
 import { cn } from "@/lib/utils";
 import { useBuilderContext } from "./builder-context";
 
@@ -142,16 +142,13 @@ export function AddEditRowModal({
     mutationFn: async () => {
       // 1. Adding row from catalog to main table
       if (!isCatalog && !isEdit && sourceMode === "catalog") {
-        const item = catalog.find(
-          (c: any) => (c.id || c.rowToken) === selectedCatalogId,
-        );
+        const item = catalog.find((c: any) => (c.id || c.rowToken) === selectedCatalogId);
         if (!item) throw new Error("Please select a line item from the catalog");
 
         const effectiveSectionId = targetSectionId || sectionId;
         if (!effectiveSectionId) throw new Error("Target section is required");
 
-        const sectionsData =
-          queryClient.getQueryData<any[]>(invalidateKey) || sections || [];
+        const sectionsData = queryClient.getQueryData<any[]>(invalidateKey) || sections || [];
         const existingTokens = new Set<string>();
         for (const s of sectionsData) {
           for (const r of s.rows || []) {
@@ -167,26 +164,21 @@ export function AddEditRowModal({
         }
 
         const hasFormula = Boolean(item.formula && item.formula.trim());
-        const res = await fetch(
-          `${apiBasePath}/sections/${effectiveSectionId}/rows`,
-          {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            credentials: "include",
-            body: JSON.stringify({
-              rowToken: uniqueToken,
-              label: item.label,
-              description: item.subDescription || null,
-              valueType: hasFormula ? "formula" : item.valueType || "normal",
-              formula: hasFormula ? item.formula.trim() : null,
-              initialValue:
-                !hasFormula && item.initialValue != null
-                  ? String(item.initialValue)
-                  : null,
-              isOptional: true,
-            }),
-          },
-        );
+        const res = await fetch(`${apiBasePath}/sections/${effectiveSectionId}/rows`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          credentials: "include",
+          body: JSON.stringify({
+            rowToken: uniqueToken,
+            label: item.label,
+            description: item.subDescription || null,
+            valueType: hasFormula ? "formula" : item.valueType || "normal",
+            formula: hasFormula ? item.formula.trim() : null,
+            initialValue:
+              !hasFormula && item.initialValue != null ? String(item.initialValue) : null,
+            isOptional: true,
+          }),
+        });
 
         const data = await res.json().catch(() => ({}));
         if (!res.ok) {
@@ -210,8 +202,7 @@ export function AddEditRowModal({
                 label: editRow.label || finalLabel,
                 subDescription: editRow.subDescription || null,
                 formula: editRow.formula || null,
-                initialValue:
-                  editRow.initialValue != null ? String(editRow.initialValue) : null,
+                initialValue: editRow.initialValue != null ? String(editRow.initialValue) : null,
               },
             );
           }
@@ -551,9 +542,7 @@ export function AddEditRowModal({
               }
               className="h-8 text-xs gap-1.5"
             >
-              {mutation.isPending && (
-                <Loader2 className="h-3.5 w-3.5 animate-spin mr-1" />
-              )}
+              {mutation.isPending && <Loader2 className="h-3.5 w-3.5 animate-spin mr-1" />}
               {isEdit ? "Save changes" : isCatalog ? "Save to Catalog" : "Add Row"}
             </Button>
           </DialogFooter>

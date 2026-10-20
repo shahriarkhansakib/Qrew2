@@ -83,15 +83,17 @@ export function decodeFormula(
       if (constant?.tokenKey) return constant.tokenKey;
     }
     if (headerFields) {
-      const arr = Array.isArray(headerFields)
-        ? headerFields
-        : Object.values(headerFields);
+      const arr = Array.isArray(headerFields) ? headerFields : Object.values(headerFields);
       const field = arr.find((f: any) => f.id === id);
       if (field?.tokenKey) {
-        return field.tokenKey.startsWith("FILE_") ? field.tokenKey : `FILE_${field.tokenKey.toUpperCase()}`;
+        return field.tokenKey.startsWith("FILE_")
+          ? field.tokenKey
+          : `FILE_${field.tokenKey.toUpperCase()}`;
       }
       if (field?.fieldKey) {
-        return field.fieldKey.startsWith("FILE_") ? field.fieldKey : `FILE_${field.fieldKey.toUpperCase()}`;
+        return field.fieldKey.startsWith("FILE_")
+          ? field.fieldKey
+          : `FILE_${field.fieldKey.toUpperCase()}`;
       }
     }
     return match;

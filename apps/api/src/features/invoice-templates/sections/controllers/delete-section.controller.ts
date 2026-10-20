@@ -1,8 +1,8 @@
-import { touchTemplate } from "../../invoice-templates.controller";
 import { db, invoiceTemplates, templateSections } from "@starter/db";
 import { and, eq } from "drizzle-orm";
 import { Context } from "hono";
 import { TokenService } from "../../../tokens/token.service";
+import { touchTemplate } from "../../invoice-templates.controller";
 
 export async function deleteSection(c: Context) {
   const sectionId = c.req.param("sectionId") as string;

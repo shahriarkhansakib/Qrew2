@@ -102,12 +102,13 @@ export function SectionViewOptionsPopover({ className }: { className?: string } 
         {/* 3. Show Section Subtotals */}
         <div className="flex items-center justify-between pt-1 border-t">
           <div className="space-y-0.5">
-            <Label htmlFor="toggle-section-subtotals" className="text-xs font-medium cursor-pointer">
+            <Label
+              htmlFor="toggle-section-subtotals"
+              className="text-xs font-medium cursor-pointer"
+            >
               Section Subtotals
             </Label>
-            <p className="text-[10px] text-muted-foreground">
-              Calculate subtotal per section
-            </p>
+            <p className="text-[10px] text-muted-foreground">Calculate subtotal per section</p>
           </div>
           <Switch
             id="toggle-section-subtotals"

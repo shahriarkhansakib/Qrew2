@@ -1,4 +1,3 @@
-import { touchTemplate } from "../../invoice-templates.controller";
 import {
   db,
   decodeFormula,
@@ -12,6 +11,7 @@ import { and, eq } from "drizzle-orm";
 import { Context } from "hono";
 import { z } from "zod";
 import { TokenService } from "../../../tokens/token.service";
+import { touchTemplate } from "../../invoice-templates.controller";
 import { buildConstantIndex } from "../../metadata/services/constant-index.service";
 import { buildSectionIndex } from "../../sections/services/section-index.service";
 import { buildRowIndex, toSnakeCase } from "../services/row-index.service";

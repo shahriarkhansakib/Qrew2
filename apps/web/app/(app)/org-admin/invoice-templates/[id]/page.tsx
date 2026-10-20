@@ -2,11 +2,7 @@
 
 import { DragDropContext, DropResult } from "@hello-pangea/dnd";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import {
-  ArrowLeft,
-  PanelRightClose,
-  PanelRightOpen,
-} from "lucide-react";
+import { ArrowLeft, PanelRightClose, PanelRightOpen } from "lucide-react";
 import { useParams, useRouter } from "next/navigation";
 import { useState } from "react";
 import { toast } from "sonner";
@@ -433,9 +429,7 @@ export default function TemplateBuilderPage() {
                 if (!old) return old;
                 return old.map((s: any) => {
                   if (s.id === sourceSectionId) {
-                    const rowMap = Object.fromEntries(
-                      (s.rows || []).map((r: any) => [r.id, r]),
-                    );
+                    const rowMap = Object.fromEntries((s.rows || []).map((r: any) => [r.id, r]));
                     const reordered = sourceOrderedIds.map((id, i) => ({
                       ...rowMap[id],
                       sortOrder: i,
@@ -641,21 +635,21 @@ export default function TemplateBuilderPage() {
           </div>
         </DragDropContext>
 
-      {previewOpen && (
-        <TemplatePreviewModal
-          isOpen={previewOpen}
-          onClose={() => setPreviewOpen(false)}
-          templateId={templateId}
-        />
-      )}
+        {previewOpen && (
+          <TemplatePreviewModal
+            isOpen={previewOpen}
+            onClose={() => setPreviewOpen(false)}
+            templateId={templateId}
+          />
+        )}
 
-      {optionalRowsModalOpen && (
-        <TemplateOptionalRowsModal
-          isOpen={optionalRowsModalOpen}
-          onClose={() => setOptionalRowsModalOpen(false)}
-          templateId={templateId}
-        />
-      )}
+        {optionalRowsModalOpen && (
+          <TemplateOptionalRowsModal
+            isOpen={optionalRowsModalOpen}
+            onClose={() => setOptionalRowsModalOpen(false)}
+            templateId={templateId}
+          />
+        )}
       </div>
     </BuilderProvider>
   );

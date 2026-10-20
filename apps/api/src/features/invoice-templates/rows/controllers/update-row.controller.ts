@@ -1,4 +1,3 @@
-import { touchTemplate } from "../../invoice-templates.controller";
 import {
   db,
   decodeFormula,
@@ -14,6 +13,7 @@ import { Context } from "hono";
 import { z } from "zod";
 import { validateTemplateDag } from "../../../invoices/engine/engine-utils";
 import { TokenService } from "../../../tokens/token.service";
+import { touchTemplate } from "../../invoice-templates.controller";
 import { getTemplateFormulaContext } from "../../services/template-formula-context.service";
 import { validateFormulaChars } from "../../validation/formula-validator";
 

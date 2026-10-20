@@ -242,7 +242,9 @@ export class InvoiceTemplatesController {
     const currentRows = (tpl.optionalRows as TemplateOptionalRow[]) || [];
     if (currentRows.some((r) => r.rowToken === rowToken)) {
       return c.json(
-        { error: `An additional line item with token "${rowToken}" already exists in this template.` },
+        {
+          error: `An additional line item with token "${rowToken}" already exists in this template.`,
+        },
         409,
       );
     }

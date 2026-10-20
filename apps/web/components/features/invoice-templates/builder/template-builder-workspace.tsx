@@ -4,7 +4,16 @@ import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { Pencil, Plus, X } from "lucide-react";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { toast } from "sonner";
-import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
 import { apiUrl } from "@/lib/constants";
@@ -69,9 +78,7 @@ function TableHeaderRow() {
         <span className="text-sm font-extrabold text-foreground/60">
           {isPdfMode ? "Description" : "Row Label"}
         </span>
-        {!isPdfMode && (
-          <span className="text-sm text-foreground/40">(text displayed in PDF)</span>
-        )}
+        {!isPdfMode && <span className="text-sm text-foreground/40">(text displayed in PDF)</span>}
       </div>
       {/* USD1 — base/charge values */}
       <div className="w-20 shrink-0 flex items-center justify-center border-r border-border text-sm font-extrabold text-foreground/60">
@@ -205,7 +212,11 @@ export function FileDetailsHeaderBox({
         if (val === null || val === undefined) {
           const candidates = [key, field.tokenKey, cleanToken, field.label]
             .filter(Boolean)
-            .map((k) => String(k).toLowerCase().replace(/[^a-z0-9]/g, ""));
+            .map((k) =>
+              String(k)
+                .toLowerCase()
+                .replace(/[^a-z0-9]/g, ""),
+            );
 
           for (const [cfKey, cfVal] of Object.entries(cf)) {
             const normalizedCfKey = cfKey.toLowerCase().replace(/[^a-z0-9]/g, "");
@@ -258,9 +269,7 @@ export function FileDetailsHeaderBox({
           className={cn(
             "flex gap-2 w-full items-center",
             isSelectable && "transition-colors select-none insertable-token",
-            isSelectable &&
-              isFillMode &&
-              "cursor-default",
+            isSelectable && isFillMode && "cursor-default",
             isSelectable &&
               !isFillMode &&
               isFormulaMode &&
@@ -925,7 +934,9 @@ function WorkspaceInner({
         {/* ── Sections ── */}
         {/* overflow-visible is REQUIRED so row tokens (position:absolute right:100%) escape the border */}
         <div className="border-x border-border bg-background overflow-visible">
-          {mode !== "fill" && mode !== "preview" && <AddSectionDivider onClick={() => setInsertAtIndex(0)} />}
+          {mode !== "fill" && mode !== "preview" && (
+            <AddSectionDivider onClick={() => setInsertAtIndex(0)} />
+          )}
 
           {sortedSections.length === 0 ? (
             <div className="py-8 text-center text-sm text-muted-foreground/50">
@@ -986,14 +997,17 @@ function WorkspaceInner({
         )}
 
         {/* ── Delete Field Alert Dialog ── */}
-        <AlertDialog open={!!fieldToDelete} onOpenChange={(open) => !open && setFieldToDelete(null)}>
+        <AlertDialog
+          open={!!fieldToDelete}
+          onOpenChange={(open) => !open && setFieldToDelete(null)}
+        >
           <AlertDialogContent>
             <AlertDialogHeader>
               <AlertDialogTitle>Are you absolutely sure?</AlertDialogTitle>
               <AlertDialogDescription>
-                This action will remove the field from this {draftId ? "draft" : "template"}. It will not delete the custom
-                field from the global schema, but any formulas relying on this token will become
-                invalid.
+                This action will remove the field from this {draftId ? "draft" : "template"}. It
+                will not delete the custom field from the global schema, but any formulas relying on
+                this token will become invalid.
               </AlertDialogDescription>
             </AlertDialogHeader>
             <AlertDialogFooter>

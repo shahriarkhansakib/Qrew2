@@ -7,9 +7,9 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { toast } from "sonner";
 import { invoiceApi } from "@/components/features/invoices/shared/invoice-api";
 import { invoiceKeys } from "@/components/features/invoices/shared/invoice-keys";
+import { ConfirmDeleteModal } from "@/components/shared/confirm-delete-modal";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { ConfirmDeleteModal } from "@/components/shared/confirm-delete-modal";
 import { cn } from "@/lib/utils";
 import { AddEditRowModal } from "../../add-edit-row-modal";
 import { useBuilderContext } from "../../builder-context";
@@ -271,9 +271,7 @@ export function AdditionalLineItemsPool({
           <div className="flex-1 px-2.5 flex items-center border-r border-border min-w-0">
             Row Label
           </div>
-          <div className="w-20 shrink-0 flex items-center justify-end px-2">
-            USD / Rate
-          </div>
+          <div className="w-20 shrink-0 flex items-center justify-end px-2">USD / Rate</div>
         </div>
 
         {/* Droppable Area */}
@@ -516,7 +514,9 @@ export function AdditionalLineItemsPool({
           }
         }}
         entityName={
-          itemToDelete ? `Line Item: ${itemToDelete.rowToken || itemToDelete.label}` : "this line item"
+          itemToDelete
+            ? `Line Item: ${itemToDelete.rowToken || itemToDelete.label}`
+            : "this line item"
         }
         isDeleting={deleteMutation.isPending}
       />

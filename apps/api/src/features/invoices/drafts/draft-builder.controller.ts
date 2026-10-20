@@ -5,16 +5,16 @@ import {
   encodeFormula,
   invoiceDrafts,
   invoiceTemplates,
-  templateHeaderFields,
   TemplateOptionalRow,
+  templateHeaderFields,
   tokens,
 } from "@starter/db";
 import { and, asc, eq } from "drizzle-orm";
 import { Context } from "hono";
 import { v4 as uuidv4 } from "uuid";
 import { TokenService } from "../../tokens/token.service";
-import { appendAuditEntry } from "./draft-audit";
 import { validateDraftDag } from "../engine/engine-utils";
+import { appendAuditEntry } from "./draft-audit";
 
 async function getDraft(c: Context) {
   const draftId = c.req.param("id") as string;
@@ -418,7 +418,9 @@ export class DraftBuilderController {
       if (!validation.valid) {
         return c.json(
           {
-            error: validation.errors[0]?.message || "Invalid formula: circular reference or illegal dependency detected",
+            error:
+              validation.errors[0]?.message ||
+              "Invalid formula: circular reference or illegal dependency detected",
             errors: validation.errors,
           },
           422,
@@ -558,7 +560,9 @@ export class DraftBuilderController {
       if (!validation.valid) {
         return c.json(
           {
-            error: validation.errors[0]?.message || "Invalid charge formula: circular reference or illegal dependency detected",
+            error:
+              validation.errors[0]?.message ||
+              "Invalid charge formula: circular reference or illegal dependency detected",
             errors: validation.errors,
           },
           422,
@@ -621,7 +625,9 @@ export class DraftBuilderController {
       if (!validation.valid) {
         return c.json(
           {
-            error: validation.errors[0]?.message || "Invalid charge formula: circular reference or illegal dependency detected",
+            error:
+              validation.errors[0]?.message ||
+              "Invalid charge formula: circular reference or illegal dependency detected",
             errors: validation.errors,
           },
           422,
@@ -749,7 +755,9 @@ export class DraftBuilderController {
       if (!validation.valid) {
         return c.json(
           {
-            error: validation.errors[0]?.message || "Invalid section charge formula: circular reference or illegal dependency detected",
+            error:
+              validation.errors[0]?.message ||
+              "Invalid section charge formula: circular reference or illegal dependency detected",
             errors: validation.errors,
           },
           422,
@@ -809,7 +817,9 @@ export class DraftBuilderController {
       if (!validation.valid) {
         return c.json(
           {
-            error: validation.errors[0]?.message || "Invalid section charge formula: circular reference or illegal dependency detected",
+            error:
+              validation.errors[0]?.message ||
+              "Invalid section charge formula: circular reference or illegal dependency detected",
             errors: validation.errors,
           },
           422,
@@ -1133,7 +1143,10 @@ export class DraftBuilderController {
           return c.json(draftFields);
         }
       } catch (err) {
-        console.error("[listHeaderFields] Failed to populate draft header fields from template", err);
+        console.error(
+          "[listHeaderFields] Failed to populate draft header fields from template",
+          err,
+        );
       }
     }
 
@@ -1267,12 +1280,7 @@ export class DraftBuilderController {
       f.sortOrder = i;
     });
 
-    await updateDraft(
-      draft.id,
-      { draftHeaderFields: filtered },
-      c,
-      "Deleted description field",
-    );
+    await updateDraft(draft.id, { draftHeaderFields: filtered }, c, "Deleted description field");
     return c.json({ success: true, deletedId: fieldId });
   }
 
@@ -1292,12 +1300,7 @@ export class DraftBuilderController {
       }
     }
 
-    await updateDraft(
-      draft.id,
-      { draftHeaderFields: fields },
-      c,
-      "Reordered description fields",
-    );
+    await updateDraft(draft.id, { draftHeaderFields: fields }, c, "Reordered description fields");
     return c.json({ success: true });
   }
 }

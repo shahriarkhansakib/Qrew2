@@ -97,8 +97,8 @@ export function TemplateSyncModal({
                 Non-Destructive 3-Way Merge
               </span>
               <p className="text-[11px] text-muted-foreground">
-                Your manual numeric rates, custom item labels, and optional line items are
-                strictly preserved. Only base formulas and new template items are integrated.
+                Your manual numeric rates, custom item labels, and optional line items are strictly
+                preserved. Only base formulas and new template items are integrated.
               </p>
             </div>
           </div>
@@ -113,7 +113,8 @@ export function TemplateSyncModal({
               {formulaUpdates.length > 0 && (
                 <div className="space-y-1">
                   <span className="text-[11px] font-medium text-amber-600 dark:text-amber-400 flex items-center gap-1">
-                    <Sparkles className="w-3 h-3" /> Formula & Tax Refreshes ({formulaUpdates.length})
+                    <Sparkles className="w-3 h-3" /> Formula & Tax Refreshes (
+                    {formulaUpdates.length})
                   </span>
                   <div className="flex flex-wrap gap-1">
                     {formulaUpdates.map((tok, idx) => (
@@ -158,7 +159,8 @@ export function TemplateSyncModal({
             <div className="flex items-center gap-2 p-3 rounded-lg border border-border/60 bg-muted/20 text-xs text-muted-foreground">
               <AlertCircle className="w-4 h-4 text-muted-foreground/70 shrink-0" />
               <span>
-                Master template structural version has changed. Synchronizing ensures exact mathematical parity.
+                Master template structural version has changed. Synchronizing ensures exact
+                mathematical parity.
               </span>
             </div>
           )}

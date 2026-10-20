@@ -1,8 +1,8 @@
 import {
-  invoiceTemplates,
   clients,
   customFieldDefinitions,
   db,
+  invoiceTemplates,
   projects,
   templateConstants,
   templateHeaderFields,

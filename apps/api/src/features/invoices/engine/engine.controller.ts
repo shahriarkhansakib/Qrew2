@@ -14,8 +14,8 @@ import { Context } from "hono";
 import { z } from "zod";
 import { TokenService } from "../../tokens/token.service";
 import { AstEvaluatorService } from "./ast-evaluator.service";
-import { getProjectedDocumentNumber } from "./document-number";
 import { DagValidatorService } from "./dag-validator.service";
+import { getProjectedDocumentNumber } from "./document-number";
 import { parseToBN, resolveScope } from "./token-resolver.service";
 import type {
   EvaluatorRow,
@@ -466,7 +466,11 @@ export class EngineController {
           grandTotal,
           projectedDocumentNumber: await (async () => {
             try {
-              return await getProjectedDocumentNumber({ organizationId, sourceTemplateId: templateId, tx: db });
+              return await getProjectedDocumentNumber({
+                organizationId,
+                sourceTemplateId: templateId,
+                tx: db,
+              });
             } catch {
               return "INV-0001";
             }

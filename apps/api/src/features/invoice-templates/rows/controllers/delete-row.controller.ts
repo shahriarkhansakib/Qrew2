@@ -1,8 +1,8 @@
-import { touchTemplate } from "../../invoice-templates.controller";
 import { db, invoiceTemplates, templateRows } from "@starter/db";
 import { and, eq } from "drizzle-orm";
 import { Context } from "hono";
 import { TokenService } from "../../../tokens/token.service";
+import { touchTemplate } from "../../invoice-templates.controller";
 
 export async function deleteRow(c: Context) {
   const rowId = c.req.param("rowId") as string;

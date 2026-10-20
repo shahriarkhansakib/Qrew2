@@ -26,7 +26,12 @@ describe("Architecture Flaws & Synchronization Protocol Tests", () => {
       const draftFormula = `{{$tok:${draftRow1Id}}} * {{$tok:${draftRow2Id}}} - {{$tok:${draftConstId}}}`;
 
       // 1. Decode to plain human-readable tokens
-      const decoded = decodeFormula(draftFormula, draftIdToToken, {}, { [draftConstId]: "DISCOUNT" });
+      const decoded = decodeFormula(
+        draftFormula,
+        draftIdToToken,
+        {},
+        { [draftConstId]: "DISCOUNT" },
+      );
       expect(decoded).toBe("BASE_FEE * TAX_RATE - DISCOUNT");
 
       // 2. Re-encode using new template token map
@@ -40,7 +45,9 @@ describe("Architecture Flaws & Synchronization Protocol Tests", () => {
       };
 
       const reEncoded = encodeFormula(decoded, newRowTokenToId, {}, newTplTokenToId);
-      expect(reEncoded).toBe(`{{$tok:${newTplRow1Id}}} * {{$tok:${newTplRow2Id}}} - {{$tok:${newTplConstId}}}`);
+      expect(reEncoded).toBe(
+        `{{$tok:${newTplRow1Id}}} * {{$tok:${newTplRow2Id}}} - {{$tok:${newTplConstId}}}`,
+      );
 
       // Verify no draft UUIDs remain
       expect(reEncoded).not.toContain(draftRow1Id);
@@ -152,7 +159,9 @@ describe("Architecture Flaws & Synchronization Protocol Tests", () => {
       // Simulate 3-way merge logic
       const mergedSections: any[] = [];
       for (const tplSec of updatedTemplateSections) {
-        const existingSec = currentDraftSections.find((s) => s.sectionToken === tplSec.sectionToken);
+        const existingSec = currentDraftSections.find(
+          (s) => s.sectionToken === tplSec.sectionToken,
+        );
         if (!existingSec) {
           mergedSections.push(tplSec);
           continue;

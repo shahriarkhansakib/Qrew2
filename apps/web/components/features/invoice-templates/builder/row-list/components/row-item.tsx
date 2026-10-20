@@ -349,7 +349,9 @@ export function SingleRow({
           ) : undefined
         }
         formula={formulaAnnotation}
-        onClickFormula={mode !== "fill" && mode !== "preview" && formulaAnnotation ? handleValueClick : undefined}
+        onClickFormula={
+          mode !== "fill" && mode !== "preview" && formulaAnnotation ? handleValueClick : undefined
+        }
         onClickLabel={canEditLabel ? () => setIsEditingLabel(true) : undefined}
         labelContent={
           <div className="flex items-center gap-2 min-w-0 truncate w-full">
@@ -414,8 +416,12 @@ export function SingleRow({
               }
             }}
             isUsd1Selected={isChargeSelected}
-            onEditCharge={mode !== "fill" && mode !== "preview" ? () => onEditCharge(charge) : undefined}
-            onDeleteCharge={mode !== "fill" && mode !== "preview" ? () => onDeleteCharge(charge.id) : undefined}
+            onEditCharge={
+              mode !== "fill" && mode !== "preview" ? () => onEditCharge(charge) : undefined
+            }
+            onDeleteCharge={
+              mode !== "fill" && mode !== "preview" ? () => onDeleteCharge(charge.id) : undefined
+            }
             rowId={mode !== "fill" && mode !== "preview" ? row.id : undefined}
             sectionId={mode !== "fill" && mode !== "preview" ? sectionId : undefined}
             allSections={allSections}

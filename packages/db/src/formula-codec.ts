@@ -197,10 +197,13 @@ export function normalizeFormulaSpacing(formula: string | null | undefined): str
 
   // 3. Shield percentage attached to pure numeric literals (e.g. "50%", "0.15%")
   const percentages: string[] = [];
-  result = result.replace(/(^|[^A-Za-z0-9_])(\d+(?:\.\d+)?)\s*%(?!\s*[A-Za-z0-9_(])/g, (_, prefix, num) => {
-    percentages.push(`${num}%`);
-    return `${prefix}__PERCENTAGE_${percentages.length - 1}__`;
-  });
+  result = result.replace(
+    /(^|[^A-Za-z0-9_])(\d+(?:\.\d+)?)\s*%(?!\s*[A-Za-z0-9_(])/g,
+    (_, prefix, num) => {
+      percentages.push(`${num}%`);
+      return `${prefix}__PERCENTAGE_${percentages.length - 1}__`;
+    },
+  );
 
   // 4. Protect and normalize modulo operator `//`
   result = result.replace(/\s*\/\/\s*/g, " __MODULO__ ");

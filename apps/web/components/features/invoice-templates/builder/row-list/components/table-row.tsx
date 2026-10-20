@@ -297,7 +297,9 @@ export function TableRow({
               : "text-muted-foreground",
         )}
         onClick={(e) => !isPdfMode && token && handleTokenClick(e, token)}
-        title={!isPdfMode && token ? (isFormulaMode ? "Insert into formula" : "Copy token") : undefined}
+        title={
+          !isPdfMode && token ? (isFormulaMode ? "Insert into formula" : "Copy token") : undefined
+        }
         style={{ fontSize: 14 + zoomLevel }}
       >
         {sl}
@@ -312,7 +314,8 @@ export function TableRow({
         onClick={(e) => {
           if (isFormulaMode || isPdfMode) return;
           const target = e.target as HTMLElement;
-          if (target.closest("button, a, input, select, textarea, [data-no-cell-click='true']")) return;
+          if (target.closest("button, a, input, select, textarea, [data-no-cell-click='true']"))
+            return;
           onClickLabel?.();
         }}
       >
@@ -341,7 +344,11 @@ export function TableRow({
         )}
         style={{ fontSize: 16 + zoomLevel }}
       >
-        <ClickableCell onClick={isPdfMode ? undefined : onClickUsd1} isSelected={!isPdfMode && isUsd1Selected} className="px-2">
+        <ClickableCell
+          onClick={isPdfMode ? undefined : onClickUsd1}
+          isSelected={!isPdfMode && isUsd1Selected}
+          className="px-2"
+        >
           {usd1 ??
             (onClickUsd1 && !isPdfMode ? (
               <span className="text-muted-foreground/30 text-sm select-none">—</span>
@@ -361,7 +368,11 @@ export function TableRow({
         )}
         style={{ fontSize: 16 + zoomLevel }}
       >
-        <ClickableCell onClick={isPdfMode ? undefined : onClickUsd2} isSelected={!isPdfMode && isUsd2Selected} className="px-2">
+        <ClickableCell
+          onClick={isPdfMode ? undefined : onClickUsd2}
+          isSelected={!isPdfMode && isUsd2Selected}
+          className="px-2"
+        >
           {usd2 ??
             (onClickUsd2 && !isPdfMode ? (
               <span className="text-muted-foreground/30 text-sm select-none">—</span>

@@ -4,9 +4,9 @@ import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 import { invoiceApi } from "@/components/features/invoices/shared/invoice-api";
 import { invoiceKeys } from "@/components/features/invoices/shared/invoice-keys";
+import { safeEval } from "@/lib/formula-evaluator";
 import { type SelectedCell, useBuilderContext } from "./builder-context";
 import { preprocessForSave } from "./formula-bar-utils";
-import { safeEval } from "@/lib/formula-evaluator";
 
 export function useSaveCellMutation() {
   const queryClient = useQueryClient();
@@ -37,7 +37,9 @@ export function useSaveCellMutation() {
               "CEIL",
             ]);
             const idents = trimmed.match(/[A-Za-z_][A-Za-z0-9_]*/g) || [];
-            const invalidIdents = idents.filter((id) => !allowedMathFunctions.has(id.toUpperCase()));
+            const invalidIdents = idents.filter(
+              (id) => !allowedMathFunctions.has(id.toUpperCase()),
+            );
             if (invalidIdents.length > 0) {
               throw new Error(
                 `"${invalidIdents.join(", ")}" is not allowed in Fill Mode. Switch to Builder Mode to author formulas with tokens, or enter a number / calculation.`,
@@ -46,7 +48,9 @@ export function useSaveCellMutation() {
 
             const calculated = safeEval(trimmed);
             if (calculated === null || !Number.isFinite(calculated)) {
-              throw new Error("Invalid calculation. Please enter a valid number or mathematical expression.");
+              throw new Error(
+                "Invalid calculation. Please enter a valid number or mathematical expression.",
+              );
             }
             evaluatedManualValue = calculated;
           }
@@ -63,7 +67,10 @@ export function useSaveCellMutation() {
 
           if (!isFormula && trimmed) {
             const calculated = safeEval(trimmed);
-            evaluatedManualValue = calculated != null && Number.isFinite(calculated) ? calculated : parseFloat(trimmed) || null;
+            evaluatedManualValue =
+              calculated != null && Number.isFinite(calculated)
+                ? calculated
+                : parseFloat(trimmed) || null;
           }
         }
       }

@@ -1,13 +1,21 @@
-import { db, decodeFormula, encodeFormula, invoiceDrafts, invoiceTemplates, templateHeaderFields, tokens } from "@starter/db";
-import { buildDraftIndices } from "./draft-builder.controller";
+import {
+  db,
+  decodeFormula,
+  encodeFormula,
+  invoiceDrafts,
+  invoiceTemplates,
+  templateHeaderFields,
+  tokens,
+} from "@starter/db";
 import { and, eq, sql } from "drizzle-orm";
-import { getProjectedDocumentNumber } from "../engine/document-number";
 import { Context } from "hono";
 import { z } from "zod";
-import { appendAuditEntry } from "./draft-audit";
-import { DraftSeeder } from "./draft-seeder";
-import { TokenService } from "../../tokens/token.service";
 import { toSnakeCase } from "../../invoice-templates/rows/services/row-index.service";
+import { TokenService } from "../../tokens/token.service";
+import { getProjectedDocumentNumber } from "../engine/document-number";
+import { appendAuditEntry } from "./draft-audit";
+import { buildDraftIndices } from "./draft-builder.controller";
+import { DraftSeeder } from "./draft-seeder";
 
 const draftSchema = z.object({
   id: z.string().optional(),
@@ -261,7 +269,10 @@ export class DraftsController {
         if (!auditAction) {
           if (payload.name && payload.name !== existing.name) {
             auditAction = `Renamed draft to "${payload.name}"`;
-          } else if (payload.draftHeaderValues && payload.draftHeaderValues !== existing.draftHeaderValues) {
+          } else if (
+            payload.draftHeaderValues &&
+            payload.draftHeaderValues !== existing.draftHeaderValues
+          ) {
             auditAction = "Updated file header fields";
           } else if (payload.draftSections && payload.draftSections !== existing.draftSections) {
             auditAction = "Updated sections and line items";
@@ -303,19 +314,19 @@ export class DraftsController {
       } else {
         const initialAudit = appendAuditEntry([], user, "Created draft");
 
-      let draftName = payload.name;
-      if (!draftName || draftName === "Draft") {
-        try {
-          const existingCount = await db
-            .select({ count: sql<number>`count(*)::int` })
-            .from(invoiceDrafts)
-            .where(eq(invoiceDrafts.organizationId, organizationId));
-          const seq = (existingCount[0]?.count ?? 0) + 1;
-          draftName = `DFT-${String(seq).padStart(4, "0")}`;
-        } catch {
-          draftName = "Draft #1";
+        let draftName = payload.name;
+        if (!draftName || draftName === "Draft") {
+          try {
+            const existingCount = await db
+              .select({ count: sql<number>`count(*)::int` })
+              .from(invoiceDrafts)
+              .where(eq(invoiceDrafts.organizationId, organizationId));
+            const seq = (existingCount[0]?.count ?? 0) + 1;
+            draftName = `DFT-${String(seq).padStart(4, "0")}`;
+          } catch {
+            draftName = "Draft #1";
+          }
         }
-      }
 
         const [created] = await db
           .insert(invoiceDrafts)
@@ -471,9 +482,27 @@ export class DraftsController {
       if (!headerMigrated) {
         // Fallback: Seed standard system fields and custom fields
         const systemFields = [
-          { fieldType: "file_field" as const, fileFieldKey: "name", label: "Name", sortOrder: 0, isFormulaInjectable: false },
-          { fieldType: "file_field" as const, fileFieldKey: "clientId", label: "Client", sortOrder: 1, isFormulaInjectable: false },
-          { fieldType: "file_field" as const, fileFieldKey: "status", label: "Status", sortOrder: 2, isFormulaInjectable: false },
+          {
+            fieldType: "file_field" as const,
+            fileFieldKey: "name",
+            label: "Name",
+            sortOrder: 0,
+            isFormulaInjectable: false,
+          },
+          {
+            fieldType: "file_field" as const,
+            fileFieldKey: "clientId",
+            label: "Client",
+            sortOrder: 1,
+            isFormulaInjectable: false,
+          },
+          {
+            fieldType: "file_field" as const,
+            fileFieldKey: "status",
+            label: "Status",
+            sortOrder: 2,
+            isFormulaInjectable: false,
+          },
         ];
         const { customFieldDefinitions } = await import("@starter/db");
         const projectFields = await db
@@ -539,8 +568,11 @@ export class DraftsController {
 
       // 4. Migrate Sections, Rows, and Charges with Formula Remapping
       const sections: any[] = (draft.draftSections as any[]) || [];
-      const { idToToken: draftIdToToken, secIdToToken: draftSecIdToToken, tplIdToToken: draftTplIdToToken } =
-        await buildDraftIndices(draft, organizationId);
+      const {
+        idToToken: draftIdToToken,
+        secIdToToken: draftSecIdToToken,
+        tplIdToToken: draftTplIdToToken,
+      } = await buildDraftIndices(draft, organizationId);
 
       const newRowTokenToId: Record<string, string> = {};
       const newSecTokenToId: Record<string, string> = {};
@@ -576,7 +608,8 @@ export class DraftsController {
         if (!formula) return formula ?? null;
 
         // 1. Decode to plain human-readable tokens using draft dictionary
-        const decoded = decodeFormula(formula, draftIdToToken, draftSecIdToToken, draftTplIdToToken) ?? formula;
+        const decoded =
+          decodeFormula(formula, draftIdToToken, draftSecIdToToken, draftTplIdToToken) ?? formula;
 
         // 2. Re-encode using new template token map
         let encoded = encodeFormula(decoded, newRowTokenToId, newSecTokenToId, newTplTokenToId);
@@ -587,7 +620,10 @@ export class DraftsController {
             .replace(/\{\{\$tok:([^}]+)\}\}/g, (_, id) => `{{$tok:${oldDraftIdToNewId[id] ?? id}}}`)
             .replace(/\{\{\$row:([^}]+)\}\}/g, (_, id) => `{{$tok:${oldDraftIdToNewId[id] ?? id}}}`)
             .replace(/\{\{\$sec:([^}]+)\}\}/g, (_, id) => `{{$tok:${oldDraftIdToNewId[id] ?? id}}}`)
-            .replace(/\{\{\$tpl:([^}]+)\}\}/g, (_, id) => `{{$tok:${oldDraftIdToNewId[id] ?? id}}}`);
+            .replace(
+              /\{\{\$tpl:([^}]+)\}\}/g,
+              (_, id) => `{{$tok:${oldDraftIdToNewId[id] ?? id}}}`,
+            );
         }
 
         return encoded;
@@ -722,9 +758,9 @@ export class DraftsController {
       const isTimeDrifted = templateUpdatedAt > draftCreatedAt;
       const hasTemplateDrift = isVersionDrifted || isTimeDrifted;
 
-      let formulaUpdates: string[] = [];
-      let addedRows: string[] = [];
-      let addedSections: string[] = [];
+      const formulaUpdates: string[] = [];
+      const addedRows: string[] = [];
+      const addedSections: string[] = [];
 
       if (hasTemplateDrift) {
         try {
@@ -784,7 +820,10 @@ export class DraftsController {
       });
     } catch (err: any) {
       console.error("[DraftsController.getTemplateSyncStatus]", err);
-      return c.json({ error: "Failed to retrieve template sync status", message: err.message }, 500);
+      return c.json(
+        { error: "Failed to retrieve template sync status", message: err.message },
+        500,
+      );
     }
   }
 
@@ -802,7 +841,8 @@ export class DraftsController {
         .limit(1);
 
       if (!draft) return c.json({ error: "Draft not found" }, 404);
-      if (!draft.sourceTemplateId) return c.json({ error: "Draft is not linked to a master template" }, 400);
+      if (!draft.sourceTemplateId)
+        return c.json({ error: "Draft is not linked to a master template" }, 400);
 
       const [template] = await db
         .select()
@@ -842,9 +882,7 @@ export class DraftsController {
         const existingRows: any[] = existingSec.rows || [];
 
         for (const tplRow of tplSec.rows || []) {
-          const existingRow = existingRows.find(
-            (r: any) => r.rowToken === tplRow.rowToken,
-          );
+          const existingRow = existingRows.find((r: any) => r.rowToken === tplRow.rowToken);
 
           if (!existingRow) {
             mergedRows.push(tplRow);
@@ -902,9 +940,10 @@ export class DraftsController {
         ...(draft.draftConstants || {}),
       };
 
-      const mergedHeaderFields = Array.isArray(draft.draftHeaderFields) && draft.draftHeaderFields.length > 0
-        ? draft.draftHeaderFields
-        : hydrated.draftHeaderFields;
+      const mergedHeaderFields =
+        Array.isArray(draft.draftHeaderFields) && draft.draftHeaderFields.length > 0
+          ? draft.draftHeaderFields
+          : hydrated.draftHeaderFields;
 
       const syncAction = `Synced draft with master template "${template.name}" (v${template.version})`;
       const updatedAudit = appendAuditEntry(draft.editHistory || [], user, syncAction);

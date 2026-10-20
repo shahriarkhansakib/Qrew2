@@ -1,9 +1,9 @@
-import { touchTemplate } from "../../invoice-templates.controller";
 import { db, invoiceTemplates, tokens } from "@starter/db";
 import { and, eq } from "drizzle-orm";
 import { Context } from "hono";
 import { z } from "zod";
 import { TokenService } from "../../../tokens/token.service";
+import { touchTemplate } from "../../invoice-templates.controller";
 import { nextSectionToken } from "../services/section-index.service";
 
 const createSectionSchema = z.object({

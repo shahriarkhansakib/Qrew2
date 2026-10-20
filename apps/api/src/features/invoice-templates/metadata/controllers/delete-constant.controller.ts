@@ -1,8 +1,8 @@
-import { touchTemplate } from "../../invoice-templates.controller";
 import { db, templateConstants, tokens } from "@starter/db";
 import { and, eq } from "drizzle-orm";
 import { Context } from "hono";
 import { TokenService } from "../../../tokens/token.service";
+import { touchTemplate } from "../../invoice-templates.controller";
 
 export async function deleteConstant(c: Context) {
   const id = c.req.param("constantId") as string;
