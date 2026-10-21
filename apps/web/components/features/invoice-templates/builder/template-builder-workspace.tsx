@@ -3,7 +3,9 @@
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { Pencil, Plus, X } from "lucide-react";
 import { useEffect, useMemo, useRef, useState } from "react";
+import TextareaAutosize from "react-textarea-autosize";
 import { toast } from "sonner";
+import { invoiceApi } from "@/components/features/invoices/shared/invoice-api";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -15,6 +17,7 @@ import {
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
 import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { apiUrl } from "@/lib/constants";
 import { buildTokenMap, fmt } from "@/lib/formula-evaluator";
@@ -131,6 +134,9 @@ export interface FileDetailsHeaderBoxProps {
     sortOrder: number;
     isFormulaInjectable?: boolean;
     defaultManualValue?: string;
+    systemFieldKey?: string;
+    customFieldDefinitionId?: string;
+    fieldKey?: string;
   }>;
   project?: any; // The actual project data to populate values
   draftHeaderValues?: Record<string, any>;
@@ -140,6 +146,11 @@ export interface FileDetailsHeaderBoxProps {
   onReorder?: (updates: any[], optimisticState: any[]) => void;
   isTemplateMode?: boolean;
   isSharedDnd?: boolean;
+  draftId?: string;
+  templateId?: string;
+  refetchHeaderFields?: () => void;
+  title?: string;
+  isSheetMode?: boolean;
 }
 
 export function FileDetailsHeaderBox({
@@ -153,11 +164,21 @@ export function FileDetailsHeaderBox({
   isTemplateMode = false,
   isSharedDnd = false,
   zoomLevel = 0,
+  draftId,
+  templateId,
+  refetchHeaderFields,
+  title,
+  isSheetMode = false,
 }: FileDetailsHeaderBoxProps & { zoomLevel?: number }) {
   const { selectedCell, mode } = useBuilderContext();
+  const queryClient = useQueryClient();
   const isFormulaMode = !!selectedCell;
   const isFillMode = mode === "fill";
+  const isPdfMode = mode === "preview";
   const isEditable = isTemplateMode || mode === "draft";
+
+  const [editingFieldId, setEditingFieldId] = useState<string | null>(null);
+  const [editValue, setEditValue] = useState<string>("");
 
   const handleTokenClick = (e: React.MouseEvent, clickedToken: string) => {
     e.stopPropagation();
@@ -168,76 +189,6 @@ export function FileDetailsHeaderBox({
       navigator.clipboard.writeText(clickedToken);
       toast.success("Token copied");
     }
-  };
-
-  const renderVal = (field: any) => {
-    const key = field.fieldKey || field.systemFieldKey || field.fileFieldKey;
-    const cleanToken = getCleanToken(field);
-    const tokenKey = field.tokenKey;
-
-    let val: any = null;
-
-    // 1. Check draftHeaderValues first (draft mode)
-    if (draftHeaderValues) {
-      val =
-        (tokenKey ? draftHeaderValues[tokenKey] : undefined) ??
-        (cleanToken ? draftHeaderValues[cleanToken] : undefined) ??
-        (key ? draftHeaderValues[key] : undefined) ??
-        (cleanToken ? draftHeaderValues[`FILE_${cleanToken}`] : undefined);
-    }
-
-    // 2. Check project root & customFields if not resolved
-    if ((val === null || val === undefined) && project) {
-      if (key === "clientId" || key === "client") {
-        val = project.client?.name || project.clientId;
-      } else if (key === "name") {
-        val = project.name;
-      } else if (key === "status") {
-        val = project.statusRelation?.name || project.status;
-      } else if (key && project[key] !== undefined) {
-        val = project[key];
-      }
-
-      // Try customFields lookup if not found in root project properties
-      if ((val === null || val === undefined) && project.customFields) {
-        const cf = project.customFields;
-        // 1. Direct match on key, tokenKey, cleanToken, or label
-        val =
-          (key ? cf[key] : undefined) ??
-          (field.tokenKey ? cf[field.tokenKey] : undefined) ??
-          (cleanToken ? cf[cleanToken] : undefined) ??
-          (field.label ? cf[field.label] : undefined);
-
-        // 2. Case-insensitive / slug match over all customFields entries
-        if (val === null || val === undefined) {
-          const candidates = [key, field.tokenKey, cleanToken, field.label]
-            .filter(Boolean)
-            .map((k) =>
-              String(k)
-                .toLowerCase()
-                .replace(/[^a-z0-9]/g, ""),
-            );
-
-          for (const [cfKey, cfVal] of Object.entries(cf)) {
-            const normalizedCfKey = cfKey.toLowerCase().replace(/[^a-z0-9]/g, "");
-            if (candidates.includes(normalizedCfKey)) {
-              val = cfVal;
-              break;
-            }
-          }
-        }
-      }
-    }
-
-    // 3. Fallback to defaultManualValue on the template field definition
-    if ((val === null || val === undefined) && field.defaultManualValue) {
-      val = field.defaultManualValue;
-    }
-
-    if (val === null || val === undefined || val === "" || val === "—") {
-      return <span className="text-foreground/20 font-light">—</span>;
-    }
-    return String(val);
   };
 
   const getCleanToken = (field: any) => {
@@ -259,82 +210,325 @@ export function FileDetailsHeaderBox({
       .replace(/^FILE_/, "");
   };
 
+  const isFieldTiedToFile = (field: any) => {
+    if (field.systemFieldKey) return true;
+    if (field.customFieldDefinitionId) return true;
+
+    if (project) {
+      const key = field.fieldKey || field.fileFieldKey;
+      const cleanToken = getCleanToken(field);
+      const tokenKey = field.tokenKey;
+
+      if (
+        key === "clientId" ||
+        key === "client" ||
+        key === "name" ||
+        key === "status" ||
+        field.label?.toLowerCase() === "client" ||
+        field.label?.toLowerCase() === "name" ||
+        field.label?.toLowerCase() === "status"
+      ) {
+        return true;
+      }
+
+      if (key && project[key] !== undefined) return true;
+
+      if (project.customFields) {
+        const cf = project.customFields;
+        if (
+          (key && cf[key] !== undefined) ||
+          (tokenKey && cf[tokenKey] !== undefined) ||
+          (cleanToken && cf[cleanToken] !== undefined) ||
+          (field.label && cf[field.label] !== undefined)
+        ) {
+          return true;
+        }
+
+        const candidates = [key, tokenKey, cleanToken, field.label]
+          .filter(Boolean)
+          .map((k) => String(k).toLowerCase().replace(/[^a-z0-9]/g, ""));
+
+        for (const cfKey of Object.keys(cf)) {
+          const normalized = cfKey.toLowerCase().replace(/[^a-z0-9]/g, "");
+          if (candidates.includes(normalized)) {
+            return true;
+          }
+        }
+      }
+    }
+
+    return false;
+  };
+
+  const getRawVal = (field: any): string | null => {
+    const key = field.fieldKey || field.systemFieldKey || field.fileFieldKey;
+    const cleanToken = getCleanToken(field);
+    const tokenKey = field.tokenKey;
+
+    let val: any = null;
+
+    // 1. Check draftHeaderValues first (draft mode)
+    if (draftHeaderValues) {
+      val =
+        (field.id ? draftHeaderValues[field.id] : undefined) ??
+        (tokenKey ? draftHeaderValues[tokenKey] : undefined) ??
+        (cleanToken ? draftHeaderValues[cleanToken] : undefined) ??
+        (key ? draftHeaderValues[key] : undefined) ??
+        (cleanToken ? draftHeaderValues[`FILE_${cleanToken}`] : undefined);
+    }
+
+    // 2. Humanize project status & client if raw UUID or code was loaded
+    if (project) {
+      if (key === "clientId" || key === "client" || field.label?.toLowerCase() === "client") {
+        if (project.client?.name) val = project.client.name;
+        else if (!val) val = project.clientId;
+      } else if (key === "name" || field.label?.toLowerCase() === "name") {
+        if (project.name) val = project.name;
+      } else if (key === "status" || field.label?.toLowerCase() === "status") {
+        if (project.statusRelation?.name) val = project.statusRelation.name;
+        else if (project.status && (!val || val === project.status)) val = project.status;
+      } else if ((val === null || val === undefined) && key && project[key] !== undefined) {
+        val = project[key];
+      }
+
+      // Try customFields lookup if not found in root project properties
+      if ((val === null || val === undefined) && project.customFields) {
+        const cf = project.customFields;
+        val =
+          (key ? cf[key] : undefined) ??
+          (field.tokenKey ? cf[field.tokenKey] : undefined) ??
+          (cleanToken ? cf[cleanToken] : undefined) ??
+          (field.label ? cf[field.label] : undefined);
+
+        if (val === null || val === undefined) {
+          const candidates = [key, field.tokenKey, cleanToken, field.label]
+            .filter(Boolean)
+            .map((k) =>
+              String(k)
+                .toLowerCase()
+                .replace(/[^a-z0-9]/g, ""),
+            );
+
+          for (const [cfKey, cfVal] of Object.entries(cf)) {
+            const normalizedCfKey = cfKey.toLowerCase().replace(/[^a-z0-9]/g, "");
+            if (candidates.includes(normalizedCfKey)) {
+              val = cfVal;
+              break;
+            }
+          }
+        }
+      }
+    }
+
+    // 3. Fallback to defaultManualValue on the template field definition
+    if ((val === null || val === undefined || val === "") && field.defaultManualValue) {
+      val = field.defaultManualValue;
+    }
+
+    if (val === null || val === undefined) return null;
+    return String(val);
+  };
+
+  const handleSaveFieldValue = async (field: any, newValue: string) => {
+    const trimmed = newValue;
+    setEditingFieldId(null);
+    const currentVal = getRawVal(field) ?? "";
+    if (trimmed === currentVal) return;
+
+    const cleanToken = getCleanToken(field);
+    const tokenKey = field.tokenKey || (cleanToken ? `FILE_${cleanToken}` : undefined);
+
+    if (draftId) {
+      try {
+        const payloadValues: Record<string, string> = {
+          [field.id]: trimmed,
+        };
+        if (tokenKey) payloadValues[tokenKey] = trimmed;
+        if (cleanToken) payloadValues[cleanToken] = trimmed;
+
+        // Optimistically update query client
+        queryClient.setQueryData(["invoice-draft", draftId], (old: any) => {
+          if (!old) return old;
+          return {
+            ...old,
+            draftHeaderValues: {
+              ...(old.draftHeaderValues || {}),
+              ...payloadValues,
+            },
+          };
+        });
+
+        await invoiceApi.updateDraftHeaderValues(draftId, payloadValues);
+        queryClient.invalidateQueries({ queryKey: ["draft-preview", draftId] });
+        queryClient.invalidateQueries({ queryKey: ["invoice-draft", draftId] });
+        toast.success(`Updated ${field.label}`);
+      } catch (err: any) {
+        toast.error(err.message || `Failed to update ${field.label}`);
+        queryClient.invalidateQueries({ queryKey: ["invoice-draft", draftId] });
+      }
+    } else if (templateId) {
+      try {
+        const res = await fetch(
+          `${apiUrl}/api/invoice-templates/${templateId}/header-fields/${field.id}`,
+          {
+            method: "PATCH",
+            headers: { "Content-Type": "application/json" },
+            credentials: "include",
+            body: JSON.stringify({ defaultManualValue: trimmed }),
+          },
+        );
+        if (!res.ok) throw new Error("Failed to update template field default");
+        refetchHeaderFields?.();
+        toast.success(`Updated default for ${field.label}`);
+      } catch (err: any) {
+        toast.error(err.message || `Failed to update default for ${field.label}`);
+      }
+    }
+  };
+
   const renderFieldRow = (field: any) => {
     const isSelectable = field.isFormulaInjectable === true;
     const cleanToken = getCleanToken(field);
+    const isTied = isFieldTiedToFile(field);
+    // Custom file fields created in template builder can be edited like manual input cells
+    const isManual = !isTied && !isPdfMode;
+    const isEditing = editingFieldId === field.id;
+    const rawVal = getRawVal(field);
 
     return (
-      <div className="flex justify-between items-center group relative h-6 w-full">
+      <div
+        className={cn(
+          "flex items-stretch min-h-[38px] group relative hover:bg-muted/5 transition-colors bg-background w-full border-b border-border/40 last:border-b-0",
+          isSelectable &&
+            !isFillMode &&
+            isFormulaMode &&
+            "hover:bg-primary/5 cursor-pointer insertable-token",
+          isSelectable &&
+            !isFillMode &&
+            !isFormulaMode &&
+            "cursor-pointer hover:bg-muted/10 insertable-token",
+        )}
+        onMouseDown={(e) => {
+          if (isFormulaMode && isSelectable) {
+            e.preventDefault();
+          }
+        }}
+        onClick={(e) => {
+          if (isFormulaMode && isSelectable && cleanToken) {
+            handleTokenClick(e, cleanToken);
+          }
+        }}
+        title={
+          isFormulaMode && isSelectable
+            ? `Insert ${cleanToken} into formula`
+            : !isFillMode && isSelectable
+              ? `Copy token ${cleanToken}`
+              : undefined
+        }
+      >
+        {/* Label cell */}
         <div
           className={cn(
-            "flex gap-2 w-full items-center",
-            isSelectable && "transition-colors select-none insertable-token",
-            isSelectable && isFillMode && "cursor-default",
-            isSelectable &&
-              !isFillMode &&
-              isFormulaMode &&
-              "cursor-pointer text-primary hover:bg-primary/5 rounded-md -ml-1 pl-1",
-            isSelectable &&
-              !isFillMode &&
-              !isFormulaMode &&
-              "cursor-pointer hover:text-foreground hover:bg-muted/10 rounded-md -ml-1 pl-1",
+            "w-32 sm:w-36 shrink-0 px-3 py-2 bg-muted/20 border-r border-border font-semibold text-xs uppercase tracking-wider flex items-start select-none",
+            isSelectable && isFormulaMode ? "text-primary/80" : "text-muted-foreground",
           )}
-          onMouseDown={(e) => {
-            if (isFormulaMode && isSelectable) {
-              e.preventDefault();
-            }
-          }}
-          onClick={(e) => {
-            if (isSelectable && cleanToken) {
-              handleTokenClick(e, cleanToken);
-            }
-          }}
-          title={
-            isSelectable
-              ? isFillMode
-                ? undefined
-                : isFormulaMode
-                  ? `Insert ${cleanToken} into formula`
-                  : `Copy token ${cleanToken}`
-              : undefined
-          }
+          style={{ fontSize: 11 + zoomLevel }}
         >
-          <span
-            className={cn(
-              "font-semibold uppercase tracking-widest w-28 shrink-0 truncate",
-              isSelectable && isFormulaMode ? "text-primary/70" : "text-muted-foreground",
-            )}
-            style={{ fontSize: 12 + zoomLevel }}
-          >
-            {field.label}
-          </span>
-          <span className="text-muted-foreground/40 shrink-0">:</span>
-          <span className="font-medium truncate" style={{ fontSize: 14 + zoomLevel }}>
-            {renderVal(field)}
-          </span>
+          <span className="break-words leading-tight">{field.label}</span>
         </div>
-        {isEditable && (
-          <div className="opacity-0 group-hover:opacity-100 absolute -right-9 flex items-center gap-0.5 transition-all">
-            {onEdit && (
-              <button
-                onClick={() => onEdit(field)}
-                className="p-1 text-muted-foreground hover:text-foreground transition-all"
-                title="Edit field"
-              >
-                <Pencil className="w-3 h-3" />
-              </button>
-            )}
-            {onDelete && (
-              <button
-                onClick={() => onDelete(field.id)}
-                className="p-1 text-muted-foreground hover:text-destructive transition-all"
-                title="Remove field"
-              >
-                <X className="w-3 h-3" />
-              </button>
-            )}
-          </div>
-        )}
+
+        {/* Value cell */}
+        <div
+          className={cn(
+            "flex-1 px-3 py-2 text-xs sm:text-sm font-medium text-foreground flex items-start justify-between min-w-0 gap-2",
+            isManual && !isEditing && "cursor-pointer hover:bg-primary/[0.03]",
+          )}
+          onClick={(e) => {
+            if (isManual && !isEditing && (!isFormulaMode || !isSelectable)) {
+              e.stopPropagation();
+              setEditingFieldId(field.id);
+              setEditValue(rawVal ?? "");
+            }
+          }}
+        >
+          {isEditing ? (
+            <div className="flex-1 min-w-0" onClick={(e) => e.stopPropagation()}>
+              <TextareaAutosize
+                value={editValue}
+                onChange={(e) => setEditValue(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === "Enter" && !e.shiftKey) {
+                    e.preventDefault();
+                    handleSaveFieldValue(field, editValue);
+                  } else if (e.key === "Escape") {
+                    e.preventDefault();
+                    setEditingFieldId(null);
+                  }
+                }}
+                onBlur={() => handleSaveFieldValue(field, editValue)}
+                minRows={1}
+                maxRows={8}
+                className="w-full bg-primary/[0.04] border border-primary/40 rounded px-2 py-1 text-xs sm:text-sm font-mono text-foreground focus:outline-none focus:ring-1 focus:ring-primary resize-none leading-relaxed"
+                style={{ fontSize: 13 + zoomLevel }}
+                placeholder={`Enter ${field.label}...`}
+                autoFocus
+              />
+              <div className="flex items-center justify-between text-[10px] text-muted-foreground/60 mt-1 select-none">
+                <span>Enter to save • Shift+Enter for newline • Esc to cancel</span>
+              </div>
+            </div>
+          ) : (
+            <div className="flex-1 min-w-0 pr-1">
+              {rawVal !== null && rawVal !== undefined && rawVal !== "" && rawVal !== "—" ? (
+                <span
+                  className="font-mono whitespace-pre-wrap break-words [overflow-wrap:anywhere] leading-relaxed block"
+                  style={{ fontSize: 13 + zoomLevel }}
+                >
+                  {rawVal}
+                </span>
+              ) : isManual ? (
+                <span className="text-muted-foreground/40 italic font-sans text-xs flex items-center gap-1 select-none">
+                  <Pencil className="w-3 h-3 shrink-0 opacity-40" />
+                  <span>Click to enter {field.label}...</span>
+                </span>
+              ) : (
+                <span className="text-foreground/20 font-light">—</span>
+              )}
+            </div>
+          )}
+
+          {/* Action buttons (Edit / Delete) */}
+          {isEditable && !isEditing && (
+            <div className="opacity-0 group-hover:opacity-100 flex items-center gap-1 shrink-0 ml-1 transition-opacity self-start mt-0.5">
+              {onEdit && (
+                <button
+                  type="button"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    onEdit(field);
+                  }}
+                  className="p-1 text-muted-foreground hover:text-foreground rounded transition-colors"
+                  title="Edit field configuration"
+                >
+                  <Pencil className="w-3.5 h-3.5" />
+                </button>
+              )}
+              {onDelete && (
+                <button
+                  type="button"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    onDelete(field.id);
+                  }}
+                  className="p-1 text-muted-foreground hover:text-destructive rounded transition-colors"
+                  title="Remove field"
+                >
+                  <X className="w-3.5 h-3.5" />
+                </button>
+              )}
+            </div>
+          )}
+        </div>
       </div>
     );
   };
@@ -346,10 +540,14 @@ export function FileDetailsHeaderBox({
     const destCol = result.destination.droppableId.replace(/^header-/, "");
 
     const leftFields = Array.from(
-      templateHeaderFields.filter((f) => f.columnPosition === "left"),
+      templateHeaderFields.filter(
+        (f, idx) => f.columnPosition === "left" || (!f.columnPosition && idx % 2 === 0),
+      ),
     ).sort((a, b) => a.sortOrder - b.sortOrder);
     const rightFields = Array.from(
-      templateHeaderFields.filter((f) => f.columnPosition === "right"),
+      templateHeaderFields.filter(
+        (f, idx) => f.columnPosition === "right" || (!f.columnPosition && idx % 2 !== 0),
+      ),
     ).sort((a, b) => a.sortOrder - b.sortOrder);
 
     const sourceList = sourceCol === "left" ? leftFields : rightFields;
@@ -385,41 +583,43 @@ export function FileDetailsHeaderBox({
   const effectiveFields =
     templateHeaderFields && templateHeaderFields.length > 0
       ? templateHeaderFields
-      : [
-          {
-            id: "default-name",
-            label: "Name",
-            fileFieldKey: "name",
-            tokenKey: "NAME",
-            columnPosition: "left",
-            sortOrder: 0,
-            fieldType: "file_field",
-          },
-          {
-            id: "default-client",
-            label: "Client",
-            fileFieldKey: "clientId",
-            tokenKey: "CLIENT",
-            columnPosition: "left",
-            sortOrder: 1,
-            fieldType: "file_field",
-          },
-          {
-            id: "default-status",
-            label: "Status",
-            fileFieldKey: "status",
-            tokenKey: "STATUS",
-            columnPosition: "right",
-            sortOrder: 0,
-            fieldType: "file_field",
-          },
-        ];
+      : isSheetMode
+        ? []
+        : [
+            {
+              id: "default-name",
+              label: "Name",
+              fileFieldKey: "name",
+              tokenKey: "NAME",
+              columnPosition: "left",
+              sortOrder: 0,
+              fieldType: "file_field",
+            },
+            {
+              id: "default-client",
+              label: "Client",
+              fileFieldKey: "clientId",
+              tokenKey: "CLIENT",
+              columnPosition: "left",
+              sortOrder: 1,
+              fieldType: "file_field",
+            },
+            {
+              id: "default-status",
+              label: "Status",
+              fileFieldKey: "status",
+              tokenKey: "STATUS",
+              columnPosition: "right",
+              sortOrder: 0,
+              fieldType: "file_field",
+            },
+          ];
 
   const leftFields = effectiveFields
-    .filter((f) => f.columnPosition === "left")
+    .filter((f, idx) => f.columnPosition === "left" || (!f.columnPosition && idx % 2 === 0))
     .sort((a, b) => (a.sortOrder ?? 0) - (b.sortOrder ?? 0));
   const rightFields = effectiveFields
-    .filter((f) => f.columnPosition === "right")
+    .filter((f, idx) => f.columnPosition === "right" || (!f.columnPosition && idx % 2 !== 0))
     .sort((a, b) => (a.sortOrder ?? 0) - (b.sortOrder ?? 0));
 
   const renderDroppable = (id: string, fields: any[]) => (
@@ -427,12 +627,17 @@ export function FileDetailsHeaderBox({
       {(provided, snapshot) => (
         <div
           className={cn(
-            "flex flex-col gap-y-4 rounded-lg",
-            snapshot.isDraggingOver && "bg-muted/30 -mx-2 px-2 py-1",
+            "flex flex-col divide-y divide-border min-h-[70px]",
+            snapshot.isDraggingOver && "bg-muted/10",
           )}
           ref={provided.innerRef}
           {...provided.droppableProps}
         >
+          {fields.length === 0 && (
+            <div className="flex items-center justify-center p-4 text-xs text-muted-foreground/40 italic select-none">
+              {snapshot.isDraggingOver ? "Drop field here" : "No fields in this column"}
+            </div>
+          )}
           {fields.map((field, index) => (
             <Draggable
               key={field.id}
@@ -444,24 +649,23 @@ export function FileDetailsHeaderBox({
                 <div
                   ref={provided.innerRef}
                   {...provided.draggableProps}
-                  style={{
-                    ...provided.draggableProps.style,
-                  }}
+                  style={provided.draggableProps.style}
                   className={cn(
-                    "flex items-center gap-2",
+                    "flex items-stretch group/drag relative",
                     snapshot.isDragging &&
-                      "bg-card shadow-md z-10 p-1 -m-1 rounded-md border border-primary/20",
+                      "bg-card shadow-lg z-20 rounded border border-primary/40",
                   )}
                 >
                   {isEditable && onReorder && (
                     <div
                       {...provided.dragHandleProps}
-                      className="text-muted-foreground/30 hover:text-foreground cursor-grab opacity-0 group-hover:opacity-100 transition-opacity"
+                      className="w-7 shrink-0 flex items-center justify-center border-r border-border text-muted-foreground/30 hover:text-foreground cursor-grab opacity-0 group-hover/drag:opacity-100 transition-opacity bg-muted/10"
+                      title="Drag to reorder"
                     >
-                      <GripVertical className="h-4 w-4" />
+                      <GripVertical className="h-3.5 w-3.5" />
                     </div>
                   )}
-                  {renderFieldRow(field)}
+                  <div className="flex-1 min-w-0">{renderFieldRow(field)}</div>
                 </div>
               )}
             </Draggable>
@@ -476,30 +680,65 @@ export function FileDetailsHeaderBox({
   const rightDroppableId = isSharedDnd ? "header-right" : "right";
 
   const dndContent = (
-    <div className="grid grid-cols-2 gap-x-12">
+    <div className="grid grid-cols-1 md:grid-cols-2 divide-y md:divide-y-0 md:divide-x divide-border">
       {renderDroppable(leftDroppableId, leftFields)}
       {renderDroppable(rightDroppableId, rightFields)}
     </div>
   );
 
+  const headerTitle = title ?? (isSheetMode ? "Sheet Details" : "File Details");
+  const headerSubtitle = isSheetMode ? "(Sheet Information)" : "(Header Information)";
+  const isCompletelyEmpty = effectiveFields.length === 0;
+
   return (
-    <div className="relative group mt-3 file-details-header-box">
-      <div className="border border-border rounded-lg bg-card shadow-sm px-6 py-5">
-        {isSharedDnd ? (
-          dndContent
-        ) : (
-          <DragDropContext onDragEnd={handleDragEnd}>{dndContent}</DragDropContext>
+    <div className="relative group mt-3 mb-4 file-details-header-box overflow-hidden rounded-md border border-border shadow-sm bg-background">
+      {/* Table Header Bar matching TableHeaderRow */}
+      <div className="flex items-center justify-between border-b border-border bg-muted/40 h-10 px-3">
+        <div className="flex items-center gap-2">
+          <span className="text-sm font-extrabold text-foreground/60 uppercase tracking-wider">
+            {headerTitle}
+          </span>
+          {!isFillMode && mode !== "preview" && (
+            <span className="text-xs text-foreground/40 font-normal">
+              {headerSubtitle}
+            </span>
+          )}
+        </div>
+
+        {isEditable && onAdd && (
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={onAdd}
+            className="h-7 px-2.5 text-xs font-semibold gap-1 text-muted-foreground hover:text-foreground hover:bg-muted/50"
+            title={`Add field to ${headerTitle.toLowerCase()}`}
+          >
+            <Plus className="w-3.5 h-3.5" />
+            <span>Add Field</span>
+          </Button>
         )}
       </div>
 
-      {isEditable && onAdd && (
-        <button
-          onClick={onAdd}
-          className="absolute -top-3 -right-3 opacity-0 group-hover:opacity-100 transition-opacity bg-background border border-border shadow-sm rounded-md p-1.5 hover:bg-muted text-muted-foreground hover:text-foreground"
-          title="Add a field to file description"
-        >
-          <Plus className="w-4 h-4" />
-        </button>
+      {/* Table Body Grid */}
+      {isCompletelyEmpty && isSheetMode ? (
+        <div className="py-6 px-4 text-center text-xs text-muted-foreground/60 select-none flex flex-col items-center justify-center gap-2">
+          <span>No sheet details fields yet. Click &ldquo;Add Field&rdquo; above to define metadata (e.g. Department, Period, Prepared By).</span>
+          {isEditable && onAdd && (
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={onAdd}
+              className="h-7 px-3 text-xs gap-1 text-primary border-primary/30 hover:bg-primary/5"
+            >
+              <Plus className="w-3.5 h-3.5" />
+              <span>Add Sheet Details Field</span>
+            </Button>
+          )}
+        </div>
+      ) : isSharedDnd ? (
+        dndContent
+      ) : (
+        <DragDropContext onDragEnd={handleDragEnd}>{dndContent}</DragDropContext>
       )}
     </div>
   );
@@ -892,6 +1131,9 @@ function WorkspaceInner({
           zoomLevel={zoomLevel}
           isTemplateMode={!draftId}
           isSharedDnd={isSharedDnd}
+          draftId={draftId}
+          templateId={templateId}
+          refetchHeaderFields={refetchHeaderFields}
           onDelete={(fieldId) => setFieldToDelete(fieldId)}
           onReorder={async (updates, optimisticState) => {
             queryClient.setQueryData(headerFieldsQueryKey, optimisticState);
@@ -923,7 +1165,7 @@ function WorkspaceInner({
 
         {/* ── Sticky formula bar ── */}
         {mode !== "preview" && (
-          <div className="sticky top-0 z-30 pt-6 pb-4">
+          <div className="sticky top-0 z-30 py-2">
             <TemplateFormulaBar />
           </div>
         )}

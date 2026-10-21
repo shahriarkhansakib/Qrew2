@@ -61,7 +61,7 @@ export function SyntaxOverlay({
   const elements: React.ReactNode[] = [];
   let depth = 0;
 
-  const regex = /(\b[A-Z_][A-Z0-9_]*\b|\(|\))/g;
+  const regex = /(\b[a-zA-Z_][a-zA-Z0-9_]*\b|\(|\))/g;
   let lastIdx = 0;
   let match;
   let keyIdx = 0;
@@ -104,7 +104,7 @@ export function SyntaxOverlay({
       );
     } else {
       const colorClass = getTokenColor ? getTokenColor(token) : "text-violet-400";
-      const isMathFn = (MATH_FUNCTIONS as readonly string[]).includes(token);
+      const isMathFn = (MATH_FUNCTIONS as readonly string[]).includes(token.toUpperCase());
 
       if (isInteractive && !isMathFn) {
         elements.push(
@@ -123,6 +123,15 @@ export function SyntaxOverlay({
             onSwapToken={onSwapToken}
             onTokenClick={onTokenClick}
           />,
+        );
+      } else if (isMathFn) {
+        elements.push(
+          <span
+            key={keyIdx++}
+            className="text-amber-500/90 dark:text-amber-400 font-mono italic lowercase font-medium pointer-events-none"
+          >
+            {token.toLowerCase()}
+          </span>,
         );
       } else {
         elements.push(

@@ -15,6 +15,7 @@ export * from "./clients";
 export * from "./custom_fields";
 export * from "./customers";
 export * from "./expense_categories";
+export * from "./expense-sheets";
 export * from "./expenses";
 // ─── Inventory Module ─────────────────────────────────────────────────────────
 export * from "./inventory-enums";

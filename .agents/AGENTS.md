@@ -238,3 +238,24 @@ stateDiagram-v2
 - **Unified Formula Codec**: All formulas are stored strictly as `{{$tok:UUID}}` (with `_BASE` and `_CHARGES` variants). Legacy tags (`{{$row:}}`, `{{$sec:}}`, `{{$tpl:}}`) and legacy regexes are completely eradicated.
 - **Prefix Hygiene**: Template constants published to the calculation scope strictly strip duplicate prefixes (`bareKey = key.replace(/^TPL_/, "")`), guaranteeing that duplicate `TPL_TPL_*` tokens never pollute scope.
 - **Single-Command Clean Rebuild**: `pnpm --filter @starter/db rebuild` provides an automated end-to-end database wipe (`DROP SCHEMA public CASCADE`), table reconstruction (`drizzle-kit push --force`), trigger installation (`0003_token_triggers.sql`), and clean baseline data seeding (all 89 PBAC permissions, linked Google auth user, org defaults, agency templates, and active client/projects).
+
+## 27. Customizable Sheet Templates, Unified Template Settings, Interactive Column System, & Formula Synchronization (`sheet-builder-workspace.tsx`, `sheet-table-header.tsx`, `sheet-table-row.tsx`, `template-settings-modal.tsx`, `builder-context.tsx`, `use-save-cell.ts`)
+- **Archetype Split (`templateType: "standard" | "sheet"`)**: Templates branch cleanly between standard project-bound formula invoices and general-purpose customizable Excel-style sheet templates (`columnDefinitions`, `cellValues`).
+- **Interactive Column Drag-to-Resize & Inline `+` Insertion**:
+  - Column divider borders feature responsive drag handles (`onMouseDown` + window `mousemove/mouseup`) updating pixel widths (`w: "${finalWidth}px"`).
+  - Hovering between columns (and at index 0 and end) reveals rounded `+` pills to insert new columns at that precise index.
+  - Column header dropdown context menu provides inline controls: Edit Column, Insert Left, Insert Right, and Delete Column.
+- **Unified "Template Settings" Modal Across All Templates**:
+  - The legacy "View" popover and "Columns" modal are unified into a single "Template Settings" button (`template-settings-modal.tsx`).
+  - For standard templates: presents *Presentation & Layout* and *Document & Indexing* tabs.
+  - For sheet templates: adds *Columns & Data* tab (reordering, data types, auto-sum toggles) with zero flex overlap or text clipping.
+- **Single-Variant Flat Tokens for Sheet Templates**:
+  - Sheet templates have no charges. Redundant `_BASE` and `_CHARGES` variants are completely suppressed in the Token Pool, autocomplete, and context. Each row is strictly `ROW_<TOKEN>` and each section is `SEC_<TOKEN>`.
+- **Sheet Details Header Box & Formula Bar Integration**:
+  - Maritime file fields are replaced with **"Sheet Details"** (`FileDetailsHeaderBox` with `isSheetMode: true`), supporting custom metadata fields (Department, Period, Prepared By, Notes) with inline editing, adding/deleting fields, and drag-and-drop reordering.
+  - Sticky `TemplateFormulaBar` is active in sheet mode.
+  - Clicking numeric cells in sheet rows selects them into the formula bar (`columnKey?: string`, `breadcrumb: "${row.label} > ${col.label}"`).
+  - Saving cell values updates `cellValues` and evaluates live mathematical formulas into subtotals and grand totals.
+- **Centered `+ Add row` Position**:
+  - In sheet sections, the `+ Add row` button is centered directly above the section subtotal footer, matching standard templates.
+

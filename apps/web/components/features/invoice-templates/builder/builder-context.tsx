@@ -1,7 +1,8 @@
 "use client";
 
-import { createContext, useCallback, useContext, useMemo, useState } from "react";
+import { createContext, useCallback, useContext, useEffect, useMemo, useState } from "react";
 import { getCircularDependencyTokens, type TokenMap } from "@/lib/formula-evaluator";
+import { TemplateColumnDefinition } from "./sheet-builder/types";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -23,6 +24,8 @@ export type SelectedCell = {
   isSectionCharge?: boolean;
   /** True if this is a catalog item in the Additional Line Items panel. */
   isCatalogItem?: boolean;
+  /** Sheet column key if this cell is in a customizable sheet template */
+  columnKey?: string;
 
   // ── Display ───────────────────────────────────────────────────────────────
   /** Human-readable breadcrumb shown on the left side of the formula bar.
@@ -87,6 +90,9 @@ type BuilderContextValue = {
   setShowSectionHeaders: (show: boolean) => void;
   showSectionSubtotals: boolean;
   setShowSectionSubtotals: (show: boolean) => void;
+  templateType?: "standard" | "sheet";
+  columnDefinitions?: TemplateColumnDefinition[];
+  setColumnDefinitions?: (cols: TemplateColumnDefinition[]) => void;
 };
 
 const DEFAULT_EXTERNAL_TOKENS: ExternalTokens = {
@@ -127,6 +133,9 @@ const BuilderContext = createContext<BuilderContextValue>({
   setShowSectionHeaders: () => {},
   showSectionSubtotals: false,
   setShowSectionSubtotals: () => {},
+  templateType: "standard",
+  columnDefinitions: [],
+  setColumnDefinitions: () => {},
 });
 
 // ─── Provider ─────────────────────────────────────────────────────────────────
@@ -139,6 +148,8 @@ export function BuilderProvider({
   mode = "template",
   invalidateKey,
   validationErrors = [],
+  templateType = "standard",
+  columnDefinitions = [],
   children,
 }: {
   templateId?: string;
@@ -148,9 +159,16 @@ export function BuilderProvider({
   mode?: "template" | "draft" | "preview" | "fill";
   invalidateKey: readonly string[];
   validationErrors?: any[];
+  templateType?: "standard" | "sheet";
+  columnDefinitions?: TemplateColumnDefinition[];
   children: React.ReactNode;
 }) {
   const [selectedCell, setSelectedCell] = useState<SelectedCell | null>(null);
+  const [columns, setColumns] = useState<TemplateColumnDefinition[]>(columnDefinitions);
+
+  useEffect(() => {
+    setColumns(columnDefinitions);
+  }, [columnDefinitions]);
   const [tokenMap, setTokenMapState] = useState<TokenMap>({});
   const [sections, setSectionsState] = useState<any[]>([]);
   const [clipboardToken, setClipboardToken] = useState<string | null>(null);
@@ -220,22 +238,28 @@ export function BuilderProvider({
     const secTotals = new Set<string>();
     const secChargeItems = new Set<string>();
 
+    const isSheet = templateType === "sheet";
+
     for (const sec of sections) {
       if (sec.sectionToken) {
         secTotals.add(`SEC_${sec.sectionToken}`);
-        secBases.add(`SEC_${sec.sectionToken}_BASE`);
-        secChargeTotals.add(`SEC_${sec.sectionToken}_CHARGES`);
-        for (const charge of sec.sectionCharges || []) {
-          secChargeItems.add(charge.chargeToken);
+        if (!isSheet) {
+          secBases.add(`SEC_${sec.sectionToken}_BASE`);
+          secChargeTotals.add(`SEC_${sec.sectionToken}_CHARGES`);
+          for (const charge of sec.sectionCharges || []) {
+            secChargeItems.add(charge.chargeToken);
+          }
         }
       }
       for (const row of sec.rows || []) {
         if (row.rowToken) {
           rowTotals.add(row.rowToken);
-          rowBases.add(`${row.rowToken}_BASE`);
-          rowChargeTotals.add(`${row.rowToken}_CHARGES`);
-          for (const charge of row.charges || []) {
-            rowChargeItems.add(charge.chargeToken);
+          if (!isSheet) {
+            rowBases.add(`${row.rowToken}_BASE`);
+            rowChargeTotals.add(`${row.rowToken}_CHARGES`);
+            for (const charge of row.charges || []) {
+              rowChargeItems.add(charge.chargeToken);
+            }
           }
         }
       }
@@ -473,6 +497,9 @@ export function BuilderProvider({
       setShowSectionHeaders,
       showSectionSubtotals,
       setShowSectionSubtotals,
+      templateType,
+      columnDefinitions: columns,
+      setColumnDefinitions: setColumns,
     }),
     [
       selectedCell,
@@ -501,6 +528,8 @@ export function BuilderProvider({
       sectionSeparation,
       showSectionHeaders,
       showSectionSubtotals,
+      templateType,
+      columns,
     ],
   );
 
@@ -520,25 +549,37 @@ export function cellFromRow({
   sectionId,
   row,
   decodedFormula,
+  columnKey,
+  columnLabel,
 }: {
   templateId: string;
   sectionId: string;
   row: any;
   decodedFormula?: string;
+  columnKey?: string;
+  columnLabel?: string;
 }): SelectedCell {
   const isFormula = row.valueType === "formula";
+  const rowName = row.label || row.rowToken || "Untitled Row";
+  const breadcrumb = columnLabel ? `${rowName} > ${columnLabel}` : rowName;
+
+  const currentVal =
+    columnKey && row.cellValues?.[columnKey] !== undefined
+      ? row.cellValues[columnKey]
+      : row.initialValue;
 
   return {
     templateId,
     sectionId,
     rowId: row.id,
     row,
+    columnKey,
     token: row.rowToken,
-    breadcrumb: row.label || "Untitled Row",
+    breadcrumb,
     valueType: isFormula ? "formula" : "normal",
     currentInput: isFormula
       ? `${decodedFormula ?? row.formula ?? ""}`
-      : String(row.initialValue ?? ""),
+      : String(currentVal ?? ""),
   };
 }
 

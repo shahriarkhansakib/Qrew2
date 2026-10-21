@@ -31,6 +31,21 @@ export interface TemplateOptionalRow {
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
+// CUSTOMIZABLE SHEET TEMPLATE COLUMN DEFINITION
+// ─────────────────────────────────────────────────────────────────────────────
+export interface TemplateColumnDefinition {
+  id: string; // Column UUID
+  key: string; // Unique key within template (e.g. "col_date", "col_desc", "col_amount")
+  label: string; // Displayed header heading (e.g. "Date", "Description", "Cost")
+  dataType: "serial" | "date" | "text" | "number" | "select";
+  width?: string; // CSS width class or styling width (e.g. "w-16", "w-36", "flex-1")
+  align?: "left" | "center" | "right";
+  options?: string[]; // Allowed dropdown options if dataType === "select"
+  isTotaled?: boolean; // For "number" dataType: auto-sum in section footer & grand total
+  defaultValue?: any;
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
 // INVOICE TEMPLATES
 // ─────────────────────────────────────────────────────────────────────────────
 export const invoiceTemplates = pgTable(
@@ -45,6 +60,11 @@ export const invoiceTemplates = pgTable(
     documentPrefix: text("document_prefix").default("INV").notNull(),
     numberingFormat: text("numbering_format").default("{PREFIX}-{YYYY}-{SEQ:4}").notNull(),
     scope: templateScopeEnum("scope").default("organization").notNull(),
+    templateType: text("template_type").default("standard").notNull(),
+    columnDefinitions: jsonb("column_definitions")
+      .$type<TemplateColumnDefinition[]>()
+      .default(sql`'[]'::jsonb`)
+      .notNull(),
     currency: text("currency").default("USD").notNull(),
     version: integer("version").default(1).notNull(),
     isArchived: boolean("is_archived").default(false).notNull(),
@@ -118,6 +138,10 @@ export const templateRows = pgTable(
     formula: text("formula"),
     /** Pre-fill value for manual entry rows. Stored as numeric string. */
     initialValue: numeric("initial_value", { precision: 20, scale: 6 }),
+    cellValues: jsonb("cell_values")
+      .$type<Record<string, any>>()
+      .default(sql`'{}'::jsonb`)
+      .notNull(),
     createdAt: timestamp("created_at", { mode: "date" }).defaultNow().notNull(),
     updatedAt: timestamp("updated_at", { mode: "date" })
       .defaultNow()

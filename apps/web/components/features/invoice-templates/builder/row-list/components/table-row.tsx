@@ -2,6 +2,7 @@ import { AlertTriangle, Edit2 } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { cn } from "@/lib/utils";
 import { useBuilderContext } from "../../builder-context";
 import { SyntaxOverlay } from "../../formula-bar-syntax";
@@ -237,13 +238,50 @@ export function TableRow({
           }
         >
           <div className="flex items-center gap-1.5">
-            {isInvalid && (
-              <span
-                className="text-accent-foreground flex items-center text-[10px] font-sans font-medium shrink-0"
-                title={disabledReason || "Creates circular dependency"}
-              >
-                <AlertTriangle className="w-3.5 h-3.5 mr-0.5 shrink-0" />
-              </span>
+            {(isInvalid || (notices && notices.length > 0)) && (
+              <Popover>
+                <PopoverTrigger asChild>
+                  <button
+                    type="button"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                    }}
+                    className="p-0.5 rounded hover:bg-muted text-amber-500 hover:text-amber-400 cursor-pointer shrink-0 transition-colors pointer-events-auto"
+                    title="View warnings and errors"
+                  >
+                    <AlertTriangle className="w-3.5 h-3.5 shrink-0" />
+                  </button>
+                </PopoverTrigger>
+                <PopoverContent
+                  side="top"
+                  align="start"
+                  className="w-72 p-3 border-amber-500/30 shadow-xl z-[100]"
+                  onClick={(e) => e.stopPropagation()}
+                >
+                  <div className="flex items-start gap-2">
+                    <AlertTriangle className="w-4 h-4 text-amber-500 shrink-0 mt-0.5" />
+                    <div>
+                      <p className="text-xs font-semibold text-amber-500 mb-1">
+                        {isInvalid ? "Circular Dependency / Token Issue" : "Validation Warnings"}
+                      </p>
+                      {disabledReason && (
+                        <p className="text-xs text-muted-foreground leading-relaxed">
+                          {disabledReason}
+                        </p>
+                      )}
+                      {notices && notices.length > 0 && (
+                        <ul className="space-y-1 mt-1">
+                          {notices.map((n: any, i: number) => (
+                            <li key={i} className="text-xs text-muted-foreground leading-relaxed">
+                              {n.message || n.error || "Formula or evaluation issue"}
+                            </li>
+                          ))}
+                        </ul>
+                      )}
+                    </div>
+                  </div>
+                </PopoverContent>
+              </Popover>
             )}
             {onEditToken && !isFormulaMode && !isFillMode && (
               <Button

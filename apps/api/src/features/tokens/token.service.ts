@@ -39,6 +39,7 @@ export interface CreateRowTokenInput {
   valueType?: "normal" | "formula";
   formula?: string | null;
   initialValue?: string | null;
+  cellValues?: Record<string, any>;
   organizationId: string;
   sortOrder?: number;
 }
@@ -238,6 +239,7 @@ export class TokenService {
         valueType: input.valueType ?? "normal",
         formula: input.formula ?? null,
         initialValue: input.initialValue ?? null,
+        cellValues: input.cellValues ?? {},
       })
       .returning();
 

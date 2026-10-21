@@ -33,10 +33,12 @@ function InlineCatalogLabel({
   value,
   subDescription,
   onSave,
+  isReadOnly = false,
 }: {
   value: string;
   subDescription?: string | null;
   onSave: (newLabel: string, newDesc?: string | null) => void;
+  isReadOnly?: boolean;
 }) {
   const [editing, setEditing] = useState(false);
   const [draftLabel, setDraftLabel] = useState(value);
@@ -58,6 +60,16 @@ function InlineCatalogLabel({
       onSave(trimmedLabel, subDescription);
     }
   };
+
+  if (isReadOnly) {
+    return (
+      <div className="min-w-0 w-full select-none">
+        <span className="font-medium text-xs text-foreground truncate leading-snug block">
+          {value}
+        </span>
+      </div>
+    );
+  }
 
   if (editing) {
     return (
@@ -124,7 +136,10 @@ export function AdditionalLineItemsPool({
     selectedCell,
     setSelectedCell,
     setSidebarTab,
+    mode,
   } = useBuilderContext();
+
+  const isFillMode = mode === "fill";
 
   const [searchQuery, setSearchQuery] = useState("");
   const [isAddModalOpen, setIsAddModalOpen] = useState(false);
@@ -307,7 +322,9 @@ export function AdditionalLineItemsPool({
                     No additional line items yet
                   </span>
                   <p className="text-[11px] max-w-[220px]">
-                    Drag any row from the table here to save it, or click "+ Add Line Item" below.
+                    {isFillMode
+                      ? "No additional line items available in this template."
+                      : 'Drag any row from the table here to save it, or click "+ Add Line Item" below.'}
                   </p>
                 </div>
               ) : (
@@ -368,6 +385,7 @@ export function AdditionalLineItemsPool({
                             <InlineCatalogLabel
                               value={item.label}
                               subDescription={item.subDescription}
+                              isReadOnly={isFillMode}
                               onSave={(newLabel, newDesc) =>
                                 updateMutation.mutate({
                                   idOrToken: item.id || item.rowToken,
@@ -376,43 +394,46 @@ export function AdditionalLineItemsPool({
                               }
                             />
 
-                            {/* Hover Action Buttons: strictly Edit and Delete (No Quick Add button) */}
-                            <div className="absolute right-0 top-0 bottom-0 flex items-center pr-1 pl-6 opacity-0 group-hover/labelcell:opacity-100 group-hover:opacity-100 transition-opacity z-10 bg-gradient-to-l from-background via-background/95 to-transparent">
-                              <div className="flex items-center gap-0.5 bg-background rounded border border-border/60 shadow-xs p-0.5">
-                                <Button
-                                  variant="ghost"
-                                  size="icon"
-                                  className="h-5 w-5 text-muted-foreground hover:text-foreground hover:bg-muted transition-colors"
-                                  onClick={(e) => {
-                                    e.stopPropagation();
-                                    setEditingItem(item);
-                                    setIsAddModalOpen(true);
-                                  }}
-                                  title="Edit token"
-                                >
-                                  <Edit2 className="w-3 h-3" />
-                                </Button>
-                                <Button
-                                  variant="ghost"
-                                  size="icon"
-                                  className="h-5 w-5 text-muted-foreground hover:text-destructive hover:bg-destructive/10 transition-colors"
-                                  onClick={(e) => {
-                                    e.stopPropagation();
-                                    setItemToDelete(item);
-                                  }}
-                                  title="Delete from catalog"
-                                >
-                                  <Trash2 className="w-3 h-3" />
-                                </Button>
+                            {/* Hover Action Buttons: strictly Edit and Delete (Only in Edit/Builder Mode) */}
+                            {!isFillMode && (
+                              <div className="absolute right-0 top-0 bottom-0 flex items-center pr-1 pl-6 opacity-0 group-hover/labelcell:opacity-100 group-hover:opacity-100 transition-opacity z-10 bg-gradient-to-l from-background via-background/95 to-transparent">
+                                <div className="flex items-center gap-0.5 bg-background rounded border border-border/60 shadow-xs p-0.5">
+                                  <Button
+                                    variant="ghost"
+                                    size="icon"
+                                    className="h-5 w-5 text-muted-foreground hover:text-foreground hover:bg-muted transition-colors"
+                                    onClick={(e) => {
+                                      e.stopPropagation();
+                                      setEditingItem(item);
+                                      setIsAddModalOpen(true);
+                                    }}
+                                    title="Edit token"
+                                  >
+                                    <Edit2 className="w-3 h-3" />
+                                  </Button>
+                                  <Button
+                                    variant="ghost"
+                                    size="icon"
+                                    className="h-5 w-5 text-muted-foreground hover:text-destructive hover:bg-destructive/10 transition-colors"
+                                    onClick={(e) => {
+                                      e.stopPropagation();
+                                      setItemToDelete(item);
+                                    }}
+                                    title="Delete from catalog"
+                                  >
+                                    <Trash2 className="w-3 h-3" />
+                                  </Button>
+                                </div>
                               </div>
-                            </div>
+                            )}
                           </div>
 
                           {/* 4. USD / Rate cell (Clickable to open Formula Bar in Token Mode) */}
                           <div
-                            role="button"
-                            tabIndex={0}
+                            role={isFillMode ? undefined : "button"}
+                            tabIndex={isFillMode ? undefined : 0}
                             onClick={(e) => {
+                              if (isFillMode) return;
                               e.stopPropagation();
                               const isFormula =
                                 item.valueType === "formula" || Boolean(item.formula);
@@ -440,13 +461,18 @@ export function AdditionalLineItemsPool({
                             }}
                             className={cn(
                               "w-20 shrink-0 flex items-center justify-end px-2 font-mono text-xs font-bold text-foreground tabular-nums select-none",
-                              "cursor-pointer rounded-xs transition-all duration-100",
-                              "hover:ring-1 hover:ring-primary/40 hover:bg-primary/5",
+                              !isFillMode &&
+                                "cursor-pointer rounded-xs transition-all duration-100 hover:ring-1 hover:ring-primary/40 hover:bg-primary/5",
+                              isFillMode && "cursor-default",
                               selectedCell?.isCatalogItem &&
                                 selectedCell?.rowId === (item.id || item.rowToken) &&
                                 "ring-2 ring-primary/60 bg-primary/10",
                             )}
-                            title="Click to edit formula / rate (opens formula bar)"
+                            title={
+                              isFillMode
+                                ? undefined
+                                : "Click to edit formula / rate (opens formula bar)"
+                            }
                           >
                             {item.valueType === "formula" || item.formula ? (
                               <span
@@ -472,20 +498,22 @@ export function AdditionalLineItemsPool({
           )}
         </Droppable>
 
-        {/* ── Sticky Clamped + Add Line Item Button (directly below when short, pinned when scrolling) ── */}
-        <div className="sticky bottom-0 z-20 mt-2 pt-2 pb-1 bg-gradient-to-t from-background via-background/95 to-transparent shrink-0">
-          <Button
-            variant="ghost"
-            size="sm"
-            className="w-full h-8 text-xs text-muted-foreground hover:text-foreground border border-dashed border-border/80 hover:border-primary/50 bg-background/80 shadow-xs backdrop-blur-xs transition-all"
-            onClick={() => {
-              setEditingItem(null);
-              setIsAddModalOpen(true);
-            }}
-          >
-            <Plus className="h-3.5 w-3.5 mr-1.5" /> Add Line Item
-          </Button>
-        </div>
+        {/* ── Sticky Clamped + Add Line Item Button (Only in Edit/Builder Mode) ── */}
+        {!isFillMode && (
+          <div className="sticky bottom-0 z-20 mt-2 pt-2 pb-1 bg-gradient-to-t from-background via-background/95 to-transparent shrink-0">
+            <Button
+              variant="ghost"
+              size="sm"
+              className="w-full h-8 text-xs text-muted-foreground hover:text-foreground border border-dashed border-border/80 hover:border-primary/50 bg-background/80 shadow-xs backdrop-blur-xs transition-all"
+              onClick={() => {
+                setEditingItem(null);
+                setIsAddModalOpen(true);
+              }}
+            >
+              <Plus className="h-3.5 w-3.5 mr-1.5" /> Add Line Item
+            </Button>
+          </div>
+        )}
       </div>
 
       {/* ── Unified Add / Edit Line Item Modal ── */}

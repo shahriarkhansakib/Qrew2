@@ -22,12 +22,13 @@ import {
   Pencil,
   Printer,
   RefreshCw,
+  RotateCcw,
   Trash2,
   X,
 } from "lucide-react";
 import Link from "next/link";
 import { useParams, useRouter } from "next/navigation";
-import { useCallback, useState } from "react";
+import { useCallback, useRef, useState } from "react";
 import { toast } from "sonner";
 import { Can } from "@/components/features/auth/can";
 // --- TEMPLATE BUILDER IMPORTS ---
@@ -74,10 +75,26 @@ export default function DraftBuilderPage() {
   const [builderScale, setBuilderScale] = useState<number>(1);
   const [poolWidth, setPoolWidth] = useState(320);
 
+  const lastStudioOpenBeforePreviewRef = useRef<boolean>(true);
+
+  const switchMode = useCallback(
+    (newMode: "fill" | "builder" | "preview") => {
+      if (newMode === "preview") {
+        lastStudioOpenBeforePreviewRef.current = tokenPoolOpen;
+        setTokenPoolOpen(false);
+      } else if (draftMode === "preview") {
+        if (lastStudioOpenBeforePreviewRef.current) {
+          setTokenPoolOpen(true);
+        }
+      }
+      setDraftMode(newMode);
+    },
+    [draftMode, tokenPoolOpen],
+  );
+
   const handleEnterPreview = useCallback(() => {
-    setDraftMode("preview");
-    setTokenPoolOpen(false);
-  }, []);
+    switchMode("preview");
+  }, [switchMode]);
 
   // 1. Fetch draft
   const { data: draft, isLoading: draftLoading } = useQuery({
@@ -121,6 +138,7 @@ export default function DraftBuilderPage() {
       overrides,
       draft?.draftSections?.length,
       draft?.draftConstants,
+      draft?.draftHeaderValues,
     ],
     queryFn: async () => {
       if (!draft) return null;
@@ -203,6 +221,18 @@ export default function DraftBuilderPage() {
       window.location.href = "/dashboard/invoices";
     },
     onError: (err: any) => toast.error(err.message),
+  });
+
+  const resetMutation = useMutation({
+    mutationFn: () => invoiceApi.resetDraftToInitial(draftId),
+    onSuccess: (data) => {
+      queryClient.setQueryData(["invoice-draft", draftId], data.draft);
+      queryClient.invalidateQueries({ queryKey: ["invoice-draft", draftId] });
+      queryClient.invalidateQueries({ queryKey: ["draft-preview", draftId] });
+      queryClient.invalidateQueries({ queryKey: invoiceKeys.drafts.syncStatus(draftId) });
+      toast.success("Draft reset to initial template state");
+    },
+    onError: (err: any) => toast.error(err.message || "Failed to reset draft"),
   });
 
   const _handleOverrideChange = useCallback((rowToken: string, value: string) => {
@@ -339,6 +369,52 @@ export default function DraftBuilderPage() {
                   </h1>
                 )}
 
+                {/* Reset Draft to Initial State Button with confirmation modal */}
+                <Can
+                  I={["invoice:fill_values", "invoice:author_formulas", "finance:manage_invoices"]}
+                >
+                  <AlertDialog>
+                    <AlertDialogTrigger asChild>
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        className="h-6 w-6 text-muted-foreground/50 hover:text-amber-500 hover:bg-amber-500/10 shrink-0 rounded transition-colors"
+                        disabled={resetMutation.isPending || deleteMutation.isPending}
+                        title="Reset Draft to Initial Template State"
+                      >
+                        <RotateCcw
+                          className={cn("h-3.5 w-3.5", resetMutation.isPending && "animate-spin")}
+                        />
+                      </Button>
+                    </AlertDialogTrigger>
+                    <AlertDialogContent>
+                      <AlertDialogHeader>
+                        <AlertDialogTitle>Reset Draft to Initial State?</AlertDialogTitle>
+                        <AlertDialogDescription>
+                          This will discard all line item, rate, formula, and header changes in this
+                          draft, and restore it back to the exact initial state from the master
+                          template and file data. This action cannot be undone.
+                        </AlertDialogDescription>
+                      </AlertDialogHeader>
+                      <AlertDialogFooter>
+                        <AlertDialogCancel disabled={resetMutation.isPending}>
+                          Cancel
+                        </AlertDialogCancel>
+                        <AlertDialogAction
+                          disabled={resetMutation.isPending}
+                          className="bg-amber-600 hover:bg-amber-700 text-white font-semibold focus:ring-amber-600"
+                          onClick={(e) => {
+                            e.preventDefault();
+                            resetMutation.mutate();
+                          }}
+                        >
+                          {resetMutation.isPending ? "Resetting..." : "Reset to Initial State"}
+                        </AlertDialogAction>
+                      </AlertDialogFooter>
+                    </AlertDialogContent>
+                  </AlertDialog>
+                </Can>
+
                 {/* Delete Draft Button beside draft's name with confirmation modal */}
                 <Can I={["invoice:delete", "finance:manage_invoices"]}>
                   <AlertDialog>
@@ -426,7 +502,7 @@ export default function DraftBuilderPage() {
                       title={`Master template was updated (v${syncStatus.templateVersion}). Click to review and sync.`}
                     >
                       <RefreshCw className="w-2.5 h-2.5" />
-                      <span>Sync v${syncStatus.templateVersion}</span>
+                      <span>Sync v{syncStatus.templateVersion}</span>
                     </Button>
                   )}
                 </div>
@@ -441,7 +517,7 @@ export default function DraftBuilderPage() {
               {/* 1. Fill */}
               <button
                 type="button"
-                onClick={() => setDraftMode("fill")}
+                onClick={() => switchMode("fill")}
                 className={cn(
                   "flex items-center justify-center px-3.5 py-1.5 rounded-md font-medium transition-all text-xs min-w-[62px]",
                   draftMode === "fill"
@@ -457,7 +533,7 @@ export default function DraftBuilderPage() {
               <Can I={["invoice:author_formulas", "finance:manage_invoices"]}>
                 <button
                   type="button"
-                  onClick={() => setDraftMode("builder")}
+                  onClick={() => switchMode("builder")}
                   className={cn(
                     "flex items-center justify-center px-3.5 py-1.5 rounded-md font-medium transition-all text-xs min-w-[62px]",
                     draftMode === "builder"
@@ -807,10 +883,16 @@ export default function DraftBuilderPage() {
                 const headerFields: any[] =
                   queryClient.getQueryData(["draft-header-fields", draftId]) || [];
                 const leftFields = headerFields
-                  .filter((f) => f.columnPosition === "left")
+                  .filter(
+                    (f, idx) =>
+                      f.columnPosition === "left" || (!f.columnPosition && idx % 2 === 0),
+                  )
                   .sort((a, b) => a.sortOrder - b.sortOrder);
                 const rightFields = headerFields
-                  .filter((f) => f.columnPosition === "right")
+                  .filter(
+                    (f, idx) =>
+                      f.columnPosition === "right" || (!f.columnPosition && idx % 2 !== 0),
+                  )
                   .sort((a, b) => a.sortOrder - b.sortOrder);
 
                 const sourceList = sourceCol === "left" ? leftFields : rightFields;

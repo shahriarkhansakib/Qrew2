@@ -756,13 +756,13 @@ export class DraftsController {
 
       const isVersionDrifted = templateVersion > draftVersion;
       const isTimeDrifted = templateUpdatedAt > draftCreatedAt;
-      const hasTemplateDrift = isVersionDrifted || isTimeDrifted;
+      const candidateDrift = isVersionDrifted || isTimeDrifted;
 
       const formulaUpdates: string[] = [];
       const addedRows: string[] = [];
       const addedSections: string[] = [];
 
-      if (hasTemplateDrift) {
+      if (candidateDrift) {
         try {
           const hydrated = await DraftSeeder.hydrateFromTemplate(
             template.id,
@@ -804,6 +804,11 @@ export class DraftsController {
           console.error("[getTemplateSyncStatus] Failed to compute detailed diff", diffErr);
         }
       }
+
+      const totalStructuralChanges =
+        formulaUpdates.length + addedRows.length + addedSections.length;
+      // Real drift requires higher template version OR actual detected structural/formula changes
+      const hasTemplateDrift = isVersionDrifted || totalStructuralChanges > 0;
 
       return c.json({
         hasTemplateDrift,
@@ -969,6 +974,78 @@ export class DraftsController {
     } catch (err: any) {
       console.error("[DraftsController.syncWithTemplate]", err);
       return c.json({ error: "Failed to sync draft with template", message: err.message }, 500);
+    }
+  }
+
+  /**
+   * Resets a draft completely back to its initial state from the master template and file/project data.
+   */
+  static async resetToTemplateInitial(c: Context) {
+    const draftId = c.req.param("id");
+    const organizationId = c.get("organizationId");
+    const user = c.get("user");
+
+    if (!draftId) return c.json({ error: "Draft ID required" }, 400);
+
+    try {
+      const [draft] = await db
+        .select()
+        .from(invoiceDrafts)
+        .where(
+          and(eq(invoiceDrafts.id, draftId), eq(invoiceDrafts.organizationId, organizationId)),
+        )
+        .limit(1);
+
+      if (!draft) return c.json({ error: "Draft not found" }, 404);
+      if (!draft.sourceTemplateId) {
+        return c.json({ error: "This draft is not linked to any source template." }, 400);
+      }
+
+      const [template] = await db
+        .select()
+        .from(invoiceTemplates)
+        .where(
+          and(
+            eq(invoiceTemplates.id, draft.sourceTemplateId),
+            eq(invoiceTemplates.organizationId, organizationId),
+          ),
+        )
+        .limit(1);
+
+      if (!template) return c.json({ error: "Master template not found" }, 404);
+
+      // Hydrate fresh initial state from the master template and project
+      const hydrated = await DraftSeeder.hydrateFromTemplate(
+        template.id,
+        draft.projectId,
+        organizationId,
+      );
+
+      const resetAction = `Reset draft to initial state from template "${template.name}" (v${template.version})`;
+      const updatedAudit = appendAuditEntry(draft.editHistory || [], user, resetAction);
+
+      const [updated] = await db
+        .update(invoiceDrafts)
+        .set({
+          draftSections: hydrated.draftSections,
+          draftConstants: hydrated.draftConstants,
+          draftHeaderValues: hydrated.draftHeaderValues,
+          draftHeaderFields: hydrated.draftHeaderFields,
+          sourceTemplateVersion: template.version,
+          editHistory: updatedAudit,
+          lastAutoSavedAt: new Date(),
+        })
+        .where(eq(invoiceDrafts.id, draft.id))
+        .returning();
+
+      return c.json({
+        success: true,
+        message: "Successfully reset draft to initial template state",
+        draft: updated,
+      });
+    } catch (err: any) {
+      console.error("[DraftsController.resetToTemplateInitial]", err);
+      return c.json({ error: "Failed to reset draft", message: err.message }, 500);
     }
   }
 }

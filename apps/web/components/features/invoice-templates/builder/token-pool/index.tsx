@@ -523,7 +523,8 @@ export function TemplateTokenPool({
     ? ["draft-sections", draftId]
     : ["template-sections", templateId];
 
-  const { selectedCell, setClipboardToken, sidebarTab, setSidebarTab, mode } = useBuilderContext();
+  const { selectedCell, setClipboardToken, sidebarTab, setSidebarTab, mode, templateType } =
+    useBuilderContext();
   const currentTab = propActiveTab ?? sidebarTab;
   const handleTabChange = propOnTabChange ?? setSidebarTab;
 
@@ -1332,13 +1333,15 @@ export function TemplateTokenPool({
               setConstantToDelete={setConstantToDelete}
               setShowLegend={setShowLegend}
             />
-            <FileDetailsSection
-              allFileFields={allFileFields}
-              getFileToken={getFileToken}
-              tokenZoomLevel={tokenZoomLevel}
-              handleTokenClick={handleTokenClick}
-              setShowLegend={setShowLegend}
-            />
+            {templateType !== "sheet" && (
+              <FileDetailsSection
+                allFileFields={allFileFields}
+                getFileToken={getFileToken}
+                tokenZoomLevel={tokenZoomLevel}
+                handleTokenClick={handleTokenClick}
+                setShowLegend={setShowLegend}
+              />
+            )}
             <ExpenseCategoriesSection
               categories={expenseCategories || []}
               tokenZoomLevel={tokenZoomLevel}

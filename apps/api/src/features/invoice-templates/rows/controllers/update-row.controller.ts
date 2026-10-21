@@ -32,6 +32,7 @@ const updateRowSchema = z.object({
   valueType: z.enum(["normal", "formula"]).optional(),
   formula: z.string().optional().nullable(),
   initialValue: z.number().optional().nullable(),
+  cellValues: z.record(z.string(), z.any()).optional(),
   sectionId: z.string().min(1).optional(),
 });
 
@@ -123,6 +124,10 @@ export async function updateRow(c: Context): Promise<any> {
     if (parsed.data.initialValue != null) rowPatch.formula = null;
   }
 
+  if (parsed.data.cellValues !== undefined) {
+    rowPatch.cellValues = parsed.data.cellValues;
+  }
+
   if (parsed.data.sectionId && parsed.data.sectionId !== existingRow.sectionId) {
     const secCheck = await db
       .select({ id: templateSections.id })
@@ -171,6 +176,7 @@ export async function updateRow(c: Context): Promise<any> {
           valueType: templateRows.valueType,
           formula: templateRows.formula,
           initialValue: templateRows.initialValue,
+          cellValues: templateRows.cellValues,
           rowToken: tokens.tokenKey,
           label: tokens.label,
           description: tokens.description,

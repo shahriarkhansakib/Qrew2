@@ -10,6 +10,8 @@ const createTemplateSchema = z.object({
   description: z.string().optional(),
   documentPrefix: z.string().optional().default("INV"),
   numberingFormat: z.string().optional().default("{PREFIX}-{YYYY}-{SEQ:4}"),
+  templateType: z.enum(["standard", "sheet"]).optional().default("standard"),
+  columnDefinitions: z.array(z.any()).optional(),
 });
 
 const updateTemplateSchema = z.object({
@@ -17,6 +19,8 @@ const updateTemplateSchema = z.object({
   description: z.string().optional(),
   documentPrefix: z.string().optional(),
   numberingFormat: z.string().optional(),
+  templateType: z.enum(["standard", "sheet"]).optional(),
+  columnDefinitions: z.array(z.any()).optional(),
   optionalRows: z.array(z.any()).optional(),
 });
 
@@ -69,6 +73,49 @@ export class InvoiceTemplatesController {
     if (!parsed.success) return c.json({ error: parsed.error }, 400);
 
     const templateId = crypto.randomUUID();
+    const templateType = parsed.data.templateType || "standard";
+    const defaultSheetColumns = [
+      {
+        id: crypto.randomUUID(),
+        key: "col_serial",
+        label: "SL",
+        dataType: "serial",
+        width: "w-14",
+        align: "center",
+      },
+      {
+        id: crypto.randomUUID(),
+        key: "col_date",
+        label: "Date",
+        dataType: "date",
+        width: "w-36",
+        align: "left",
+      },
+      {
+        id: crypto.randomUUID(),
+        key: "col_desc",
+        label: "Description",
+        dataType: "text",
+        width: "flex-1",
+        align: "left",
+      },
+      {
+        id: crypto.randomUUID(),
+        key: "col_amount",
+        label: "Amount",
+        dataType: "number",
+        width: "w-36",
+        align: "right",
+        isTotaled: true,
+      },
+    ];
+
+    const columnDefinitions =
+      templateType === "sheet"
+        ? parsed.data.columnDefinitions && parsed.data.columnDefinitions.length > 0
+          ? parsed.data.columnDefinitions
+          : defaultSheetColumns
+        : [];
 
     const [newTemplate] = await db
       .insert(invoiceTemplates)
@@ -79,9 +126,41 @@ export class InvoiceTemplatesController {
         description: parsed.data.description,
         documentPrefix: parsed.data.documentPrefix,
         numberingFormat: parsed.data.numberingFormat,
+        templateType,
+        columnDefinitions,
         createdByUserId: user.id,
       })
       .returning();
+
+    if (templateType === "sheet") {
+      // Seed default section for sheet templates (e.g. "Expenses")
+      const secId = crypto.randomUUID();
+      await TokenService.createSectionToken({
+        id: secId,
+        templateId,
+        sectionToken: "SECTION_1",
+        label: "Expenses",
+        organizationId,
+        sortOrder: 0,
+      });
+
+      // Seed initial blank row with auto-generated token
+      await TokenService.createRowToken({
+        id: crypto.randomUUID(),
+        templateId,
+        sectionId: secId,
+        rowToken: `ROW_${crypto.randomUUID().replace(/-/g, "").slice(0, 8).toUpperCase()}`,
+        label: "Expense item 1",
+        organizationId,
+        sortOrder: 0,
+        cellValues: {
+          col_desc: "General Expense",
+          col_amount: 0,
+        },
+      });
+
+      return c.json(newTemplate, 201);
+    }
 
     // Seed default system fields for the template header
     const systemFields = [
@@ -340,6 +419,29 @@ export class InvoiceTemplatesController {
       (r) => r.id === optionalRowId || r.rowToken === optionalRowId,
     );
     return c.json(updatedRow || { success: true });
+  }
+
+  static async updateColumns(c: Context) {
+    const id = c.req.param("id") as string;
+    const organizationId = c.get("organizationId");
+    if (!organizationId) return c.json({ error: "Unauthorized" }, 401);
+
+    const body = await c.req.json();
+    const columns = body.columnDefinitions || body.columns || [];
+    if (!Array.isArray(columns)) return c.json({ error: "Invalid columns payload" }, 400);
+
+    const [updated] = await db
+      .update(invoiceTemplates)
+      .set({
+        columnDefinitions: columns,
+        version: sql`${invoiceTemplates.version} + 1`,
+        updatedAt: new Date(),
+      })
+      .where(and(eq(invoiceTemplates.id, id), eq(invoiceTemplates.organizationId, organizationId)))
+      .returning();
+
+    if (!updated) return c.json({ error: "Template not found" }, 404);
+    return c.json(updated);
   }
 }
 

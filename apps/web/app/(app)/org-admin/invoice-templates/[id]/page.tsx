@@ -2,15 +2,16 @@
 
 import { DragDropContext, DropResult } from "@hello-pangea/dnd";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { ArrowLeft, PanelRightClose, PanelRightOpen } from "lucide-react";
+import { ArrowLeft, PanelRightClose, PanelRightOpen, SlidersHorizontal } from "lucide-react";
 import { useParams, useRouter } from "next/navigation";
 import { useState } from "react";
 import { toast } from "sonner";
 import { BuilderProvider } from "@/components/features/invoice-templates/builder/builder-context";
-import { SectionViewOptionsPopover } from "@/components/features/invoice-templates/builder/section-view-options";
+import { SheetBuilderWorkspace } from "@/components/features/invoice-templates/builder/sheet-builder/sheet-builder-workspace";
 import { TemplateBuilderWorkspace } from "@/components/features/invoice-templates/builder/template-builder-workspace";
 import { TemplateOptionalRowsModal } from "@/components/features/invoice-templates/builder/template-optional-rows-modal";
 import { TemplatePreviewModal } from "@/components/features/invoice-templates/builder/template-preview-modal";
+import { TemplateSettingsModal } from "@/components/features/invoice-templates/builder/template-settings-modal";
 import { TemplateTokenPool } from "@/components/features/invoice-templates/builder/token-pool";
 import { invoiceApi } from "@/components/features/invoices/shared/invoice-api";
 import { invoiceKeys } from "@/components/features/invoices/shared/invoice-keys";
@@ -30,6 +31,7 @@ export default function TemplateBuilderPage() {
   const [poolWidth, setPoolWidth] = useState(320);
   const [previewOpen, setPreviewOpen] = useState(false);
   const [optionalRowsModalOpen, setOptionalRowsModalOpen] = useState(false);
+  const [settingsModalOpen, setSettingsModalOpen] = useState(false);
 
   const { data: catalog = [] } = useQuery({
     queryKey: invoiceKeys.optionalRows.byTemplate(templateId),
@@ -123,6 +125,8 @@ export default function TemplateBuilderPage() {
       templateId={templateId}
       apiBasePath={`${apiUrl}/api/invoice-templates/${templateId}`}
       invalidateKey={["template-sections", templateId]}
+      templateType={template.templateType}
+      columnDefinitions={template.columnDefinitions}
     >
       <div className="flex flex-col h-[calc(100vh-65px)] -m-4 md:-m-6 lg:-m-8">
         {/* ── Header bar ──────────────────────────────────────────────────── */}
@@ -179,8 +183,17 @@ export default function TemplateBuilderPage() {
             </Button>
           </div>
 
-          {/* Section View Options Popover (Outside table in the top bar!) */}
-          <SectionViewOptionsPopover className="ml-2" />
+          {/* Unified Template Settings Button (Layout, View, Columns, Numbering) */}
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => setSettingsModalOpen(true)}
+            className="shrink-0 gap-1.5 text-xs h-8 ml-2 text-muted-foreground hover:text-foreground border-border select-none"
+            title="Configure Template Settings (Layout, View, Columns, Numbering)"
+          >
+            <SlidersHorizontal className="h-3.5 w-3.5 text-primary" />
+            <span>Template Settings</span>
+          </Button>
 
           {/* Preview Button */}
           <Button
@@ -518,10 +531,14 @@ export default function TemplateBuilderPage() {
               const headerFields: any[] =
                 queryClient.getQueryData(["template-header-fields", templateId]) || [];
               const leftFields = headerFields
-                .filter((f) => f.columnPosition === "left")
+                .filter(
+                  (f, idx) => f.columnPosition === "left" || (!f.columnPosition && idx % 2 === 0),
+                )
                 .sort((a, b) => a.sortOrder - b.sortOrder);
               const rightFields = headerFields
-                .filter((f) => f.columnPosition === "right")
+                .filter(
+                  (f, idx) => f.columnPosition === "right" || (!f.columnPosition && idx % 2 !== 0),
+                )
                 .sort((a, b) => a.sortOrder - b.sortOrder);
 
               const sourceList = sourceCol === "left" ? leftFields : rightFields;
@@ -587,7 +604,21 @@ export default function TemplateBuilderPage() {
                 } as React.CSSProperties
               }
             >
-              <TemplateBuilderWorkspace templateId={templateId} zoomLevel={0} isSharedDnd={true} />
+              {template.templateType === "sheet" ? (
+                <SheetBuilderWorkspace
+                  templateId={templateId}
+                  zoomLevel={0}
+                  columns={template.columnDefinitions || []}
+                  onConfigureColumns={() => setSettingsModalOpen(true)}
+                  isSharedDnd={true}
+                />
+              ) : (
+                <TemplateBuilderWorkspace
+                  templateId={templateId}
+                  zoomLevel={0}
+                  isSharedDnd={true}
+                />
+              )}
             </div>
 
             {/* Studio Sidebar (Token Pool / Additional Line Items) */}
@@ -648,6 +679,22 @@ export default function TemplateBuilderPage() {
             isOpen={optionalRowsModalOpen}
             onClose={() => setOptionalRowsModalOpen(false)}
             templateId={templateId}
+          />
+        )}
+
+        {settingsModalOpen && (
+          <TemplateSettingsModal
+            isOpen={settingsModalOpen}
+            onClose={() => setSettingsModalOpen(false)}
+            template={template}
+            columns={template.columnDefinitions || []}
+            onSaveColumns={async (newColumns) => {
+              await invoiceApi.updateTemplateColumns(templateId, newColumns);
+              await queryClient.invalidateQueries({ queryKey: ["invoice-templates", templateId] });
+              await queryClient.invalidateQueries({ queryKey: ["template-sections", templateId] });
+              setSettingsModalOpen(false);
+              toast.success("Settings saved successfully");
+            }}
           />
         )}
       </div>

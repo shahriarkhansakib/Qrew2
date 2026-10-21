@@ -35,7 +35,9 @@ const createRowSchema = z.object({
     .regex(
       /^[A-Z][A-Z0-9]*(?:_[A-Z0-9]+)*$/,
       "rowToken must be UPPER_SNAKE_CASE with no leading, trailing, or consecutive underscores",
-    ),
+    )
+    .optional(),
+  cellValues: z.record(z.string(), z.any()).optional().default({}),
   description: z.string().optional().nullable(),
   orderIndex: z.number().int().min(0).default(0),
   valueType: z.enum(["normal", "formula"]).optional().default("normal"),
@@ -69,15 +71,17 @@ export async function createRow(c: Context) {
   const parsed = createRowSchema.safeParse(body);
   if (!parsed.success) return c.json({ error: parsed.error }, 400);
 
-  const { rowToken, label, description, orderIndex, valueType, formula, initialValue, charges } =
+  const { rowToken, label, description, orderIndex, valueType, formula, initialValue, charges, cellValues } =
     parsed.data;
+
+  const effectiveRowToken = rowToken || `ROW_${crypto.randomUUID().replace(/-/g, "").slice(0, 8).toUpperCase()}`;
 
   // Token uniqueness check
   const existingToken = await db.query.tokens?.findFirst({
-    where: and(eq(tokens.templateId, templateId), eq(tokens.tokenKey, rowToken)),
+    where: and(eq(tokens.templateId, templateId), eq(tokens.tokenKey, effectiveRowToken)),
   });
   if (existingToken) {
-    return c.json({ error: `rowToken "${rowToken}" is already used in this template.` }, 409);
+    return c.json({ error: `rowToken "${effectiveRowToken}" is already used in this template.` }, 409);
   }
 
   // Create tokenToId map for encoding the formula
@@ -98,8 +102,8 @@ export async function createRow(c: Context) {
     const rowId = crypto.randomUUID();
 
     // Add new row to token map so charges can reference it
-    tokenToId[rowToken] = rowId;
-    idToToken[rowId] = rowToken;
+    tokenToId[effectiveRowToken] = rowId;
+    idToToken[rowId] = effectiveRowToken;
 
     const encodedRowFormula = formula
       ? (encodeFormula(formula, tokenToId, secTokenToId, tplTokenToId) ?? formula)
@@ -110,12 +114,13 @@ export async function createRow(c: Context) {
         id: rowId,
         templateId,
         sectionId,
-        rowToken,
+        rowToken: effectiveRowToken,
         label,
         description: description ?? null,
         valueType: valueType ?? "normal",
         formula: encodedRowFormula,
         initialValue: initialValue != null ? String(initialValue) : null,
+        cellValues: cellValues ?? {},
         organizationId,
         sortOrder: newSortOrder,
       },
@@ -125,7 +130,7 @@ export async function createRow(c: Context) {
     // Insert row charges
     const insertedCharges = await Promise.all(
       (charges ?? []).map(async (charge, i) => {
-        const chargeToken = charge.chargeToken ?? `${rowToken}_${toSnakeCase(charge.label)}`;
+        const chargeToken = charge.chargeToken ?? `${effectiveRowToken}_${toSnakeCase(charge.label)}`;
         const chargeId = crypto.randomUUID();
         tokenToId[chargeToken] = chargeId;
         idToToken[chargeId] = chargeToken;

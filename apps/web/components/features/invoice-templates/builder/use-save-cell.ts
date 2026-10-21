@@ -150,6 +150,17 @@ export function useSaveCellMutation() {
               : null,
       };
 
+      if (cell.columnKey && cell.row) {
+        payload.cellValues = {
+          ...(cell.row.cellValues || {}),
+          [cell.columnKey]: isFormula
+            ? processedFormula
+            : evaluatedManualValue != null
+              ? evaluatedManualValue
+              : trimmed,
+        };
+      }
+
       const res = await fetch(`${apiBasePath}/sections/${cell.sectionId}/rows/${cell.rowId}`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },

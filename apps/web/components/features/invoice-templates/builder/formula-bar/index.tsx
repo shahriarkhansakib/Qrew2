@@ -200,8 +200,8 @@ export function TemplateFormulaBar() {
           return newVal;
         }
 
-        // ── Math function with open parenthesis: e.g. MIN(, MAX( ──
-        const isFnWithParen = /^[A-Z]+\($/.test(tokenToInsert);
+        // ── Math function with open parenthesis: e.g. min(, MIN(, MAX( ──
+        const isFnWithParen = /^[a-zA-Z]+\($/.test(tokenToInsert);
         if (isFnWithParen) {
           if (trimmedBefore.length > 0 && lastChar && /[A-Za-z0-9_)]/.test(lastChar)) {
             toast.error("Add an operator before inserting a function.");
@@ -232,7 +232,7 @@ export function TemplateFormulaBar() {
 
         if (isBinaryOp || isOpenParen) {
           if (trimmedBefore.length > 0) {
-            const lastWordMatch = trimmedBefore.match(/[A-Z0-9_]+$/);
+            const lastWordMatch = trimmedBefore.match(/[a-zA-Z0-9_]+$/);
             const lastWordInBuffer = lastWordMatch ? lastWordMatch[0] : "";
             const isLegacy =
               lastWordInBuffer.startsWith("GBL_") ||
@@ -245,7 +245,7 @@ export function TemplateFormulaBar() {
               lastWordInBuffer &&
               !allTokensRef.current.includes(lastWordInBuffer) &&
               !(isLegacy && allTokensRef.current.includes(canonicalEquivalent)) &&
-              !(MATH_FUNCTIONS as readonly string[]).includes(lastWordInBuffer) &&
+              !(MATH_FUNCTIONS as readonly string[]).includes(lastWordInBuffer.toUpperCase()) &&
               !/^[0-9.]+$/.test(lastWordInBuffer)
             ) {
               toast.error(
@@ -256,8 +256,8 @@ export function TemplateFormulaBar() {
             if (
               isOpenParen &&
               lastChar &&
-              /[A-Z0-9_)]/.test(lastChar) &&
-              !(MATH_FUNCTIONS as readonly string[]).includes(lastWordInBuffer)
+              /[A-Za-z0-9_)]/.test(lastChar) &&
+              !(MATH_FUNCTIONS as readonly string[]).includes(lastWordInBuffer.toUpperCase())
             ) {
               toast.error("Add an operator before opening a parenthesis after a token or number.");
               return prev;
@@ -312,9 +312,9 @@ export function TemplateFormulaBar() {
 
         if (isOpenParen) {
           const trimmedB = before.trimEnd();
-          const lastWordMatch = trimmedB.match(/[A-Z0-9_]+$/);
+          const lastWordMatch = trimmedB.match(/[a-zA-Z0-9_]+$/);
           const lastWord = lastWordMatch ? lastWordMatch[0] : "";
-          const isFn = (MATH_FUNCTIONS as readonly string[]).includes(lastWord);
+          const isFn = (MATH_FUNCTIONS as readonly string[]).includes(lastWord.toUpperCase());
           const cleanBefore = isFn
             ? trimmedB
             : before.endsWith(" ")
@@ -630,26 +630,6 @@ export function TemplateFormulaBar() {
 
   return (
     <div className="flex flex-col w-full sticky top-0 z-30 formula-bar-container">
-      <FormulaActions
-        isActive={isActive && !isLocked}
-        historyIndex={historyIndex}
-        historyLength={history.length}
-        clipboardToken={clipboardToken}
-        onUndo={(e) => {
-          e.preventDefault();
-          undo(inputRef, isDirty);
-        }}
-        onRedo={(e) => {
-          e.preventDefault();
-          redo(inputRef, isDirty);
-        }}
-        onPaste={handleMousePaste}
-        onInsertChar={handleMouseInsertChar}
-        onDeleteWord={handleMouseDeleteWord}
-        onBackspace={handleMouseBackspace}
-        onClear={handleMouseClear}
-      />
-
       <div className="relative w-full z-40 shadow-sm" style={{ height: 36 }}>
         <div
           className={cn(
@@ -878,9 +858,80 @@ export function TemplateFormulaBar() {
               spellCheck={false}
               autoComplete="off"
             />
+          </div>
 
+          {isPending && (
+            <div className="flex items-center gap-1.5 px-3 shrink-0 text-xs text-muted-foreground/50">
+              <Loader2 className="h-3 w-3 animate-spin" />
+              Saving
+            </div>
+          )}
+
+          {isActive && !isPending && (
+            <div className="flex items-center px-3 shrink-0 gap-3">
+              <button
+                type="button"
+                className="flex items-center gap-1.5 group cursor-pointer animate-in fade-in zoom-in-95 duration-100"
+                onMouseDown={(e) => {
+                  e.preventDefault();
+                  handleSave();
+                }}
+              >
+                <kbd className="text-[10px] px-1.5 py-0.5 rounded border border-border/50 bg-muted/30 text-muted-foreground/50 group-hover:border-primary/40 group-hover:bg-primary/5 group-hover:text-primary transition-all font-mono">
+                  Enter
+                </kbd>
+                <span className="text-[10px] text-muted-foreground/40 group-hover:text-primary transition-colors">
+                  save
+                </span>
+              </button>
+
+              <button
+                type="button"
+                className="flex items-center gap-1.5 group cursor-pointer animate-in fade-in zoom-in-95 duration-100"
+                onMouseDown={(e) => {
+                  e.preventDefault();
+                  isDirty.current = false;
+                  setSelectedCell(null);
+                }}
+              >
+                <kbd className="text-[10px] px-1.5 py-0.5 rounded border border-border/50 bg-muted/30 text-muted-foreground/50 group-hover:border-destructive/40 group-hover:bg-destructive/5 group-hover:text-destructive transition-all font-mono">
+                  Esc
+                </kbd>
+                <span className="text-[10px] text-muted-foreground/40 group-hover:text-destructive transition-colors">
+                  cancel
+                </span>
+              </button>
+            </div>
+          )}
+        </div>
+
+        {/* Floating Companion Area: Operators on Left, Autocomplete on Right */}
+        {isActive && !isLocked && isFormulaInput && (
+          <div className="absolute top-[40px] left-0 z-50 flex items-start gap-2.5 pointer-events-auto max-w-full animate-in fade-in slide-in-from-top-1 duration-150">
+            {/* 1. Left Companion: Operator Panel */}
+            <FormulaActions
+              isActive={isActive && !isLocked}
+              historyIndex={historyIndex}
+              historyLength={history.length}
+              clipboardToken={clipboardToken}
+              onUndo={(e) => {
+                e.preventDefault();
+                undo(inputRef, isDirty);
+              }}
+              onRedo={(e) => {
+                e.preventDefault();
+                redo(inputRef, isDirty);
+              }}
+              onPaste={handleMousePaste}
+              onInsertChar={handleMouseInsertChar}
+              onDeleteWord={handleMouseDeleteWord}
+              onBackspace={handleMouseBackspace}
+              onClear={handleMouseClear}
+            />
+
+            {/* 2. Right Companion: Autocomplete Dropdown */}
             {acVisible && ac.items.length > 0 && (
-              <div className="absolute top-full left-0 z-50 w-88 sm:w-96 max-w-[calc(100vw-2rem)] bg-popover border border-border rounded-b-md shadow-xl overflow-hidden">
+              <div className="w-80 sm:w-96 max-w-[calc(100vw-2rem)] bg-popover border border-border rounded-md shadow-xl overflow-hidden shrink-0">
                 <div className="px-3 py-1 border-b border-border/40 bg-muted/20 flex items-center justify-between">
                   <span className="text-[10px] font-mono text-muted-foreground/50 select-none">
                     ↑↓ navigate · Tab/Enter insert · Esc close
@@ -968,51 +1019,7 @@ export function TemplateFormulaBar() {
               </div>
             )}
           </div>
-
-          {isPending && (
-            <div className="flex items-center gap-1.5 px-3 shrink-0 text-xs text-muted-foreground/50">
-              <Loader2 className="h-3 w-3 animate-spin" />
-              Saving
-            </div>
-          )}
-
-          {isActive && !isPending && (
-            <div className="flex items-center px-3 shrink-0 gap-3">
-              <button
-                type="button"
-                className="flex items-center gap-1.5 group cursor-pointer animate-in fade-in zoom-in-95 duration-100"
-                onMouseDown={(e) => {
-                  e.preventDefault();
-                  handleSave();
-                }}
-              >
-                <kbd className="text-[10px] px-1.5 py-0.5 rounded border border-border/50 bg-muted/30 text-muted-foreground/50 group-hover:border-primary/40 group-hover:bg-primary/5 group-hover:text-primary transition-all font-mono">
-                  Enter
-                </kbd>
-                <span className="text-[10px] text-muted-foreground/40 group-hover:text-primary transition-colors">
-                  save
-                </span>
-              </button>
-
-              <button
-                type="button"
-                className="flex items-center gap-1.5 group cursor-pointer animate-in fade-in zoom-in-95 duration-100"
-                onMouseDown={(e) => {
-                  e.preventDefault();
-                  isDirty.current = false;
-                  setSelectedCell(null);
-                }}
-              >
-                <kbd className="text-[10px] px-1.5 py-0.5 rounded border border-border/50 bg-muted/30 text-muted-foreground/50 group-hover:border-destructive/40 group-hover:bg-destructive/5 group-hover:text-destructive transition-all font-mono">
-                  Esc
-                </kbd>
-                <span className="text-[10px] text-muted-foreground/40 group-hover:text-destructive transition-colors">
-                  cancel
-                </span>
-              </button>
-            </div>
-          )}
-        </div>
+        )}
       </div>
     </div>
   );

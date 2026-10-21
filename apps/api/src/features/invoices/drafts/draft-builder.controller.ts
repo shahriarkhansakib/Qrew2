@@ -1095,7 +1095,26 @@ export class DraftBuilderController {
     const draft = await getDraft(c);
     if (!draft) return c.json({ error: "Draft not found" }, 404);
     if (Array.isArray(draft.draftHeaderFields) && draft.draftHeaderFields.length > 0) {
-      return c.json(draft.draftHeaderFields);
+      let modified = false;
+      const normalized = draft.draftHeaderFields.map((f: any, idx: number) => {
+        let col = f.columnPosition;
+        if (col !== "left" && col !== "right") {
+          col = idx % 2 === 0 ? "left" : "right";
+          modified = true;
+        }
+        return {
+          ...f,
+          columnPosition: col,
+          fieldType: f.fieldType || "file_field",
+          isFormulaInjectable: f.isFormulaInjectable ?? f.isInjectable ?? false,
+          fileFieldKey: f.fileFieldKey || f.fieldKey || f.systemFieldKey,
+          tokenKey: f.tokenKey || (f.fieldKey || f.systemFieldKey || "").toUpperCase(),
+        };
+      });
+      if (modified) {
+        await updateDraft(draft.id, { draftHeaderFields: normalized }, c);
+      }
+      return c.json(normalized);
     }
 
     if (draft.sourceTemplateId) {
@@ -1302,5 +1321,38 @@ export class DraftBuilderController {
 
     await updateDraft(draft.id, { draftHeaderFields: fields }, c, "Reordered description fields");
     return c.json({ success: true });
+  }
+
+  static async updateHeaderValues(c: Context) {
+    const draft = await getDraft(c);
+    if (!draft) return c.json({ error: "Draft not found" }, 404);
+
+    const body = await c.req.json();
+    const currentHeaderValues = (draft.draftHeaderValues as Record<string, any>) || {};
+    const updates: Record<string, any> = {};
+
+    if (body.values && typeof body.values === "object" && !Array.isArray(body.values)) {
+      Object.assign(updates, body.values);
+    } else if (body.key !== undefined && body.value !== undefined) {
+      updates[body.key] = String(body.value);
+      if (body.fieldId) updates[body.fieldId] = String(body.value);
+      if (body.tokenKey) updates[body.tokenKey] = String(body.value);
+    } else if (body.fieldId !== undefined && body.value !== undefined) {
+      updates[body.fieldId] = String(body.value);
+      if (body.tokenKey) updates[body.tokenKey] = String(body.value);
+    } else if (typeof body === "object" && !Array.isArray(body)) {
+      Object.assign(updates, body);
+    }
+
+    const merged = { ...currentHeaderValues, ...updates };
+
+    await updateDraft(
+      draft.id,
+      { draftHeaderValues: merged },
+      c,
+      "Updated custom file field values",
+    );
+
+    return c.json({ success: true, draftHeaderValues: merged });
   }
 }

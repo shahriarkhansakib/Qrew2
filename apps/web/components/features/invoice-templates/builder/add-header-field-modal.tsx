@@ -29,6 +29,7 @@ interface AddHeaderFieldModalProps {
   draftId?: string;
   editField?: any;
   onSuccess: () => void;
+  isSheetMode?: boolean;
 }
 
 export function AddHeaderFieldModal({
@@ -38,6 +39,7 @@ export function AddHeaderFieldModal({
   draftId,
   editField,
   onSuccess,
+  isSheetMode = false,
 }: AddHeaderFieldModalProps) {
   const isEdit = !!editField;
   const [label, setLabel] = useState("");
@@ -150,13 +152,19 @@ export function AddHeaderFieldModal({
       <DialogContent>
         <DialogHeader>
           <DialogTitle>
-            {isEdit ? "Edit File Description Field" : "Add File Description Field"}
+            {isEdit
+              ? isSheetMode
+                ? "Edit Sheet Details Field"
+                : "Edit File Description Field"
+              : isSheetMode
+                ? "Add Sheet Details Field"
+                : "Add File Description Field"}
           </DialogTitle>
         </DialogHeader>
 
         <form onSubmit={handleSubmit} className="space-y-4 pt-4">
-          {/* Custom field selector shortcut */}
-          {customFields && customFields.length > 0 && !isEdit && (
+          {/* Custom field selector shortcut — only for standard project templates */}
+          {!isSheetMode && customFields && customFields.length > 0 && !isEdit && (
             <div className="space-y-2">
               <Label>Bind from Existing Project Field</Label>
               <Select onValueChange={handleSelectCustomField}>
@@ -179,7 +187,7 @@ export function AddHeaderFieldModal({
             <Label htmlFor="label">Field Label</Label>
             <Input
               id="label"
-              placeholder="e.g. Tax ID, GRT, Reference Number"
+              placeholder={isSheetMode ? "e.g. Department, Period, Prepared By, Notes" : "e.g. Tax ID, GRT, Reference Number"}
               value={label}
               onChange={(e) => {
                 setLabel(e.target.value);

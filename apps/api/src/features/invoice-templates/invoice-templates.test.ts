@@ -69,6 +69,7 @@ vi.mock("@starter/db", () => {
       templateId: "templateId",
     },
     templateSections: { id: "id", templateId: "templateId" },
+    templateRows: { id: "id", templateId: "templateId", sectionId: "sectionId" },
     customFieldDefinitions: {
       id: "id",
       organizationId: "organizationId",
@@ -236,6 +237,25 @@ describe("InvoiceTemplatesController", () => {
       expect(res.status).toBe(201);
       expect((res as any).data.documentPrefix).toBe("INV");
     });
+
+    it("creates sheet template with default columns when templateType is 'sheet'", async () => {
+      const sheetTpl = makeTemplate({
+        templateType: "sheet",
+        columnDefinitions: [
+          { id: "1", key: "col_serial", label: "SL", dataType: "serial" },
+          { id: "2", key: "col_date", label: "Date", dataType: "date" },
+          { id: "3", key: "col_desc", label: "Description", dataType: "text" },
+          { id: "4", key: "col_amount", label: "Amount", dataType: "number", isTotaled: true },
+        ],
+      });
+      mockSelectReturns([]);
+      mockInsertReturns(sheetTpl);
+      const ctx = makeCtx({ body: { name: "Company Expense Sheet", templateType: "sheet" } });
+      const res = await InvoiceTemplatesController.createTemplate(ctx);
+      expect(res.status).toBe(201);
+      expect((res as any).data.templateType).toBe("sheet");
+      expect((res as any).data.columnDefinitions).toHaveLength(4);
+    });
   });
 
   // ── updateTemplate ────────────────────────────────────────────────────────
@@ -371,6 +391,43 @@ describe("InvoiceTemplatesController", () => {
       const res = await InvoiceTemplatesController.addOptionalRow(ctx);
       expect(res.status).toBe(409);
       expect((res as any).data.error).toContain("already exists");
+    });
+  });
+
+  // ── updateColumns (Custom Sheet Templates) ─────────────────────────────────
+
+  describe("updateColumns", () => {
+    it("updates column definitions for a template", async () => {
+      const updatedTpl = makeTemplate({
+        templateType: "sheet",
+        columnDefinitions: [
+          { id: "col-1", key: "col_date", label: "Date", dataType: "date" },
+          { id: "col-2", key: "col_amount", label: "Amount", dataType: "number", isTotaled: true },
+        ],
+      });
+      mockUpdateReturns(updatedTpl);
+      const ctx = makeCtx({
+        params: { id: TEMPLATE_ID },
+        body: {
+          columnDefinitions: [
+            { id: "col-1", key: "col_date", label: "Date", dataType: "date" },
+            { id: "col-2", key: "col_amount", label: "Amount", dataType: "number", isTotaled: true },
+          ],
+        },
+      });
+      const res = await InvoiceTemplatesController.updateColumns(ctx);
+      expect(res.status).toBe(200);
+      expect((res as any).data.columnDefinitions).toHaveLength(2);
+      expect((res as any).data.columnDefinitions[1].isTotaled).toBe(true);
+    });
+
+    it("returns 400 when columns payload is invalid", async () => {
+      const ctx = makeCtx({
+        params: { id: TEMPLATE_ID },
+        body: { columnDefinitions: "not-an-array" },
+      });
+      const res = await InvoiceTemplatesController.updateColumns(ctx);
+      expect(res.status).toBe(400);
     });
   });
 });

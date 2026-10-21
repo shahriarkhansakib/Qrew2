@@ -93,6 +93,16 @@ invoicesRouter.post(
   DraftsController.syncWithTemplate,
 );
 
+invoicesRouter.post(
+  "/drafts/:id/reset-initial",
+  requireOrgPermission([
+    "invoice:fill_values",
+    "invoice:author_formulas",
+    "finance:manage_invoices",
+  ]),
+  DraftsController.resetToTemplateInitial,
+);
+
 // --- DRAFT OPTIONAL SERVICE ROWS ---
 invoicesRouter.get(
   "/drafts/:id/optional-rows",
@@ -162,6 +172,16 @@ invoicesRouter.put(
     "finance:manage_invoices",
   ]),
   DraftBuilderController.reorderHeaderFields,
+);
+
+invoicesRouter.patch(
+  "/drafts/:id/header-values",
+  requireOrgPermission([
+    "invoice:fill_values",
+    "invoice:author_formulas",
+    "finance:manage_invoices",
+  ]),
+  DraftBuilderController.updateHeaderValues,
 );
 
 // --- DRAFT BUILDER ---

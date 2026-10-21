@@ -57,6 +57,12 @@ invoiceTemplatesRouter.patch(
   InvoiceTemplatesController.updateTemplate,
 );
 
+invoiceTemplatesRouter.put(
+  "/:id/columns",
+  requireOrgPermission("finance:manage_invoices"),
+  InvoiceTemplatesController.updateColumns,
+);
+
 invoiceTemplatesRouter.delete(
   "/:id",
   requireOrgPermission("finance:manage_invoices"),

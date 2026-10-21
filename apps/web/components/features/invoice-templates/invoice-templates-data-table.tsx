@@ -236,7 +236,24 @@ export function InvoiceTemplatesDataTable({
                     onToggleFilter={toggleFilter}
                     onTextClick={() => router.push(`/org-admin/invoice-templates/${template.id}`)}
                   >
-                    {template.name}
+                    <div className="flex items-center gap-2">
+                      <span className="font-medium">{template.name}</span>
+                      {template.templateType === "sheet" ? (
+                        <Badge
+                          variant="secondary"
+                          className="text-[10px] font-bold uppercase tracking-wider px-1.5 py-0 border border-primary/20 bg-primary/10 text-primary"
+                        >
+                          Sheet
+                        </Badge>
+                      ) : (
+                        <Badge
+                          variant="outline"
+                          className="text-[10px] font-bold uppercase tracking-wider px-1.5 py-0 text-muted-foreground/70"
+                        >
+                          Standard
+                        </Badge>
+                      )}
+                    </div>
                   </FilterableTableCell>
                   <FilterableTableCell
                     columnKey="description"

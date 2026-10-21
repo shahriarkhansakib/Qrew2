@@ -48,6 +48,7 @@ export async function listRows(c: Context) {
     valueType: row.valueType,
     formula: context.decode(row.formula),
     initialValue: row.initialValue,
+    cellValues: row.cellValues ?? {},
     rowToken: row.token?.tokenKey,
     label: row.token?.label,
     description: row.token?.description,

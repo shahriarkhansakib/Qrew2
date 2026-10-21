@@ -373,7 +373,6 @@ export function SingleRow({
                 Optional
               </Badge>
             )}
-            {notices && notices.length > 0 && <UnresolvedNoticeButton notices={notices} />}
           </div>
         }
         onClickUsd1={hasCharges && isCellEditable ? handleValueClick : undefined}

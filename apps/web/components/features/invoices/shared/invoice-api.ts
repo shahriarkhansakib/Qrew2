@@ -223,4 +223,44 @@ export const invoiceApi = {
     }
     return res.json();
   },
+
+  resetDraftToInitial: async (draftId: string) => {
+    const res = await fetch(`${apiUrl}/api/invoices/drafts/${draftId}/reset-initial`, {
+      method: "POST",
+      credentials: "include",
+    });
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({}));
+      throw new Error(err.error || err.message || "Failed to reset draft to initial template state");
+    }
+    return res.json();
+  },
+
+  updateDraftHeaderValues: async (draftId: string, values: Record<string, any>) => {
+    const res = await fetch(`${apiUrl}/api/invoices/drafts/${draftId}/header-values`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      credentials: "include",
+      body: JSON.stringify({ values }),
+    });
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({}));
+      throw new Error(err.error || err.message || "Failed to update file header values");
+    }
+    return res.json();
+  },
+
+  updateTemplateColumns: async (templateId: string, columnDefinitions: any[]) => {
+    const res = await fetch(`${apiUrl}/api/invoice-templates/${templateId}/columns`, {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      credentials: "include",
+      body: JSON.stringify({ columnDefinitions }),
+    });
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({}));
+      throw new Error(err.error || err.message || "Failed to update columns");
+    }
+    return res.json();
+  },
 };

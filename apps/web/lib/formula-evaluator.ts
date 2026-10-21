@@ -143,12 +143,19 @@ export function safeEval(expr: string): number | null {
 
     const fn = new Function(
       "MIN",
+      "min",
       "MAX",
+      "max",
       "ROUND",
+      "round",
       "CLAMP",
+      "clamp",
       "ABS",
+      "abs",
       "FLOOR",
+      "floor",
       "CEIL",
+      "ceil",
       `"use strict"; return (${trimmed});`,
     );
 
@@ -161,7 +168,22 @@ export function safeEval(expr: string): number | null {
       return Math.min(Math.max(val, min), max);
     };
 
-    const result = fn(Math.min, Math.max, round, clamp, Math.abs, Math.floor, Math.ceil);
+    const result = fn(
+      Math.min,
+      Math.min,
+      Math.max,
+      Math.max,
+      round,
+      round,
+      clamp,
+      clamp,
+      Math.abs,
+      Math.abs,
+      Math.floor,
+      Math.floor,
+      Math.ceil,
+      Math.ceil,
+    );
     return typeof result === "number" && Number.isFinite(result) ? result : null;
   } catch {
     return null;

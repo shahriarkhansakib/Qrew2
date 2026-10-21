@@ -280,8 +280,43 @@ export function useFormulaKeyDown({
         }
       }
 
-      // Digit or decimal: allowed (if it passed the space check)
-      if (/^[0-9.]$/.test(e.key)) return;
+      // Digit or decimal: validate against function and token boundaries
+      if (/^[0-9.]$/.test(e.key)) {
+        const target = e.target as HTMLInputElement;
+        const selStart = target.selectionStart ?? inputValue.length;
+        const before = inputValue.slice(0, selStart);
+        const currentLastWord = getLastWord(before);
+
+        if (!isFormulaCell) {
+          // In scalar/fill cells, reject digits if preceded by letters (prevent entering tokens/functions like FLOOR000)
+          if (currentLastWord && /[a-zA-Z]/.test(currentLastWord)) {
+            e.preventDefault();
+            toast.error("Tokens and functions cannot be used in Fill Mode.");
+            return;
+          }
+        } else {
+          // If preceded by a word containing letters (like FLOOR or a token prefix)
+          if (currentLastWord && /[a-zA-Z]/.test(currentLastWord)) {
+            // 1. Math functions cannot be directly followed by digits (e.g. FLOOR0)
+            if ((MATH_FUNCTIONS as readonly string[]).includes(currentLastWord.toUpperCase())) {
+              e.preventDefault();
+              toast.error(
+                `Function "${currentLastWord.toLowerCase()}()" must be followed by "(" before numbers.`,
+              );
+              return;
+            }
+
+            // 2. Extending a token path: ensure the candidate token exists
+            const cand = (currentLastWord + e.key).toUpperCase();
+            const matchesToken = allTokens.some((t) => t.startsWith(cand) || t.includes(cand));
+            if (!matchesToken) {
+              e.preventDefault();
+              return;
+            }
+          }
+        }
+        return;
+      }
 
       // Prevent typing unmatched closing parenthesis and collapse preceding whitespace
       if (e.key === ")") {
@@ -588,7 +623,9 @@ export function useFormulaKeyDown({
         const tokenMatches = isFormulaCell
           ? allTokens.some((t) => t.startsWith(directCandidate) || t.includes(directCandidate))
           : false;
-        const fnMatches = MATH_FUNCTIONS.some((fn) => fn.startsWith(directCandidate));
+        const fnMatches = isFormulaCell
+          ? MATH_FUNCTIONS.some((fn) => fn.startsWith(directCandidate))
+          : false;
         const hasDirectMatch = tokenMatches || fnMatches;
 
         if (hasDirectMatch) {

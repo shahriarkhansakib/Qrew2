@@ -136,4 +136,25 @@ describe("DraftBuilderController Header Fields", () => {
     const res: any = await DraftBuilderController.reorderHeaderFields(ctx);
     expect(res.data.success).toBe(true);
   });
+
+  it("updateHeaderValues updates draft header values with dictionary or key/value payload", async () => {
+    const ctx = {
+      req: {
+        param: (key: string) => (key === "id" ? "draft-123" : ""),
+        json: async () => ({
+          values: {
+            "f-1": "95000",
+            "f-custom": "Special Cargo Note\nBerth 4",
+          },
+        }),
+      },
+      get: (key: string) => (key === "organizationId" ? "org-123" : null),
+      json: (data: any, status?: number) => ({ data, status }),
+    } as any;
+
+    const res: any = await DraftBuilderController.updateHeaderValues(ctx);
+    expect(res.data.success).toBe(true);
+    expect(res.data.draftHeaderValues["f-1"]).toBe("95000");
+    expect(res.data.draftHeaderValues["f-custom"]).toBe("Special Cargo Note\nBerth 4");
+  });
 });
