@@ -28,7 +28,7 @@ import {
 } from "lucide-react";
 import Link from "next/link";
 import { useParams, useRouter } from "next/navigation";
-import { useCallback, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
 import { Can } from "@/components/features/auth/can";
 // --- TEMPLATE BUILDER IMPORTS ---
@@ -74,6 +74,24 @@ export default function DraftBuilderPage() {
   const [sidebarTab, setSidebarTab] = useState<"tokens" | "line-items">("tokens");
   const [builderScale, setBuilderScale] = useState<number>(1);
   const [poolWidth, setPoolWidth] = useState(320);
+
+  const splitPaneRef = useRef<HTMLDivElement>(null);
+  const [containerWidth, setContainerWidth] = useState(0);
+
+  useEffect(() => {
+    const el = splitPaneRef.current;
+    if (!el) return;
+    const observer = new ResizeObserver((entries) => {
+      for (const entry of entries) {
+        setContainerWidth(entry.contentRect.width);
+      }
+    });
+    observer.observe(el);
+    return () => observer.disconnect();
+  }, []);
+
+  const isRatioConstrained = containerWidth > 0 && (containerWidth - poolWidth) / poolWidth < 4;
+  const isOverlayMode = isRatioConstrained;
 
   const lastStudioOpenBeforePreviewRef = useRef<boolean>(true);
 
@@ -328,6 +346,8 @@ export default function DraftBuilderPage() {
       apiBasePath={`${apiUrl}/api/invoices/drafts/${draftId}`}
       invalidateKey={["draft-sections", draftId]}
       validationErrors={preview?.validationErrors ?? []}
+      tokenPoolOpen={tokenPoolOpen}
+      setTokenPoolOpen={setTokenPoolOpen}
     >
       <div className="flex flex-col h-[calc(100vh-65px)] -m-4 md:-m-6 lg:-m-8 bg-background overflow-hidden">
         {/* ── Top bar ─────────────────────────────────────────────── */}
@@ -813,6 +833,8 @@ export default function DraftBuilderPage() {
                   queryClient.invalidateQueries({
                     queryKey: invoiceKeys.optionalRows.byDraft(draftId),
                   });
+                  setTokenPoolOpen(true);
+                  setSidebarTab("line-items");
                   toast.success(`Moved "${row.label || row.rowToken}" to Additional Line Items`);
                 } catch (err: any) {
                   toast.error(err.message || "Failed to move row to catalog");
@@ -934,86 +956,96 @@ export default function DraftBuilderPage() {
               }
             }}
           >
-            {/* Mobile backdrop for Studio Sidebar */}
-            {tokenPoolOpen && (
-              <div
-                className="md:hidden absolute inset-0 z-30 bg-background/60 backdrop-blur-sm"
-                onClick={() => setTokenPoolOpen(false)}
-              />
-            )}
-
-            {/* Main Builder Area */}
-            <div
-              className={cn(
-                "flex flex-col h-full bg-muted/20 overflow-y-auto transition-all duration-200 flex-1 min-w-0",
-                tokenPoolOpen && "md:border-r md:border-border",
+            {/* Split panes container with responsive width tracking */}
+            <div ref={splitPaneRef} className="flex flex-1 overflow-hidden relative w-full h-full">
+              {/* Backdrop for Studio Sidebar in overlay mode */}
+              {tokenPoolOpen && isOverlayMode && draftMode !== "preview" && (
+                <div
+                  className="absolute inset-0 z-30 bg-black/15 dark:bg-black/40 backdrop-blur-[0.5px] transition-opacity"
+                  onClick={() => setTokenPoolOpen(false)}
+                />
               )}
-              style={
-                {
-                  "--builder-scale": builderScale,
-                  zoom: builderScale,
-                } as React.CSSProperties
-              }
-            >
-              <TemplateBuilderWorkspace
-                templateId={draft.sourceTemplateId}
-                draftId={draftId}
-                zoomLevel={0}
-                project={draft?.project}
-                draftHeaderValues={draft?.draftHeaderValues}
-                isSharedDnd={true}
-                resolvedTokens={preview?.resolvedScope?.tokens}
-                projectedDocumentNumber={
-                  preview?.projectedDocumentNumber || draft?.projectedDocumentNumber
-                }
-              />
-            </div>
 
-            {/* Sliding Token Pool Panel */}
-            {draftMode !== "preview" && (
+              {/* Main Builder Area */}
               <div
                 className={cn(
-                  "h-full bg-background border-l border-border transition-[width] duration-300 ease-in-out relative shrink-0 overflow-hidden",
-                  !tokenPoolOpen && "border-transparent",
-                  "absolute md:relative inset-y-0 right-0 z-40 md:z-0 shadow-2xl md:shadow-none",
+                  "flex flex-col h-full bg-muted/20 overflow-y-auto transition-all duration-200 flex-1 min-w-0 w-full",
+                  tokenPoolOpen && !isOverlayMode && "md:border-r md:border-border",
                 )}
-                style={{ width: tokenPoolOpen ? poolWidth : 0 }}
+                style={
+                  {
+                    "--builder-scale": builderScale,
+                    zoom: builderScale,
+                  } as React.CSSProperties
+                }
               >
-                {tokenPoolOpen && (
-                  <div
-                    className="absolute left-0 top-0 bottom-0 w-1.5 cursor-col-resize hover:bg-primary/50 transition-colors z-50 -ml-[1px]"
-                    onMouseDown={(e) => {
-                      e.preventDefault();
-                      const startX = e.clientX;
-                      const startWidth = poolWidth;
-
-                      const handleMouseMove = (moveEvent: MouseEvent) => {
-                        const delta = startX - moveEvent.clientX;
-                        const newWidth = Math.min(Math.max(startWidth + delta, 240), 600);
-                        setPoolWidth(newWidth);
-                      };
-
-                      const handleMouseUp = () => {
-                        window.removeEventListener("mousemove", handleMouseMove);
-                        window.removeEventListener("mouseup", handleMouseUp);
-                      };
-
-                      window.addEventListener("mousemove", handleMouseMove);
-                      window.addEventListener("mouseup", handleMouseUp);
-                    }}
-                  />
-                )}
-                <div style={{ width: poolWidth }} className="h-full overflow-hidden">
-                  <TemplateTokenPool
-                    templateId={draft.sourceTemplateId}
-                    draftId={draftId}
-                    activeTab={sidebarTab}
-                    onTabChange={setSidebarTab}
-                    onClose={() => setTokenPoolOpen(false)}
-                  />
-                </div>
+                <TemplateBuilderWorkspace
+                  templateId={draft.sourceTemplateId}
+                  draftId={draftId}
+                  zoomLevel={0}
+                  project={draft?.project}
+                  draftHeaderValues={draft?.draftHeaderValues}
+                  isSharedDnd={true}
+                  resolvedTokens={preview?.resolvedScope?.tokens}
+                  projectedDocumentNumber={
+                    preview?.projectedDocumentNumber || draft?.projectedDocumentNumber
+                  }
+                />
               </div>
-            )}
+
+              {/* Sliding Token Pool Panel */}
+              {draftMode !== "preview" && (
+                <div
+                  className={cn(
+                    "h-full bg-background border-l border-border transition-[width] duration-300 ease-in-out shrink-0 overflow-hidden",
+                    !tokenPoolOpen && "border-transparent",
+                    isOverlayMode
+                      ? "absolute inset-y-0 right-0 z-40 shadow-2xl bg-background/98 backdrop-blur-md"
+                      : "relative z-0 shadow-none",
+                  )}
+                  style={{
+                    width: tokenPoolOpen
+                      ? Math.min(poolWidth, containerWidth > 0 ? containerWidth * 0.85 : poolWidth)
+                      : 0,
+                  }}
+                >
+                  {tokenPoolOpen && (
+                    <div
+                      className="absolute left-0 top-0 bottom-0 w-1.5 cursor-col-resize hover:bg-primary/50 transition-colors z-50 -ml-[1px]"
+                      onMouseDown={(e) => {
+                        e.preventDefault();
+                        const startX = e.clientX;
+                        const startWidth = poolWidth;
+
+                        const handleMouseMove = (moveEvent: MouseEvent) => {
+                          const delta = startX - moveEvent.clientX;
+                          const maxW = containerWidth > 0 ? containerWidth * 0.85 : 700;
+                          const newWidth = Math.min(Math.max(startWidth + delta, 280), maxW);
+                          setPoolWidth(newWidth);
+                        };
+
+                        const handleMouseUp = () => {
+                          window.removeEventListener("mousemove", handleMouseMove);
+                          window.removeEventListener("mouseup", handleMouseUp);
+                        };
+
+                        window.addEventListener("mousemove", handleMouseMove);
+                        window.addEventListener("mouseup", handleMouseUp);
+                      }}
+                    />
+                  )}
+                  <div style={{ width: poolWidth }} className="h-full overflow-hidden">
+                    <TemplateTokenPool
+                      templateId={draft.sourceTemplateId}
+                      draftId={draftId}
+                      activeTab={sidebarTab}
+                      onTabChange={setSidebarTab}
+                      onClose={() => setTokenPoolOpen(false)}
+                    />
+                  </div>
+                </div>
+              )}
+            </div>
           </DragDropContext>
         </div>
 

@@ -28,7 +28,10 @@ export interface TemplateOptionalRow {
   formula?: string | null;
   initialValue?: string | null;
   suggestedSectionToken?: string | null;
+  cellValues?: Record<string, any> | null;
 }
+
+export type TemplateType = "standard" | "general" | "sheet";
 
 // ─────────────────────────────────────────────────────────────────────────────
 // CUSTOMIZABLE SHEET TEMPLATE COLUMN DEFINITION

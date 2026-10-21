@@ -43,7 +43,7 @@ export function SheetSectionCard({
   zoomLevel = 0,
 }: SheetSectionCardProps) {
   const queryClient = useQueryClient();
-  const { tokenMap, mode } = useBuilderContext();
+  const { tokenMap, mode, openAdditionalLineItemsPanel } = useBuilderContext();
   const [isEditModalOpen, setIsEditModalOpen] = useState(false);
   const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false);
   const [editingRow, setEditingRow] = useState<any | null>(null);
@@ -130,6 +130,7 @@ export function SheetSectionCard({
         valueType: row.valueType || "normal",
         formula: row.formula || null,
         initialValue: row.initialValue || null,
+        cellValues: row.cellValues || null,
       });
 
       await fetch(
@@ -144,6 +145,7 @@ export function SheetSectionCard({
       queryClient.invalidateQueries({
         queryKey: invoiceKeys.optionalRows.byTemplate(templateId),
       });
+      openAdditionalLineItemsPanel?.();
       toast.success(`Moved "${row.label || row.rowToken}" to Additional Line Items`);
     } catch (err: any) {
       toast.error(err.message || "Failed to move row to catalog");

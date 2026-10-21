@@ -10,7 +10,7 @@ const createTemplateSchema = z.object({
   description: z.string().optional(),
   documentPrefix: z.string().optional().default("INV"),
   numberingFormat: z.string().optional().default("{PREFIX}-{YYYY}-{SEQ:4}"),
-  templateType: z.enum(["standard", "sheet"]).optional().default("standard"),
+  templateType: z.enum(["standard", "general", "sheet"]).optional().default("standard"),
   columnDefinitions: z.array(z.any()).optional(),
 });
 
@@ -19,7 +19,7 @@ const updateTemplateSchema = z.object({
   description: z.string().optional(),
   documentPrefix: z.string().optional(),
   numberingFormat: z.string().optional(),
-  templateType: z.enum(["standard", "sheet"]).optional(),
+  templateType: z.enum(["standard", "general", "sheet"]).optional(),
   columnDefinitions: z.array(z.any()).optional(),
   optionalRows: z.array(z.any()).optional(),
 });
@@ -73,7 +73,9 @@ export class InvoiceTemplatesController {
     if (!parsed.success) return c.json({ error: parsed.error }, 400);
 
     const templateId = crypto.randomUUID();
-    const templateType = parsed.data.templateType || "standard";
+    const rawType = parsed.data.templateType || "standard";
+    const templateType = rawType === "sheet" ? "general" : rawType;
+    const isGeneral = templateType === "general";
     const defaultSheetColumns = [
       {
         id: crypto.randomUUID(),
@@ -110,12 +112,11 @@ export class InvoiceTemplatesController {
       },
     ];
 
-    const columnDefinitions =
-      templateType === "sheet"
-        ? parsed.data.columnDefinitions && parsed.data.columnDefinitions.length > 0
-          ? parsed.data.columnDefinitions
-          : defaultSheetColumns
-        : [];
+    const columnDefinitions = isGeneral
+      ? parsed.data.columnDefinitions && parsed.data.columnDefinitions.length > 0
+        ? parsed.data.columnDefinitions
+        : defaultSheetColumns
+      : [];
 
     const [newTemplate] = await db
       .insert(invoiceTemplates)
@@ -132,8 +133,8 @@ export class InvoiceTemplatesController {
       })
       .returning();
 
-    if (templateType === "sheet") {
-      // Seed default section for sheet templates (e.g. "Expenses")
+    if (isGeneral) {
+      // Seed default section for general templates (e.g. "Expenses")
       const secId = crypto.randomUUID();
       await TokenService.createSectionToken({
         id: secId,
@@ -144,12 +145,12 @@ export class InvoiceTemplatesController {
         sortOrder: 0,
       });
 
-      // Seed initial blank row with auto-generated token
+      // Seed initial blank row with serial-based canonical token
       await TokenService.createRowToken({
         id: crypto.randomUUID(),
         templateId,
         sectionId: secId,
-        rowToken: `ROW_${crypto.randomUUID().replace(/-/g, "").slice(0, 8).toUpperCase()}`,
+        rowToken: "ROW_1",
         label: "Expense item 1",
         organizationId,
         sortOrder: 0,
@@ -309,6 +310,7 @@ export class InvoiceTemplatesController {
       formula: body.formula || null,
       initialValue: body.initialValue ? String(body.initialValue) : null,
       suggestedSectionToken: body.suggestedSectionToken || null,
+      cellValues: body.cellValues || null,
     };
 
     const [tpl] = await db
@@ -403,6 +405,7 @@ export class InvoiceTemplatesController {
           initialValue: body.initialValue !== undefined ? body.initialValue : r.initialValue,
           formula: newFormula,
           valueType: newValueType,
+          cellValues: body.cellValues !== undefined ? body.cellValues : r.cellValues,
         };
       }
       return r;

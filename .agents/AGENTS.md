@@ -259,3 +259,23 @@ stateDiagram-v2
 - **Centered `+ Add row` Position**:
   - In sheet sections, the `+ Add row` button is centered directly above the section subtotal footer, matching standard templates.
 
+## 28. General Templates, Serial-Based Row Tokens, Dynamic Line Items Columns, & Adaptive 4:1 Overlay Drawer (`resequence-rows.service.ts`, `reorder-rows.controller.ts`, `additional-line-items-pool.tsx`, `page.tsx`, `builder-context.tsx`)
+- **Archetype Rename (`templateType: "general"`)**: Type name renamed from `"sheet"` to `"general"` across database schemas, validation schemas, controllers, and UI components (with backwards compatibility for existing `"sheet"` entries).
+- **Serial-Based Row Token Naming & Two-Phase Re-Sequencing Engine (`resequence-rows.service.ts`, `reorder-rows.controller.ts`, `create-row.controller.ts`, `delete-row.controller.ts`)**:
+  - Arbitrary UUID tokens (e.g. `ROW_AAA69AA3`) are completely eradicated. Row tokens are canonically named after their global serial index: `ROW_1`, `ROW_2`, `ROW_3`, ...
+  - When rows are reordered within a section, transferred across sections, created, or deleted, `resequenceTemplateRowTokens` automatically re-indexes all rows in topological order (`sections.sortOrder ASC, rows.sortOrder ASC`).
+  - Two-Phase Updates prevent PostgreSQL `tokens_template_key_unique` constraint collisions by temporarily mapping tokens to `__TMP_<ID>__` before assigning final `ROW_N` canonical keys in a single transaction.
+  - Formula preservation: Because database formulas are bound by immutable UUID tags (`{{$tok:UUID}}`), token renaming dynamically updates formula display without corrupting mathematical graphs or calculations.
+- **Dynamic Columns in Additional Line Items Catalog (`additional-line-items-pool.tsx`)**:
+  - For General templates, the Additional Line Items catalog dynamically mirrors the template's configured `columnDefinitions` instead of fixed `Row Label | USD / Rate`.
+  - Column values (`cellValues`) are preserved when moving rows into the catalog and instantiating them into the table.
+  - Horizontal scrolling (`overflow-x-auto min-w-full`) prevents dense multi-column tables from crushing into unreadable slivers.
+- **Adaptive 4:1 Viewport Ratio Overlay Drawer (`page.tsx`, `drafts/[id]/page.tsx`)**:
+  - Studio Sidebar (`TemplateTokenPool` and `AdditionalLineItemsPool`) monitors container width via `ResizeObserver`.
+  - If the body-to-sidebar ratio drops below 4:1 (`(containerWidth - poolWidth) / poolWidth < 4`), the sidebar automatically switches from docked inline flex to an **Overlay Drawer** (`absolute inset-y-0 right-0 z-40 shadow-2xl bg-background/98 backdrop-blur-md`).
+  - This ensures table columns maintain 100% full screen width without compressing content.
+  - Implemented with full parity across both standard and general template builder pages, as well as draft editors.
+- **Auto-Open Sidebar & Switch to Line Items on Table Row Copy**:
+  - Whenever a row is moved or saved to Additional Line Items from the table (via menu action or drag-and-drop), `openAdditionalLineItemsPanel()` automatically opens the sidebar (`tokenPoolOpen = true`) and switches the active tab directly to `line-items` (`setSidebarTab("line-items")`).
+
+

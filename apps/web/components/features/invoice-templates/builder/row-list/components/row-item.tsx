@@ -177,6 +177,7 @@ export function SingleRow({
     draftId,
     headerFields,
     templateConstants,
+    openAdditionalLineItemsPanel,
   } = useBuilderContext();
   const queryClient = useQueryClient();
   const isFormulaMode = !!selectedCell;
@@ -253,6 +254,7 @@ export function SingleRow({
         queryClient.invalidateQueries({
           queryKey: invoiceKeys.optionalRows.byTemplate(templateId),
         });
+        openAdditionalLineItemsPanel?.();
         toast.success(`Copied "${row.label || row.rowToken}" to Additional Line Items`);
       } else if (draftId) {
         await invoiceApi.addDraftOptionalRow(draftId, {
@@ -265,6 +267,7 @@ export function SingleRow({
         queryClient.invalidateQueries({
           queryKey: invoiceKeys.optionalRows.byDraft(draftId),
         });
+        openAdditionalLineItemsPanel?.();
         toast.success(`Copied "${row.label || row.rowToken}" to Additional Line Items`);
       }
     } catch (e: any) {

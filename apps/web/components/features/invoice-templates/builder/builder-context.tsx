@@ -69,6 +69,8 @@ type BuilderContextValue = {
   tokenDisabledReasons: Map<string, string>;
   getTokenDisabledReason: (token: string) => string | undefined;
   tokenPoolOpen: boolean;
+  setTokenPoolOpen?: (open: boolean | ((prev: boolean) => boolean)) => void;
+  openAdditionalLineItemsPanel: () => void;
   apiBasePath: string;
   mode: "template" | "draft" | "preview" | "fill";
   invalidateKey: readonly string[];
@@ -90,7 +92,7 @@ type BuilderContextValue = {
   setShowSectionHeaders: (show: boolean) => void;
   showSectionSubtotals: boolean;
   setShowSectionSubtotals: (show: boolean) => void;
-  templateType?: "standard" | "sheet";
+  templateType?: "standard" | "general" | "sheet";
   columnDefinitions?: TemplateColumnDefinition[];
   setColumnDefinitions?: (cols: TemplateColumnDefinition[]) => void;
 };
@@ -115,6 +117,8 @@ const BuilderContext = createContext<BuilderContextValue>({
   tokenDisabledReasons: new Map(),
   getTokenDisabledReason: () => undefined,
   tokenPoolOpen: false,
+  setTokenPoolOpen: () => {},
+  openAdditionalLineItemsPanel: () => {},
   sidebarTab: "tokens",
   setSidebarTab: () => {},
   headerFields: [],
@@ -144,6 +148,7 @@ export function BuilderProvider({
   templateId,
   draftId,
   tokenPoolOpen = false,
+  setTokenPoolOpen,
   apiBasePath,
   mode = "template",
   invalidateKey,
@@ -155,11 +160,12 @@ export function BuilderProvider({
   templateId?: string;
   draftId?: string;
   tokenPoolOpen?: boolean;
+  setTokenPoolOpen?: (open: boolean | ((prev: boolean) => boolean)) => void;
   apiBasePath: string;
   mode?: "template" | "draft" | "preview" | "fill";
   invalidateKey: readonly string[];
   validationErrors?: any[];
-  templateType?: "standard" | "sheet";
+  templateType?: "standard" | "general" | "sheet";
   columnDefinitions?: TemplateColumnDefinition[];
   children: React.ReactNode;
 }) {
@@ -248,6 +254,11 @@ export function BuilderProvider({
     },
     [],
   );
+
+  const openAdditionalLineItemsPanel = useCallback(() => {
+    if (setTokenPoolOpen) setTokenPoolOpen(true);
+    setSidebarTab("line-items");
+  }, [setTokenPoolOpen]);
 
   const tokenTypes = useMemo(() => {
     const rowBases = new Set<string>();
@@ -498,6 +509,8 @@ export function BuilderProvider({
       tokenDisabledReasons,
       getTokenDisabledReason,
       tokenPoolOpen,
+      setTokenPoolOpen,
+      openAdditionalLineItemsPanel,
       apiBasePath,
       mode,
       invalidateKey,
@@ -519,7 +532,7 @@ export function BuilderProvider({
       setShowSectionHeaders,
       showSectionSubtotals,
       setShowSectionSubtotals,
-      templateType,
+      templateType: templateType === "sheet" ? "general" : templateType,
       columnDefinitions: columns,
       setColumnDefinitions: setColumns,
     }),
@@ -536,6 +549,8 @@ export function BuilderProvider({
       tokenDisabledReasons,
       getTokenDisabledReason,
       tokenPoolOpen,
+      setTokenPoolOpen,
+      openAdditionalLineItemsPanel,
       sidebarTab,
       headerFields,
       templateConstants,

@@ -7,13 +7,14 @@ import {
   templateSections,
   tokens,
 } from "@starter/db";
-import { and, eq } from "drizzle-orm";
+import { and, eq, sql } from "drizzle-orm";
 import { Context } from "hono";
 import { z } from "zod";
 import { TokenService } from "../../../tokens/token.service";
 import { touchTemplate } from "../../invoice-templates.controller";
 import { buildConstantIndex } from "../../metadata/services/constant-index.service";
 import { buildSectionIndex } from "../../sections/services/section-index.service";
+import { resequenceTemplateRowTokens } from "../services/resequence-rows.service";
 import { buildRowIndex, toSnakeCase } from "../services/row-index.service";
 
 const rowChargeSchema = z.object({
@@ -83,8 +84,23 @@ export async function createRow(c: Context) {
     cellValues,
   } = parsed.data;
 
-  const effectiveRowToken =
-    rowToken || `ROW_${crypto.randomUUID().replace(/-/g, "").slice(0, 8).toUpperCase()}`;
+  let effectiveRowToken = rowToken;
+  if (!effectiveRowToken) {
+    const templateRowCounts = await db
+      .select({ count: sql<number>`count(*)::int` })
+      .from(templateRows)
+      .where(eq(templateRows.templateId, templateId));
+    let nextSerial = Number(templateRowCounts[0]?.count ?? 0) + 1;
+    effectiveRowToken = `ROW_${nextSerial}`;
+    while (
+      await db.query.tokens?.findFirst({
+        where: and(eq(tokens.templateId, templateId), eq(tokens.tokenKey, effectiveRowToken)),
+      })
+    ) {
+      nextSerial++;
+      effectiveRowToken = `ROW_${nextSerial}`;
+    }
+  }
 
   // Token uniqueness check
   const existingToken = await db.query.tokens?.findFirst({
@@ -172,6 +188,7 @@ export async function createRow(c: Context) {
     );
 
     await touchTemplate(templateId, tx);
+    await resequenceTemplateRowTokens(templateId, tx);
 
     return {
       ...row,

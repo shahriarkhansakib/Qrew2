@@ -238,9 +238,28 @@ describe("InvoiceTemplatesController", () => {
       expect((res as any).data.documentPrefix).toBe("INV");
     });
 
+    it("creates general template with default columns when templateType is 'general'", async () => {
+      const generalTpl = makeTemplate({
+        templateType: "general",
+        columnDefinitions: [
+          { id: "1", key: "col_serial", label: "SL", dataType: "serial" },
+          { id: "2", key: "col_date", label: "Date", dataType: "date" },
+          { id: "3", key: "col_desc", label: "Description", dataType: "text" },
+          { id: "4", key: "col_amount", label: "Amount", dataType: "number", isTotaled: true },
+        ],
+      });
+      mockSelectReturns([]);
+      mockInsertReturns(generalTpl);
+      const ctx = makeCtx({ body: { name: "Company Expense Sheet", templateType: "general" } });
+      const res = await InvoiceTemplatesController.createTemplate(ctx);
+      expect(res.status).toBe(201);
+      expect((res as any).data.templateType).toBe("general");
+      expect((res as any).data.columnDefinitions).toHaveLength(4);
+    });
+
     it("creates sheet template with default columns when templateType is 'sheet'", async () => {
       const sheetTpl = makeTemplate({
-        templateType: "sheet",
+        templateType: "general",
         columnDefinitions: [
           { id: "1", key: "col_serial", label: "SL", dataType: "serial" },
           { id: "2", key: "col_date", label: "Date", dataType: "date" },
@@ -253,7 +272,7 @@ describe("InvoiceTemplatesController", () => {
       const ctx = makeCtx({ body: { name: "Company Expense Sheet", templateType: "sheet" } });
       const res = await InvoiceTemplatesController.createTemplate(ctx);
       expect(res.status).toBe(201);
-      expect((res as any).data.templateType).toBe("sheet");
+      expect((res as any).data.templateType).toBe("general");
       expect((res as any).data.columnDefinitions).toHaveLength(4);
     });
   });

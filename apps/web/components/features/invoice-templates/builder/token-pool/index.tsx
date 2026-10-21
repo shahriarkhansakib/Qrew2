@@ -1333,7 +1333,7 @@ export function TemplateTokenPool({
               setConstantToDelete={setConstantToDelete}
               setShowLegend={setShowLegend}
             />
-            {templateType !== "sheet" && (
+            {templateType !== "sheet" && templateType !== "general" && (
               <FileDetailsSection
                 allFileFields={allFileFields}
                 getFileToken={getFileToken}

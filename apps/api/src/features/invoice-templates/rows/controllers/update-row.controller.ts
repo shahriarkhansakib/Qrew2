@@ -16,6 +16,7 @@ import { TokenService } from "../../../tokens/token.service";
 import { touchTemplate } from "../../invoice-templates.controller";
 import { getTemplateFormulaContext } from "../../services/template-formula-context.service";
 import { validateFormulaChars } from "../../validation/formula-validator";
+import { resequenceTemplateRowTokens } from "../services/resequence-rows.service";
 
 const updateRowSchema = z.object({
   label: z.string().optional(),
@@ -167,6 +168,10 @@ export async function updateRow(c: Context): Promise<any> {
       }
 
       await touchTemplate(existingRow.templateId, tx);
+
+      if (parsed.data.sectionId !== undefined || parsed.data.orderIndex !== undefined) {
+        await resequenceTemplateRowTokens(existingRow.templateId, tx);
+      }
 
       const [finalRow] = await tx
         .select({

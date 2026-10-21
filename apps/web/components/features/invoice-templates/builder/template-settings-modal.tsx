@@ -62,7 +62,7 @@ export function TemplateSettingsModal({
   onSaveColumns,
   defaultTab,
 }: TemplateSettingsModalProps) {
-  const isSheet = template?.templateType === "sheet";
+  const isSheet = template?.templateType === "general" || template?.templateType === "sheet";
 
   const {
     sectionSeparation,

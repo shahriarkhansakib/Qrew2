@@ -4,7 +4,7 @@ import { DragDropContext, DropResult } from "@hello-pangea/dnd";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { ArrowLeft, PanelRightClose, PanelRightOpen, SlidersHorizontal } from "lucide-react";
 import { useParams, useRouter } from "next/navigation";
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
 import { BuilderProvider } from "@/components/features/invoice-templates/builder/builder-context";
 import { SheetBuilderWorkspace } from "@/components/features/invoice-templates/builder/sheet-builder/sheet-builder-workspace";
@@ -32,6 +32,27 @@ export default function TemplateBuilderPage() {
   const [previewOpen, setPreviewOpen] = useState(false);
   const [optionalRowsModalOpen, setOptionalRowsModalOpen] = useState(false);
   const [settingsModalOpen, setSettingsModalOpen] = useState(false);
+
+  const splitPaneRef = useRef<HTMLDivElement>(null);
+  const [containerWidth, setContainerWidth] = useState(0);
+
+  useEffect(() => {
+    const el = splitPaneRef.current;
+    if (!el) return;
+    const observer = new ResizeObserver((entries) => {
+      for (const entry of entries) {
+        setContainerWidth(entry.contentRect.width);
+      }
+    });
+    observer.observe(el);
+    return () => observer.disconnect();
+  }, []);
+
+  // Adaptive 4:1 Ratio Rule:
+  // When body-to-sidebar ratio is constrained (< 4:1) or screen width is compact,
+  // the sidebar transitions to an overlay drawer instead of crushing table columns.
+  const isRatioConstrained = containerWidth > 0 && (containerWidth - poolWidth) / poolWidth < 4;
+  const isOverlayMode = isRatioConstrained;
 
   const { data: catalog = [] } = useQuery({
     queryKey: invoiceKeys.optionalRows.byTemplate(templateId),
@@ -125,6 +146,8 @@ export default function TemplateBuilderPage() {
       templateId={templateId}
       apiBasePath={`${apiUrl}/api/invoice-templates/${templateId}`}
       invalidateKey={["template-sections", templateId]}
+      tokenPoolOpen={tokenPoolOpen}
+      setTokenPoolOpen={setTokenPoolOpen}
       templateType={template.templateType}
       columnDefinitions={template.columnDefinitions}
     >
@@ -330,6 +353,7 @@ export default function TemplateBuilderPage() {
                   valueType: row.valueType || "normal",
                   formula: row.formula || null,
                   initialValue: row.initialValue || null,
+                  cellValues: row.cellValues || null,
                 });
 
                 await fetch(
@@ -344,6 +368,8 @@ export default function TemplateBuilderPage() {
                 queryClient.invalidateQueries({
                   queryKey: invoiceKeys.optionalRows.byTemplate(templateId),
                 });
+                setTokenPoolOpen(true);
+                setSidebarTab("line-items");
                 toast.success(`Moved "${row.label || row.rowToken}" to Additional Line Items`);
               } catch (err: any) {
                 toast.error(err.message || "Failed to move row to catalog");
@@ -583,20 +609,20 @@ export default function TemplateBuilderPage() {
           }}
         >
           {/* ── Split panes ─────────────────────────────────────────────────── */}
-          <div className="flex flex-1 overflow-hidden relative">
-            {/* Mobile backdrop for Studio Sidebar */}
-            {tokenPoolOpen && (
+          <div ref={splitPaneRef} className="flex flex-1 overflow-hidden relative">
+            {/* Backdrop for Studio Sidebar in overlay mode or mobile */}
+            {tokenPoolOpen && isOverlayMode && (
               <div
-                className="md:hidden absolute inset-0 z-30 bg-background/60 backdrop-blur-sm"
+                className="absolute inset-0 z-30 bg-black/15 dark:bg-black/40 backdrop-blur-[0.5px] transition-opacity"
                 onClick={() => setTokenPoolOpen(false)}
               />
             )}
 
-            {/* Builder workspace */}
+            {/* Builder workspace (Full width in overlay mode, flex-1 without squeezing) */}
             <div
               className={cn(
-                "flex flex-col h-full bg-muted/20 overflow-y-auto transition-all duration-200 flex-1 min-w-0",
-                tokenPoolOpen && "md:border-r md:border-border",
+                "flex flex-col h-full bg-muted/20 overflow-y-auto transition-all duration-200 flex-1 min-w-0 w-full",
+                tokenPoolOpen && !isOverlayMode && "md:border-r md:border-border",
               )}
               style={
                 {
@@ -605,7 +631,7 @@ export default function TemplateBuilderPage() {
                 } as React.CSSProperties
               }
             >
-              {template.templateType === "sheet" ? (
+              {template.templateType === "general" || template.templateType === "sheet" ? (
                 <SheetBuilderWorkspace
                   templateId={templateId}
                   zoomLevel={0}
@@ -625,11 +651,17 @@ export default function TemplateBuilderPage() {
             {/* Studio Sidebar (Token Pool / Additional Line Items) */}
             <div
               className={cn(
-                "h-full bg-background border-l border-border transition-[width] duration-300 ease-in-out relative shrink-0 overflow-hidden",
+                "h-full bg-background border-l border-border transition-[width] duration-300 ease-in-out shrink-0 overflow-hidden",
                 !tokenPoolOpen && "border-transparent",
-                "absolute md:relative inset-y-0 right-0 z-40 md:z-0 shadow-2xl md:shadow-none",
+                isOverlayMode
+                  ? "absolute inset-y-0 right-0 z-40 shadow-2xl bg-background/98 backdrop-blur-md"
+                  : "relative z-0 shadow-none",
               )}
-              style={{ width: tokenPoolOpen ? poolWidth : 0 }}
+              style={{
+                width: tokenPoolOpen
+                  ? Math.min(poolWidth, containerWidth > 0 ? containerWidth * 0.85 : poolWidth)
+                  : 0,
+              }}
             >
               {tokenPoolOpen && (
                 <div
@@ -641,7 +673,8 @@ export default function TemplateBuilderPage() {
 
                     const handleMouseMove = (moveEvent: MouseEvent) => {
                       const delta = startX - moveEvent.clientX;
-                      const newWidth = Math.min(Math.max(startWidth + delta, 240), 600);
+                      const maxW = containerWidth > 0 ? containerWidth * 0.85 : 700;
+                      const newWidth = Math.min(Math.max(startWidth + delta, 280), maxW);
                       setPoolWidth(newWidth);
                     };
 

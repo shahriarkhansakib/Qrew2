@@ -59,7 +59,7 @@ export function AddEditInvoiceTemplateModal({
   const [description, setDescription] = useState("");
 
   const [prefix, setPrefix] = useState("INV");
-  const [templateType, setTemplateType] = useState<"standard" | "sheet">("standard");
+  const [templateType, setTemplateType] = useState<"standard" | "general">("standard");
   const [isPrefixDirty, setIsPrefixDirty] = useState(false);
   const [isNavigating, setIsNavigating] = useState(false);
 
@@ -79,7 +79,9 @@ export function AddEditInvoiceTemplateModal({
       setName(editTemplate.name || "");
       setDescription(editTemplate.description || "");
       setPrefix(editTemplate.documentPrefix || "INV");
-      setTemplateType(editTemplate.templateType || "standard");
+      setTemplateType(
+        editTemplate.templateType === "sheet" ? "general" : editTemplate.templateType || "standard",
+      );
       setIsPrefixDirty(true);
 
       const rawFormat: string = editTemplate.numberingFormat || "{PREFIX}-{YYYY}-{SEQ:3}";
@@ -359,12 +361,12 @@ export function AddEditInvoiceTemplateModal({
                   role="button"
                   tabIndex={0}
                   onClick={() => {
-                    setTemplateType("sheet");
+                    setTemplateType("general");
                     if (!isPrefixDirty) setPrefix("EXP");
                   }}
                   className={cn(
                     "flex flex-col gap-1.5 p-3 rounded-lg border text-left cursor-pointer transition-all",
-                    templateType === "sheet"
+                    templateType === "general"
                       ? "border-primary bg-primary/5 ring-1 ring-primary"
                       : "border-border hover:border-border/80 hover:bg-muted/30",
                   )}
@@ -373,13 +375,13 @@ export function AddEditInvoiceTemplateModal({
                     <Table
                       className={cn(
                         "w-4 h-4",
-                        templateType === "sheet" ? "text-primary" : "text-muted-foreground",
+                        templateType === "general" ? "text-primary" : "text-muted-foreground",
                       )}
                     />
-                    <span className="text-xs font-bold text-foreground">Custom Sheet</span>
+                    <span className="text-xs font-bold text-foreground">General Template</span>
                   </div>
                   <p className="text-[11px] text-muted-foreground leading-tight">
-                    Excel-style sheet for expense logging with customizable columns.
+                    General-purpose customizable Excel-style sheet with flexible columns.
                   </p>
                 </div>
               </div>
