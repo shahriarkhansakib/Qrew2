@@ -239,7 +239,10 @@ export function SheetTableRow({
             <div
               key={col.id || col.key}
               style={style}
-              className={cn("px-3 py-1 flex items-center min-w-0 border-r border-border", alignClass)}
+              className={cn(
+                "px-3 py-1 flex items-center min-w-0 border-r border-border",
+                alignClass,
+              )}
             >
               <span className="font-mono text-xs font-semibold text-muted-foreground/70 select-none">
                 {globalSl}
@@ -253,7 +256,10 @@ export function SheetTableRow({
             <div
               key={col.id || col.key}
               style={style}
-              className={cn("px-3 py-1 flex items-center min-w-0 border-r border-border", alignClass)}
+              className={cn(
+                "px-3 py-1 flex items-center min-w-0 border-r border-border",
+                alignClass,
+              )}
             >
               <input
                 type="date"
@@ -275,7 +281,10 @@ export function SheetTableRow({
             <div
               key={col.id || col.key}
               style={style}
-              className={cn("px-3 py-1 flex items-center min-w-0 border-r border-border", alignClass)}
+              className={cn(
+                "px-3 py-1 flex items-center min-w-0 border-r border-border",
+                alignClass,
+              )}
             >
               <select
                 value={rawValue || ""}
@@ -307,7 +316,8 @@ export function SheetTableRow({
             ? decodeFormula(row.formula, allSections, undefined, headerFields)
             : undefined;
           const computedVal =
-            tokenMap[row.rowToken] ?? (rawValue !== "" ? Number(rawValue) : row.initialValue ?? 0);
+            tokenMap[row.rowToken] ??
+            (rawValue !== "" ? Number(rawValue) : (row.initialValue ?? 0));
 
           const handleCellClick = () => {
             if (isPdfMode) return;

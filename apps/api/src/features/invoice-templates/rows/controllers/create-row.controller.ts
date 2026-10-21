@@ -71,17 +71,30 @@ export async function createRow(c: Context) {
   const parsed = createRowSchema.safeParse(body);
   if (!parsed.success) return c.json({ error: parsed.error }, 400);
 
-  const { rowToken, label, description, orderIndex, valueType, formula, initialValue, charges, cellValues } =
-    parsed.data;
+  const {
+    rowToken,
+    label,
+    description,
+    orderIndex,
+    valueType,
+    formula,
+    initialValue,
+    charges,
+    cellValues,
+  } = parsed.data;
 
-  const effectiveRowToken = rowToken || `ROW_${crypto.randomUUID().replace(/-/g, "").slice(0, 8).toUpperCase()}`;
+  const effectiveRowToken =
+    rowToken || `ROW_${crypto.randomUUID().replace(/-/g, "").slice(0, 8).toUpperCase()}`;
 
   // Token uniqueness check
   const existingToken = await db.query.tokens?.findFirst({
     where: and(eq(tokens.templateId, templateId), eq(tokens.tokenKey, effectiveRowToken)),
   });
   if (existingToken) {
-    return c.json({ error: `rowToken "${effectiveRowToken}" is already used in this template.` }, 409);
+    return c.json(
+      { error: `rowToken "${effectiveRowToken}" is already used in this template.` },
+      409,
+    );
   }
 
   // Create tokenToId map for encoding the formula
@@ -130,7 +143,8 @@ export async function createRow(c: Context) {
     // Insert row charges
     const insertedCharges = await Promise.all(
       (charges ?? []).map(async (charge, i) => {
-        const chargeToken = charge.chargeToken ?? `${effectiveRowToken}_${toSnakeCase(charge.label)}`;
+        const chargeToken =
+          charge.chargeToken ?? `${effectiveRowToken}_${toSnakeCase(charge.label)}`;
         const chargeId = crypto.randomUUID();
         tokenToId[chargeToken] = chargeId;
         idToToken[chargeId] = chargeToken;

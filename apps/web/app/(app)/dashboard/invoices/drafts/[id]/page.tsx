@@ -884,8 +884,7 @@ export default function DraftBuilderPage() {
                   queryClient.getQueryData(["draft-header-fields", draftId]) || [];
                 const leftFields = headerFields
                   .filter(
-                    (f, idx) =>
-                      f.columnPosition === "left" || (!f.columnPosition && idx % 2 === 0),
+                    (f, idx) => f.columnPosition === "left" || (!f.columnPosition && idx % 2 === 0),
                   )
                   .sort((a, b) => a.sortOrder - b.sortOrder);
                 const rightFields = headerFields

@@ -545,6 +545,7 @@ export default function TemplateBuilderPage() {
               const destList = destCol === "left" ? leftFields : rightFields;
 
               const [moved] = sourceList.splice(source.index, 1);
+              if (!moved || moved.id?.startsWith("default-")) return;
               if (sourceCol !== destCol) {
                 moved.columnPosition = destCol;
               }

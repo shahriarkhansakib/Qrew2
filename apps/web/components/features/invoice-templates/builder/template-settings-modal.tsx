@@ -415,7 +415,9 @@ export function TemplateSettingsModal({
             {/* 1. Separation Style */}
             <div className="space-y-2">
               <div>
-                <Label className="text-xs font-bold text-foreground">Section Separation Style</Label>
+                <Label className="text-xs font-bold text-foreground">
+                  Section Separation Style
+                </Label>
                 <p className="text-xs text-muted-foreground">
                   Controls the border spacing and visual separator rendered between sections.
                 </p>
@@ -481,7 +483,10 @@ export function TemplateSettingsModal({
             {/* 3. Show Section Subtotals */}
             <div className="flex items-center justify-between p-3 rounded-lg border border-border/80 bg-background">
               <div className="space-y-0.5">
-                <Label htmlFor="toggle-section-subtotals" className="text-xs font-bold cursor-pointer">
+                <Label
+                  htmlFor="toggle-section-subtotals"
+                  className="text-xs font-bold cursor-pointer"
+                >
                   Section Subtotal Bars
                 </Label>
                 <p className="text-xs text-muted-foreground">
@@ -528,9 +533,12 @@ export function TemplateSettingsModal({
                   Formatted automatically upon document creation.
                 </span>
               </div>
-              <Badge variant="outline" className="text-xs font-mono font-bold border-primary/30 text-primary px-2 py-1">
-                {(template?.documentPrefix || (isSheet ? "EXP" : "INV"))}-
-                {new Date().getFullYear()}-0001
+              <Badge
+                variant="outline"
+                className="text-xs font-mono font-bold border-primary/30 text-primary px-2 py-1"
+              >
+                {template?.documentPrefix || (isSheet ? "EXP" : "INV")}-{new Date().getFullYear()}
+                -0001
               </Badge>
             </div>
           </TabsContent>

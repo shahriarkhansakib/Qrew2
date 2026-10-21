@@ -411,7 +411,13 @@ describe("InvoiceTemplatesController", () => {
         body: {
           columnDefinitions: [
             { id: "col-1", key: "col_date", label: "Date", dataType: "date" },
-            { id: "col-2", key: "col_amount", label: "Amount", dataType: "number", isTotaled: true },
+            {
+              id: "col-2",
+              key: "col_amount",
+              label: "Amount",
+              dataType: "number",
+              isTotaled: true,
+            },
           ],
         },
       });

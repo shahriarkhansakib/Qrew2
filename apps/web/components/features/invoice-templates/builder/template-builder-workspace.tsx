@@ -244,9 +244,11 @@ export function FileDetailsHeaderBox({
           return true;
         }
 
-        const candidates = [key, tokenKey, cleanToken, field.label]
-          .filter(Boolean)
-          .map((k) => String(k).toLowerCase().replace(/[^a-z0-9]/g, ""));
+        const candidates = [key, tokenKey, cleanToken, field.label].filter(Boolean).map((k) =>
+          String(k)
+            .toLowerCase()
+            .replace(/[^a-z0-9]/g, ""),
+        );
 
         for (const cfKey of Object.keys(cf)) {
           const normalized = cfKey.toLowerCase().replace(/[^a-z0-9]/g, "");
@@ -638,38 +640,41 @@ export function FileDetailsHeaderBox({
               {snapshot.isDraggingOver ? "Drop field here" : "No fields in this column"}
             </div>
           )}
-          {fields.map((field, index) => (
-            <Draggable
-              key={field.id}
-              draggableId={field.id}
-              index={index}
-              isDragDisabled={!isEditable || !onReorder}
-            >
-              {(provided, snapshot) => (
-                <div
-                  ref={provided.innerRef}
-                  {...provided.draggableProps}
-                  style={provided.draggableProps.style}
-                  className={cn(
-                    "flex items-stretch group/drag relative",
-                    snapshot.isDragging &&
-                      "bg-card shadow-lg z-20 rounded border border-primary/40",
-                  )}
-                >
-                  {isEditable && onReorder && (
-                    <div
-                      {...provided.dragHandleProps}
-                      className="w-7 shrink-0 flex items-center justify-center border-r border-border text-muted-foreground/30 hover:text-foreground cursor-grab opacity-0 group-hover/drag:opacity-100 transition-opacity bg-muted/10"
-                      title="Drag to reorder"
-                    >
-                      <GripVertical className="h-3.5 w-3.5" />
-                    </div>
-                  )}
-                  <div className="flex-1 min-w-0">{renderFieldRow(field)}</div>
-                </div>
-              )}
-            </Draggable>
-          ))}
+          {fields.map((field, index) => {
+            const isPlaceholder = field.id.startsWith("default-");
+            return (
+              <Draggable
+                key={field.id}
+                draggableId={field.id}
+                index={index}
+                isDragDisabled={!isEditable || !onReorder || isPlaceholder}
+              >
+                {(provided, snapshot) => (
+                  <div
+                    ref={provided.innerRef}
+                    {...provided.draggableProps}
+                    style={provided.draggableProps.style}
+                    className={cn(
+                      "flex items-stretch group/drag relative",
+                      snapshot.isDragging &&
+                        "bg-card shadow-lg z-20 rounded border border-primary/40",
+                    )}
+                  >
+                    {isEditable && onReorder && !isPlaceholder && (
+                      <div
+                        {...provided.dragHandleProps}
+                        className="w-7 shrink-0 flex items-center justify-center border-r border-border text-muted-foreground/30 hover:text-foreground cursor-grab opacity-0 group-hover/drag:opacity-100 transition-opacity bg-muted/10"
+                        title="Drag to reorder"
+                      >
+                        <GripVertical className="h-3.5 w-3.5" />
+                      </div>
+                    )}
+                    <div className="flex-1 min-w-0">{renderFieldRow(field)}</div>
+                  </div>
+                )}
+              </Draggable>
+            );
+          })}
           {provided.placeholder}
         </div>
       )}
@@ -699,9 +704,7 @@ export function FileDetailsHeaderBox({
             {headerTitle}
           </span>
           {!isFillMode && mode !== "preview" && (
-            <span className="text-xs text-foreground/40 font-normal">
-              {headerSubtitle}
-            </span>
+            <span className="text-xs text-foreground/40 font-normal">{headerSubtitle}</span>
           )}
         </div>
 
@@ -722,7 +725,10 @@ export function FileDetailsHeaderBox({
       {/* Table Body Grid */}
       {isCompletelyEmpty && isSheetMode ? (
         <div className="py-6 px-4 text-center text-xs text-muted-foreground/60 select-none flex flex-col items-center justify-center gap-2">
-          <span>No sheet details fields yet. Click &ldquo;Add Field&rdquo; above to define metadata (e.g. Department, Period, Prepared By).</span>
+          <span>
+            No sheet details fields yet. Click &ldquo;Add Field&rdquo; above to define metadata
+            (e.g. Department, Period, Prepared By).
+          </span>
           {isEditable && onAdd && (
             <Button
               variant="outline"

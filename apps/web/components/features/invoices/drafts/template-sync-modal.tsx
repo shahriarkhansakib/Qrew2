@@ -12,12 +12,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
-import {
-  Tooltip,
-  TooltipContent,
-  TooltipProvider,
-  TooltipTrigger,
-} from "@/components/ui/tooltip";
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { invoiceApi } from "../shared/invoice-api";
 import { invoiceKeys } from "../shared/invoice-keys";
 
@@ -108,7 +103,8 @@ export function TemplateSyncModal({
                       </p>
                       <p className="text-muted-foreground leading-relaxed">
                         Your manual numeric rates, custom item labels, and optional line items are
-                        strictly preserved. Only base formulas and new template items are integrated.
+                        strictly preserved. Only base formulas and new template items are
+                        integrated.
                       </p>
                     </TooltipContent>
                   </Tooltip>

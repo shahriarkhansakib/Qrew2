@@ -40,11 +40,7 @@ export function SheetGrandTotal({ sections, columns, zoomLevel = 0 }: SheetGrand
             return (
               acc +
               (sec.rows || []).reduce((rowAcc: number, r: any) => {
-                const val =
-                  tokenMap[r.rowToken] ??
-                  r.cellValues?.[col.key] ??
-                  r.initialValue ??
-                  0;
+                const val = tokenMap[r.rowToken] ?? r.cellValues?.[col.key] ?? r.initialValue ?? 0;
                 return rowAcc + (Number(val) || 0);
               }, 0)
             );

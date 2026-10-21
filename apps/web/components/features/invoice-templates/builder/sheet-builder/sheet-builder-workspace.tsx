@@ -57,6 +57,9 @@ function AddSectionDivider({ onClick }: { onClick: () => void }) {
   );
 }
 
+const EMPTY_SECTIONS: any[] = [];
+const EMPTY_HEADER_FIELDS: any[] = [];
+
 export function SheetBuilderWorkspace({
   templateId,
   zoomLevel = 0,
@@ -72,7 +75,7 @@ export function SheetBuilderWorkspace({
 
   const { setTokenMap, setSections, setHeaderFields, mode } = useBuilderContext();
 
-  const { data: sections = [], isLoading } = useQuery({
+  const { data: sections, isLoading } = useQuery({
     queryKey: ["template-sections", templateId],
     queryFn: async () => {
       const res = await fetch(`${apiUrl}/api/invoice-templates/${templateId}/sections`, {
@@ -85,7 +88,7 @@ export function SheetBuilderWorkspace({
   });
 
   const headerFieldsQueryKey = ["template-header-fields", templateId];
-  const { data: templateHeaderFields = [], refetch: refetchHeaderFields } = useQuery({
+  const { data: templateHeaderFields, refetch: refetchHeaderFields } = useQuery({
     queryKey: headerFieldsQueryKey,
     queryFn: async () => {
       const res = await fetch(`${apiUrl}/api/invoice-templates/${templateId}/header-fields`, {
@@ -98,8 +101,11 @@ export function SheetBuilderWorkspace({
   });
 
   const sortedSections = useMemo(() => {
-    return [...(sections || [])].sort((a: any, b: any) => a.sortOrder - b.sortOrder);
+    if (!sections) return EMPTY_SECTIONS;
+    return [...sections].sort((a: any, b: any) => a.sortOrder - b.sortOrder);
   }, [sections]);
+
+  const safeHeaderFields = templateHeaderFields ?? EMPTY_HEADER_FIELDS;
 
   const sectionSlOffsets = useMemo(() => {
     const offsets: number[] = [];
@@ -113,8 +119,8 @@ export function SheetBuilderWorkspace({
 
   // Synchronize token map and context
   const tokenMap = useMemo(() => {
-    return buildTokenMap(sortedSections, undefined, undefined, templateHeaderFields);
-  }, [sortedSections, templateHeaderFields]);
+    return buildTokenMap(sortedSections, undefined, undefined, safeHeaderFields);
+  }, [sortedSections, safeHeaderFields]);
 
   useEffect(() => {
     if (setTokenMap) setTokenMap(tokenMap);
@@ -125,10 +131,10 @@ export function SheetBuilderWorkspace({
   }, [sortedSections, setSections]);
 
   useEffect(() => {
-    if (setHeaderFields && templateHeaderFields) {
-      setHeaderFields(templateHeaderFields);
+    if (setHeaderFields) {
+      setHeaderFields(safeHeaderFields);
     }
-  }, [templateHeaderFields, setHeaderFields]);
+  }, [safeHeaderFields, setHeaderFields]);
 
   const handleConfirmDeleteField = async () => {
     if (!fieldToDelete) return;
@@ -290,7 +296,8 @@ export function SheetBuilderWorkspace({
           <AlertDialogHeader>
             <AlertDialogTitle>Remove Sheet Details Field?</AlertDialogTitle>
             <AlertDialogDescription>
-              This field will be deleted from the sheet details metadata. Any formulas referencing this token will no longer resolve it.
+              This field will be deleted from the sheet details metadata. Any formulas referencing
+              this token will no longer resolve it.
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>

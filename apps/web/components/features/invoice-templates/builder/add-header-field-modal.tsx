@@ -187,7 +187,11 @@ export function AddHeaderFieldModal({
             <Label htmlFor="label">Field Label</Label>
             <Input
               id="label"
-              placeholder={isSheetMode ? "e.g. Department, Period, Prepared By, Notes" : "e.g. Tax ID, GRT, Reference Number"}
+              placeholder={
+                isSheetMode
+                  ? "e.g. Department, Period, Prepared By, Notes"
+                  : "e.g. Tax ID, GRT, Reference Number"
+              }
               value={label}
               onChange={(e) => {
                 setLabel(e.target.value);

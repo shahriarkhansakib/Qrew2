@@ -231,7 +231,9 @@ export const invoiceApi = {
     });
     if (!res.ok) {
       const err = await res.json().catch(() => ({}));
-      throw new Error(err.error || err.message || "Failed to reset draft to initial template state");
+      throw new Error(
+        err.error || err.message || "Failed to reset draft to initial template state",
+      );
     }
     return res.json();
   },

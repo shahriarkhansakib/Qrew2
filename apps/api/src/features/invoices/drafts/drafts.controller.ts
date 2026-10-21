@@ -991,9 +991,7 @@ export class DraftsController {
       const [draft] = await db
         .select()
         .from(invoiceDrafts)
-        .where(
-          and(eq(invoiceDrafts.id, draftId), eq(invoiceDrafts.organizationId, organizationId)),
-        )
+        .where(and(eq(invoiceDrafts.id, draftId), eq(invoiceDrafts.organizationId, organizationId)))
         .limit(1);
 
       if (!draft) return c.json({ error: "Draft not found" }, 404);

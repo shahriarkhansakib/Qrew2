@@ -86,8 +86,7 @@ export function AddColumnDialog({
               ? "144px"
               : "160px");
 
-    const defaultAlign =
-      dataType === "serial" ? "center" : dataType === "number" ? "right" : align;
+    const defaultAlign = dataType === "serial" ? "center" : dataType === "number" ? "right" : align;
 
     const column: TemplateColumnDefinition = {
       id: editColumn?.id || crypto.randomUUID(),

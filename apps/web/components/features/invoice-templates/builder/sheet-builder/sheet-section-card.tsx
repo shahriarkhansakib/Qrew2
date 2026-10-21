@@ -43,7 +43,7 @@ export function SheetSectionCard({
   zoomLevel = 0,
 }: SheetSectionCardProps) {
   const queryClient = useQueryClient();
-  const { tokenMap } = useBuilderContext();
+  const { tokenMap, mode } = useBuilderContext();
   const [isEditModalOpen, setIsEditModalOpen] = useState(false);
   const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false);
   const [editingRow, setEditingRow] = useState<any | null>(null);
@@ -304,24 +304,27 @@ export function SheetSectionCard({
         )}
       </Droppable>
 
-      {/* ── Centered "+ Add row" Button (Positioned above subtotal, matching standard templates) ── */}
-      <div className="relative flex items-center justify-center h-7 group/add-row select-none border-b border-border bg-background/50">
-        <div className="absolute inset-x-0 top-1/2 -translate-y-1/2 h-px bg-border group-hover/add-row:bg-primary/30 transition-colors" />
-        <button
-          type="button"
-          onClick={() => addRowMutation.mutate()}
-          disabled={addRowMutation.isPending}
-          className={cn(
-            "relative z-10 inline-flex items-center gap-1 px-3 h-5 rounded-full text-[11px] font-medium",
-            "border border-dashed border-border bg-background text-muted-foreground",
-            "hover:border-primary/60 hover:text-primary hover:bg-primary/5 active:bg-primary/10 transition-all duration-150",
-            "shadow-xs disabled:opacity-50 cursor-pointer",
-          )}
-        >
-          <Plus className="h-2.5 w-2.5" />
-          <span>Add row</span>
-        </button>
-      </div>
+      {/* ── Footer — Add row (matching standard template builder) ── */}
+      {mode !== "fill" && mode !== "preview" && (
+        <div className="flex items-stretch border-b border-border bg-muted/5 hover:bg-muted/10 transition-colors">
+          {/* Grip spacer matching row grip */}
+          <div className="w-8 shrink-0 border-r border-border" />
+          {/* Add row button spanning all data columns */}
+          <div className="flex-1 p-0.5">
+            <Button
+              variant="ghost"
+              size="sm"
+              className="w-full h-7 text-xs text-muted-foreground hover:text-foreground hover:bg-muted/20 cursor-pointer"
+              onClick={() => addRowMutation.mutate()}
+              disabled={addRowMutation.isPending}
+            >
+              <Plus className="h-3 w-3 mr-1" /> Add row
+            </Button>
+          </div>
+          {/* Actions spacer matching row actions */}
+          <div className="w-16 shrink-0 border-r-0" />
+        </div>
+      )}
 
       {/* ── Section Subtotal Row (Auto-computed for totaled columns) ───────── */}
       {hasTotaledCols && rows.length > 0 && (
@@ -348,10 +351,7 @@ export function SheetSectionCard({
               if (col.isTotaled) {
                 const subtotal = rows.reduce((acc, r) => {
                   const val =
-                    tokenMap[r.rowToken] ??
-                    r.cellValues?.[col.key] ??
-                    r.initialValue ??
-                    0;
+                    tokenMap[r.rowToken] ?? r.cellValues?.[col.key] ?? r.initialValue ?? 0;
                   return acc + (Number(val) || 0);
                 }, 0);
 

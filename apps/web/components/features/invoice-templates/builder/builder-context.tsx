@@ -173,13 +173,35 @@ export function BuilderProvider({
   const [sections, setSectionsState] = useState<any[]>([]);
   const [clipboardToken, setClipboardToken] = useState<string | null>(null);
   const [sidebarTab, setSidebarTab] = useState<"tokens" | "line-items">("tokens");
-  const [headerFields, setHeaderFields] = useState<any[]>([]);
-  const [templateConstants, setTemplateConstants] = useState<any[]>([]);
+  const [headerFields, setHeaderFieldsState] = useState<any[]>([]);
+  const [templateConstants, setTemplateConstantsState] = useState<any[]>([]);
   const [externalTokens, setExternalTokensState] =
     useState<ExternalTokens>(DEFAULT_EXTERNAL_TOKENS);
   const [sectionSeparation, setSectionSeparation] = useState<"double" | "step" | "none">("double");
   const [showSectionHeaders, setShowSectionHeaders] = useState(true);
   const [showSectionSubtotals, setShowSectionSubtotals] = useState(false);
+
+  const setHeaderFields = useCallback((fieldsOrFn: any[] | ((prev: any[]) => any[])) => {
+    setHeaderFieldsState((prev) => {
+      const next = typeof fieldsOrFn === "function" ? fieldsOrFn(prev) : fieldsOrFn;
+      if (prev === next) return prev;
+      if (prev.length === next.length && prev.every((item, i) => item === next[i])) {
+        return prev;
+      }
+      return next;
+    });
+  }, []);
+
+  const setTemplateConstants = useCallback((constsOrFn: any[] | ((prev: any[]) => any[])) => {
+    setTemplateConstantsState((prev) => {
+      const next = typeof constsOrFn === "function" ? constsOrFn(prev) : constsOrFn;
+      if (prev === next) return prev;
+      if (prev.length === next.length && prev.every((item, i) => item === next[i])) {
+        return prev;
+      }
+      return next;
+    });
+  }, []);
 
   const setTokenMap = useCallback((mapOrFn: TokenMap | ((prev: TokenMap) => TokenMap)) => {
     setTokenMapState((prev) => {
@@ -577,9 +599,7 @@ export function cellFromRow({
     token: row.rowToken,
     breadcrumb,
     valueType: isFormula ? "formula" : "normal",
-    currentInput: isFormula
-      ? `${decodedFormula ?? row.formula ?? ""}`
-      : String(currentVal ?? ""),
+    currentInput: isFormula ? `${decodedFormula ?? row.formula ?? ""}` : String(currentVal ?? ""),
   };
 }
 
