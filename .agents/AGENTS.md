@@ -37,7 +37,7 @@ When implementing new features, tables, or data fields across this platform, you
 
 ## 4. Single-Value Row Architecture & Formula Codec (`formula-codec.ts`)
 - **Row Architecture**: Parent rows (`template_rows`) directly hold `valueType` (`normal` | `formula`), `formula`, and `initialValue`. Sub-components are obsolete and bypassed.
-- **UUID Formula Encoding**: Formulas are stored in the database using immutable row UUID tags: `{{$row:UUID}}` and `{{$row:UUID}}_TOTAL`.
+- **UUID Formula Encoding**: Formulas are stored in the database using immutable unified token UUID tags: `{{$tok:UUID}}` (with `_BASE` and `_CHARGES` variants). Legacy tags (`{{$row:}}`, `{{$sec:}}`, `{{$tpl:}}`) are completely purged.
 - **Display vs Storage**: All API endpoints MUST call `decodeFormula` before serving formulas to the client (converting UUID tags to current token names) and call `encodeFormula` before writing to the database. Renaming a row token never breaks existing stored formulas because references are bound by UUID.
 
 ## 5. Formula Operator Syntax & Sugar
@@ -174,4 +174,133 @@ stateDiagram-v2
 - **Compiler-Enforced Authorization**:
   - Route middleware `requireOrgPermission` in `@starter/api` and UI gate `<Can I={...}>` in `@starter/web` strictly accept `AppPermission | AppPermission[]`. Magic string literals outside the registry are rejected at compile time.
   - Refer to `.agents/skills/permission-lifecycle-management/SKILL.md` for complete lifecycle protocols.
+
+## 20. Token Capsule Formula Editor Architecture & UX Conventions (`formula-bar/token-capsule.tsx`, `formula-bar/index.tsx`)
+- **Minimalist Aesthetic**: Token capsules render concise token keys with zero icons, zero borders, zero boundaries, and zero padding (`px-0 py-0`). They expand to human-friendly metadata on hover.
+- **Quick Swap Pill Menu**: Clicking an active capsule opens a non-modal quick swap menu displaying its siblings (`[ Base ]`, `[ Charges ]`, `[ Total ]`), enabling 1-click variant switching without typing.
+- **Hierarchical Smart Backspace**: Deleting backward through a token deletes segment-by-segment back to the previous underscore (`_`), stripping known variant suffixes atomically or deleting the full token cleanly.
+- **Autocomplete Value Placement & Highlighting**: In the formula bar autocomplete dropdown, live evaluated token values are rendered immediately adjacent to the token name in the exact matching token semantic color with `shrink-0`, guaranteeing that long token names truncate cleanly without ever hiding or truncating values.
+- **File Details Field Insertion**: Elements dispatching `insert-token` from header tables (e.g. `FileDetailsHeaderBox`) MUST carry `.insertable-token` class and invoke `e.preventDefault()` on `mousedown` when formula mode is active, preventing formula input blur and unwanted outside-click auto-save triggers.
+- **Expense Category Dropdown Standardization**: Dropdowns in `ExpenseCategoriesSection` follow the unified right-aligned caret pattern matching `sections-tree.tsx`, where clicking the container header toggles expand/collapse and clicking the token chip independently inserts `EXP_TOTAL`.
+
+## 21. Row Charge DAG Cycle Isolation & Zero-Compounding Security (`dag-validator.service.ts`, `builder-context.tsx`)
+- **Row Base Isolation for Row Charges**: When editing a row charge (`selectedCell.chargeId`), the parent row's base token (`ROW_BASE`) MUST NEVER be seeded as an invalid dependent or hidden in PBAC/builder contexts. Only the charge's own token and row charge sum/total are restricted.
+- **Zero-Compounding Security**: Row charges must strictly reference parent row base (`<PARENT>_BASE * <RATE>%`). Referencing the row's total token (`<PARENT>`) is strictly rejected with `CHARGE_SCOPE_VIOLATION` to prevent compounding loops.
+- **AST Functions Whitelist**: `FLOOR` and `CEIL` are first-class mathematical primitives registered across `dag-validator.service.ts`, `ast-evaluator.service.ts`, `formula-validator.ts`, and frontend `formula-evaluator.ts`.
+
+## 22. Additional Line Items Studio & Bidirectional Grab-and-Drag Architecture (`token-pool/index.tsx`, `additional-line-items-pool.tsx`, `page.tsx`)
+- **Adobe Illustrator-Type Tab UI**: The right-hand studio sidebar toggles seamlessly between `Token Pool` and `Additional Line Items` via top panel tab buttons (`[ Token Pool ]` and `[ Additional Line Items (N) ]`).
+- **Table-Body Consistent Aesthetic**: The Additional Line Items catalog matches the 4-column layout of the table body (Grip, Label & Token pill, USD / Rate cell with fx formula badges, Action buttons).
+- **Bidirectional Drag-and-Drop (DND)**:
+  - Users can grab any line item from the Additional Line Items catalog in the sidebar and drop it directly into any table section (`rows-${sectionId}`).
+  - Users can grab any row from a table section and drop it into the Additional Line Items sidebar (`additional-line-items`) to save it to the catalog and remove it from the table.
+  - A 1-click alternative "Move to Line Items" is provided in row action dropdown menus.
+- **DND Hierarchy & Shared Context**: To avoid `@hello-pangea/dnd` nested `DragDropContext` fatal errors, the studio uses a shared top-level `DragDropContext` with child components (`TemplateBuilderWorkspace`, `FileDetailsHeaderBox`, `TemplateSectionCard`, `TemplateRowList`) accepting `isSharedDnd: true`.
+- **DAG Token Collision Prevention**: When dragging or instantiating catalog items into table sections, existing template tokens are scanned and incremental suffixes (`_2`, `_3`) are appended automatically to prevent token collision.
+
+## 23. Workspace Zoom Isolation, Full-Cell Row Selection, Token-Only Creation, & Cross-Section DnD (`page.tsx`, `table-row.tsx`, `add-edit-row-modal.tsx`, `row-list/index.tsx`, `additional-line-items-pool.tsx`)
+- **Workspace-Scoped Zoom Isolation**: CSS zoom controls scale only the workspace canvas document (`TemplateBuilderWorkspace`). The top header bar, bottom formula bar, and studio sidebars stay at fixed 100% native scale.
+- **Full-Cell Click-to-Edit**: In the row label column, clicking anywhere within the cell container triggers inline select-and-edit mode. Action buttons and token chips stop propagation.
+- **Additional Line Items Table Layout & Hover Actions**: The Additional Line Items catalog strictly mirrors the visual layout of table body rows:
+  - Column 1: `w-8` serial index (`1, 2, ...`) that reveals `GripVertical` on hover.
+  - Column 2: Canonical Token in crisp monospace font with semantic coloring (`getTokenColor`), without heavy background badges.
+  - Column 3: Row Label in bold white text (`font-medium text-foreground`) with inline click-to-edit and hover actions pinned to the right edge with gradient fade.
+  - Column 4: USD / Rate cell (`tabular-nums font-bold font-mono text-xs`) completely unobstructed.
+  - Action buttons: Strictly `[ Edit Token ]` and `[ Delete from Catalog ]`. The `+` (Quick add) button is permanently removed; transferring items into the table is strictly drag-and-drop or via the Add Row modal.
+- **Add Row Modal with Catalog Dropdown & Target Section Selector**:
+  - Derived label and formula token preview boxes are eradicated from modals.
+  - When opening the Add Row modal from the table, users can switch between `[ From Line Items (${catalog.length}) ]` and `[ Create New Token ]`.
+  - In catalog mode, selecting a saved line item stamps it into the chosen target section with automatic suffix collision avoidance (`_2`, `_3`).
+  - A Target Section dropdown enables routing the line item to any section in the template.
+- **Sticky Viewport Clamping for "+ Add Line Item" Button**:
+  - The `+ Add Line Item` button sits inside the scroll container directly beneath the last item using `sticky bottom-0 z-20` with a background gradient mask.
+  - When items are few (1-3 items), the button renders directly below the last row in normal flow.
+  - When items overflow and scroll, the button stays docked to the bottom of the visible sidebar panel so it never scrolls out of sight.
+- **Duplicate Line Items Prevention**: Adding duplicate tokens to the Additional Line Items catalog is strictly blocked at the API level (`409 Conflict`) and validated before form submission.
+- **Cross-Section DnD & Droppable Invariant**: `TemplateRowList` must never return `null` when `sortedRows.length === 0` in builder mode, ensuring the `<Droppable>` container is registered. Top-level `onDragEnd` supports cross-section movement with optimistic updates and `PATCH` with `sectionId`.
+
+## 24. Table Row Action Hygiene, Catalog Inline Styling, & Formula Bar Auto-Switching (`row-context-menu.tsx`, `additional-line-items-pool.tsx`, `use-save-cell.ts`)
+- **Single Edit Pencil for Table Rows**: In table rows, editing the token/row is triggered exclusively via the edit pencil button positioned over the token pill in the left gutter. Redundant edit buttons in the row hover toolbar (`RowActions`) are omitted to eliminate duplicate actions.
+- **Seamless Borderless Catalog Inline Input**: Inline editing for line item labels in the Additional Line Items catalog matches the transparent, borderless, zero-padding styling of `LabelCell` in the main table (`bg-transparent border-none outline-none focus:outline-none`).
+- **Line Item USD / Rate Formula Bar Integration & Auto-Tab Switch**:
+  - Clicking the USD / Rate cell in the Additional Line Items catalog sets `selectedCell` with `isCatalogItem: true` and loads the item's rate or formula into the formula bar.
+  - Opening a catalog item's rate cell automatically switches the right sidebar tab from `line-items` to `tokens` (`setSidebarTab("tokens")`), giving the user immediate access to token suggestions and clickable token chips from the Token Pool.
+  - Saving the cell sends a PATCH request to `updateTemplateOptionalRow` and invalidates the template catalog query cache.
+- **Delete Confirmation Modal for Catalog Line Items**: Deleting an item from the Additional Line Items catalog requires confirmation via `ConfirmDeleteModal`, safeguarding against accidental loss of catalog rows.
+
+## 25. Template-Draft 3-Way Synchronization, Save-As-Template Translation, & Dual-Engine DAG Enforcement (`drafts.controller.ts`, `draft-builder.controller.ts`, `template-sync-modal.tsx`)
+- **Two-Stage Formula Translation (`saveAsTemplate`)**: When converting drafts into templates, formulas undergo a strict 2-stage conversion: `decodeFormula` (translating draft UUID tags to bare tokens using draft entity maps) followed by `encodeFormula` (re-encoding bare tokens into new master template `{{$tok:UUID}}` tags). Any draft row carrying `isOptional: true` is inherited into the master template's `optionalRows` catalog.
+- **Master Template Version Tracking & Drift Alerts**: Master template mutations (`createRow`, `updateRow`, `deleteRow`, etc.) automatically call `touchTemplate` to increment `invoice_templates.version`. The draft editor checks `GET /template-sync-status` and surfaces an amber `Sync vX Available` button when drift is detected.
+- **Non-Destructive 3-Way Merge (`POST /sync-template`)**: Synchronizing drafts against updated master templates brings in new sections and rows, updates master formulas, and preserves user-edited custom row labels, manual amounts, and optional items without data loss.
+- **Draft Builder DAG Validation**: `validateDraftDag` is evaluated on all draft row and charge mutations, rejecting circular loops and compounding charge scope violations with `422 Unprocessable Entity`.
+
+## 26. Unified Token Namespace, Zero-Legacy Architecture, & Clean Database Rebuild (`formula-codec.ts`, `wipe-and-rebuild.ts`)
+- **Unified Formula Codec**: All formulas are stored strictly as `{{$tok:UUID}}` (with `_BASE` and `_CHARGES` variants). Legacy tags (`{{$row:}}`, `{{$sec:}}`, `{{$tpl:}}`) and legacy regexes are completely eradicated.
+- **Prefix Hygiene**: Template constants published to the calculation scope strictly strip duplicate prefixes (`bareKey = key.replace(/^TPL_/, "")`), guaranteeing that duplicate `TPL_TPL_*` tokens never pollute scope.
+- **Single-Command Clean Rebuild**: `pnpm --filter @starter/db rebuild` provides an automated end-to-end database wipe (`DROP SCHEMA public CASCADE`), table reconstruction (`drizzle-kit push --force`), trigger installation (`0003_token_triggers.sql`), and clean baseline data seeding (all 89 PBAC permissions, linked Google auth user, org defaults, agency templates, and active client/projects).
+
+## 27. Customizable Sheet Templates, Unified Template Settings, Interactive Column System, & Formula Synchronization (`sheet-builder-workspace.tsx`, `sheet-table-header.tsx`, `sheet-table-row.tsx`, `template-settings-modal.tsx`, `builder-context.tsx`, `use-save-cell.ts`)
+- **Archetype Split (`templateType: "standard" | "sheet"`)**: Templates branch cleanly between standard project-bound formula invoices and general-purpose customizable Excel-style sheet templates (`columnDefinitions`, `cellValues`).
+- **Interactive Column Drag-to-Resize & Inline `+` Insertion**:
+  - Column divider borders feature responsive drag handles (`onMouseDown` + window `mousemove/mouseup`) updating pixel widths (`w: "${finalWidth}px"`).
+  - Hovering between columns (and at index 0 and end) reveals rounded `+` pills to insert new columns at that precise index.
+  - Column header dropdown context menu provides inline controls: Edit Column, Insert Left, Insert Right, and Delete Column.
+- **Unified "Template Settings" Modal Across All Templates**:
+  - The legacy "View" popover and "Columns" modal are unified into a single "Template Settings" button (`template-settings-modal.tsx`).
+  - For standard templates: presents *Presentation & Layout* and *Document & Indexing* tabs.
+  - For sheet templates: adds *Columns & Data* tab (reordering, data types, auto-sum toggles) with zero flex overlap or text clipping.
+- **Single-Variant Flat Tokens for Sheet Templates**:
+  - Sheet templates have no charges. Redundant `_BASE` and `_CHARGES` variants are completely suppressed in the Token Pool, autocomplete, and context. Each row is strictly `ROW_<TOKEN>` and each section is `SEC_<TOKEN>`.
+- **Sheet Details Header Box & Formula Bar Integration**:
+  - Maritime file fields are replaced with **"Sheet Details"** (`FileDetailsHeaderBox` with `isSheetMode: true`), supporting custom metadata fields (Department, Period, Prepared By, Notes) with inline editing, adding/deleting fields, and drag-and-drop reordering.
+  - Sticky `TemplateFormulaBar` is active in sheet mode.
+  - Clicking numeric cells in sheet rows selects them into the formula bar (`columnKey?: string`, `breadcrumb: "${row.label} > ${col.label}"`).
+  - Saving cell values updates `cellValues` and evaluates live mathematical formulas into subtotals and grand totals.
+- **Centered `+ Add row` Position**:
+  - In sheet sections, the `+ Add row` button is centered directly above the section subtotal footer, matching standard templates.
+
+## 28. General Templates, Serial-Based Row Tokens, Dynamic Line Items Columns, & Explicit Studio Sidebar Modes (`resequence-rows.service.ts`, `reorder-rows.controller.ts`, `additional-line-items-pool.tsx`, `page.tsx`, `builder-context.tsx`)
+- **Archetype Rename (`templateType: "general"`)**: Type name renamed from `"sheet"` to `"general"` across database schemas, validation schemas, controllers, and UI components (with backwards compatibility for existing `"sheet"` entries).
+- **Serial-Based Row Token Naming & Two-Phase Re-Sequencing Engine (`resequence-rows.service.ts`, `reorder-rows.controller.ts`, `create-row.controller.ts`, `delete-row.controller.ts`)**:
+  - Arbitrary UUID tokens (e.g. `ROW_AAA69AA3`) are completely eradicated. Row tokens are canonically named after their global serial index: `ROW_1`, `ROW_2`, `ROW_3`, ...
+  - When rows are reordered within a section, transferred across sections, created, or deleted, `resequenceTemplateRowTokens` automatically re-indexes all rows in topological order (`sections.sortOrder ASC, rows.sortOrder ASC`).
+  - Two-Phase Updates prevent PostgreSQL `tokens_template_key_unique` constraint collisions by temporarily mapping tokens to `__TMP_<ID>__` before assigning final `ROW_N` canonical keys in a single transaction.
+  - Formula preservation: Because database formulas are bound by immutable UUID tags (`{{$tok:UUID}}`), token renaming dynamically updates formula display without corrupting mathematical graphs or calculations.
+- **Dynamic Columns in Additional Line Items Catalog (`additional-line-items-pool.tsx`)**:
+  - For General templates, the Additional Line Items catalog dynamically mirrors the template's configured `columnDefinitions` instead of fixed `Row Label | USD / Rate`.
+  - Column values (`cellValues`) are preserved when moving rows into the catalog and instantiating them into the table.
+  - Horizontal scrolling (`overflow-x-auto min-w-full`) prevents dense multi-column tables from crushing into unreadable slivers.
+- **Explicit Studio Sidebar Modes: Overlay vs. Static (`page.tsx`, `drafts/[id]/page.tsx`, `token-pool/index.tsx`)**:
+  - Replaced the automatic screen-ratio heuristic with two user-switchable display modes:
+    - **Overlay Mode (`"overlay"`)**: The table occupies 100% full builder page width (`w-full flex-1 min-w-0`), while the Studio sidebar floats over the right side with shadow elevation (`absolute inset-y-0 right-0 z-40 shadow-2xl bg-background/98 backdrop-blur-md`) and click-outside backdrop dismissal.
+    - **Static Mode (`"static"`)**: The table and the sidebar sit side-by-side in flex layout (`relative shrink-0 shadow-none`); the table compresses smoothly to give space to the sidebar, and nothing overlaps. Both panels remain simultaneously interactive without a backdrop.
+  - User preference is persisted in `localStorage` under `starter_studio_sidebar_display_mode`.
+  - 1-click mode toggles (`[ Overlay ]` / `[ Docked ]`) are provided both in the top navigation toolbar (beside the Studio button) and inside the Studio sidebar tab strip header.
+  - Default sidebar width is set to `440px` (resizable between `300px` and `800px`) to provide plenty of breathing room for multi-column general template tables.
+- **Table-Body Embedded "+ Add Line Item" Row (`additional-line-items-pool.tsx`)**:
+  - The `+ Add Line Item` action is embedded strictly inside the table body itself:
+    - When no line items exist in the catalog: `+ Add Line Item` is rendered on the first row of the table directly below the column headers.
+    - When line items exist: `+ Add Line Item` is rendered immediately below the last line item as the final row of the table.
+    - The outer sticky bottom button and bulky empty state card are permanently removed.
+- **Auto-Open Sidebar & Switch to Line Items on Table Row Copy**:
+  - Whenever a row is moved or saved to Additional Line Items from the table (via menu action or drag-and-drop), `openAdditionalLineItemsPanel()` automatically opens the sidebar (`tokenPoolOpen = true`) and switches the active tab directly to `line-items` (`setSidebarTab("line-items")`).
+
+## 29. Multi-Permission PBAC Invoicing Navigation & Direct Invoice Generation (`navigation.ts`, `dashboard/layout.tsx`, `org-admin/layout.tsx`, `generate-invoice-modal.tsx`, `draft-seeder.ts`, `sheet-builder-workspace.tsx`)
+- **Array-Based PBAC Navigation Gating**:
+  - `NavItem` and `NavGroup` in `navigation.ts` accept strongly-typed permission arrays: `permission?: AppPermission | AppPermission[]`.
+  - Both `dashboard/layout.tsx` and `org-admin/layout.tsx` evaluate permissions using `canAny(item.permission)`.
+  - Invoices navigation is granted to staff and accountants holding atomic `invoice:view`, as well as managers/owners holding legacy `finance:view_invoices` and `finance:manage_invoices`.
+- **Dual Sidebar Placement**:
+  - Invoices page (`/dashboard/invoices`) is registered in both the User Dashboard sidebar (`NAV_CONFIG.user`) and the Tenant Admin sidebar (`NAV_CONFIG.tenantAdmin`), eliminating unnecessary back-navigation for organization administrators.
+- **Direct 1-Click Invoice Generation**:
+  - **Template Builder Header**: Dedicated top-bar `[ Generate Invoice ]` button in `/org-admin/invoice-templates/[id]` opens `GenerateInvoiceModal` with the active template pre-selected.
+  - **Template Catalog Row Actions**: Every template card / row in `/org-admin/invoice-templates` includes a direct `[ Generate Invoice ]` action button.
+  - **Invoices Page Header**: Primary `[ + Generate Invoice ]` button in the `/dashboard/invoices` header.
+- **Project Selection in Generic Generation Modal**:
+  - `GenerateInvoiceModal` supports both pre-scoped project contexts and global creation. When opened outside a specific project, it renders an active Project Selector dropdown (`/api/workspaces/projects?status=active`).
+- **General Template Draft Session Hydration & Routing**:
+  - `DraftSeeder.hydrateFromTemplate` copies all custom `cellValues` into draft section rows and remaps formula tokens to fresh draft UUIDs.
+  - `getDraftById` eager-loads `sourceTemplate` metadata (`templateType`, `columnDefinitions`).
+  - Draft workspace (`/dashboard/invoices/drafts/[id]`) dynamically branches: if `templateType === "general"` or custom `columnDefinitions` exist, it renders `SheetBuilderWorkspace` with live AST formula calculations, dynamic column sizing, and automatic grand totals.
+
 

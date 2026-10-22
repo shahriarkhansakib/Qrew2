@@ -2,25 +2,115 @@
 
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
+import { invoiceApi } from "@/components/features/invoices/shared/invoice-api";
+import { invoiceKeys } from "@/components/features/invoices/shared/invoice-keys";
+import { safeEval } from "@/lib/formula-evaluator";
 import { type SelectedCell, useBuilderContext } from "./builder-context";
 import { preprocessForSave } from "./formula-bar-utils";
 
 export function useSaveCellMutation() {
   const queryClient = useQueryClient();
-  const { setSelectedCell, apiBasePath, invalidateKey } = useBuilderContext();
+  const { setSelectedCell, apiBasePath, invalidateKey, mode } = useBuilderContext();
 
   return useMutation({
     mutationFn: async ({ cell, rawInput }: { cell: SelectedCell; rawInput: string }) => {
       const trimmed = rawInput.trim();
+      const isFillMode = mode === "fill";
+      const isCharge = Boolean(cell.chargeId || cell.isSectionCharge);
 
-      // A formula contains letters (tokens) or the // or % operators
-      const isFormula =
-        /[A-Z_]/.test(trimmed) ||
-        trimmed.includes("//") ||
-        // % after a number = percentage (always a formula), bare % = modulo
-        (trimmed.includes("%") && !/^\s*[\d.]+\s*$/.test(trimmed));
+      let evaluatedManualValue: number | null = null;
+      let isFormula = isCharge;
+
+      if (!isCharge) {
+        if (isFillMode) {
+          // Fill Mode: strictly manual calculation or scalar entry
+          if (!trimmed) {
+            evaluatedManualValue = null;
+          } else {
+            const allowedMathFunctions = new Set([
+              "MIN",
+              "MAX",
+              "ROUND",
+              "CLAMP",
+              "ABS",
+              "FLOOR",
+              "CEIL",
+            ]);
+            const idents = trimmed.match(/[A-Za-z_][A-Za-z0-9_]*/g) || [];
+            const invalidIdents = idents.filter(
+              (id) => !allowedMathFunctions.has(id.toUpperCase()),
+            );
+            if (invalidIdents.length > 0) {
+              throw new Error(
+                `"${invalidIdents.join(", ")}" is not allowed in Fill Mode. Switch to Builder Mode to author formulas with tokens, or enter a number / calculation.`,
+              );
+            }
+
+            const calculated = safeEval(trimmed);
+            if (calculated === null || !Number.isFinite(calculated)) {
+              throw new Error(
+                "Invalid calculation. Please enter a valid number or mathematical expression.",
+              );
+            }
+            evaluatedManualValue = calculated;
+          }
+          isFormula = false;
+        } else {
+          // Builder / Template Mode: dynamic transition between formula and normal value
+          const hasFormulaChars =
+            Boolean(trimmed) &&
+            (/[A-Za-z_]/.test(trimmed) ||
+              trimmed.includes("//") ||
+              (trimmed.includes("%") && !/^\s*[\d.]+\s*$/.test(trimmed)));
+
+          isFormula = hasFormulaChars;
+
+          if (!isFormula && trimmed) {
+            const calculated = safeEval(trimmed);
+            evaluatedManualValue =
+              calculated != null && Number.isFinite(calculated)
+                ? calculated
+                : parseFloat(trimmed) || null;
+          }
+        }
+      }
 
       const processedFormula = isFormula ? preprocessForSave(trimmed) : trimmed;
+
+      // ── Catalog Line Item ──
+      if (cell.isCatalogItem) {
+        const payload: Record<string, any> = {
+          valueType: isFormula ? "formula" : "normal",
+          formula: isFormula ? processedFormula : null,
+          initialValue: isFormula
+            ? null
+            : evaluatedManualValue != null
+              ? evaluatedManualValue
+              : trimmed
+                ? parseFloat(trimmed) || null
+                : null,
+        };
+
+        if (cell.columnKey && cell.row) {
+          payload.cellValues = {
+            ...(cell.row.cellValues || {}),
+            [cell.columnKey]: isFormula
+              ? processedFormula
+              : evaluatedManualValue != null
+                ? evaluatedManualValue
+                : trimmed,
+          };
+        }
+
+        if (cell.templateId) {
+          await invoiceApi.updateTemplateOptionalRow(
+            cell.templateId,
+            cell.rowId || cell.token || "",
+            payload,
+          );
+        }
+        return { cell, isCatalog: true };
+      }
 
       // ── Section Charge ──
       if (cell.isSectionCharge && cell.chargeId) {
@@ -62,8 +152,25 @@ export function useSaveCellMutation() {
       const payload: Record<string, any> = {
         valueType: isFormula ? "formula" : "normal",
         formula: isFormula ? processedFormula : null,
-        initialValue: isFormula ? null : parseFloat(trimmed) || null,
+        initialValue: isFormula
+          ? null
+          : evaluatedManualValue != null
+            ? evaluatedManualValue
+            : trimmed
+              ? parseFloat(trimmed) || null
+              : null,
       };
+
+      if (cell.columnKey && cell.row) {
+        payload.cellValues = {
+          ...(cell.row.cellValues || {}),
+          [cell.columnKey]: isFormula
+            ? processedFormula
+            : evaluatedManualValue != null
+              ? evaluatedManualValue
+              : trimmed,
+        };
+      }
 
       const res = await fetch(`${apiBasePath}/sections/${cell.sectionId}/rows/${cell.rowId}`, {
         method: "PATCH",
@@ -77,8 +184,21 @@ export function useSaveCellMutation() {
       }
       return { json: await res.json(), templateId: cell.templateId };
     },
-    onSuccess: () => {
+    onSuccess: (data: any) => {
       queryClient.invalidateQueries({ queryKey: invalidateKey });
+      if (data?.isCatalog && data.cell) {
+        if (data.cell.templateId) {
+          queryClient.invalidateQueries({
+            queryKey: invoiceKeys.optionalRows.byTemplate(data.cell.templateId),
+          });
+        }
+        if (data.cell.draftId) {
+          queryClient.invalidateQueries({
+            queryKey: invoiceKeys.optionalRows.byDraft(data.cell.draftId),
+          });
+        }
+        toast.success("Updated line item formula / value");
+      }
       setSelectedCell(null);
     },
     onError: (err: any) => toast.error(err.message || "Failed to save cell value"),

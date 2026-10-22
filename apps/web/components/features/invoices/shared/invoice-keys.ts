@@ -30,6 +30,7 @@ export const invoiceKeys = {
   // Drafts
   drafts: {
     byProject: (projectId: string) => ["invoice-drafts", "project", projectId] as const,
+    syncStatus: (draftId: string) => ["draft-sync-status", draftId] as const,
   },
 
   // Invoices

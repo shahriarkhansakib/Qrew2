@@ -32,6 +32,33 @@
   --color-input: var(--input);
   --color-ring: var(--ring);
 
+  /* FORMULA & TOKEN ENGINE PALETTE */
+  /* Refined, low-chroma semantic tones tailored for Dark Mode UI */
+  --color-violet-400: oklch(0.75 0.1 290);
+  --color-violet-500: oklch(0.67 0.12 290);
+  --color-indigo-400: oklch(0.75 0.09 265);
+  --color-indigo-500: oklch(0.67 0.11 265);
+  --color-blue-400: oklch(0.74 0.09 240);
+  --color-blue-500: oklch(0.66 0.11 240);
+  --color-sky-400: oklch(0.77 0.08 215);
+  --color-sky-500: oklch(0.7 0.1 215);
+  --color-teal-400: oklch(0.77 0.07 175);
+  --color-teal-500: oklch(0.69 0.09 175);
+  --color-rose-400: oklch(0.74 0.08 18);
+  --color-rose-500: oklch(0.67 0.09 18);
+  --color-amber-400: oklch(0.8 0.09 75);
+  --color-amber-500: oklch(0.73 0.11 75);
+  --color-orange-400: oklch(0.75 0.1 50);
+  --color-orange-500: oklch(0.68 0.12 50);
+  --color-slate-400: oklch(0.7 0.02 260);
+  --color-slate-500: oklch(0.55 0.03 260);
+  --color-yellow-500: oklch(0.78 0.1 85);
+  --color-yellow-600: oklch(0.7 0.11 80);
+  --color-pink-500: oklch(0.7 0.11 350);
+  --color-red-500: oklch(0.67 0.12 25);
+  --color-emerald-500: oklch(0.72 0.09 155);
+  --color-cyan-500: oklch(0.75 0.08 200);
+
   --radius-sm: calc(var(--radius) * 0.6);
   --radius-md: calc(var(--radius) * 0.8);
   --radius-lg: var(--radius);

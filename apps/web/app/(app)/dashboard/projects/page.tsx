@@ -1,7 +1,7 @@
 "use client";
 
 import { useQuery } from "@tanstack/react-query";
-import { Folder, FolderTree, List, Plus, SlidersHorizontal } from "lucide-react";
+import { Folder, FolderTree, Gauge, Kanban, List, Plus, SlidersHorizontal } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
 import { toast } from "sonner";
 import { Can } from "@/components/features/auth/can";
@@ -9,8 +9,10 @@ import { ClientDetailsModal } from "@/components/features/clients/client-details
 import { AddProjectModal } from "@/components/features/projects/add-project-modal";
 import { ExplorerView } from "@/components/features/projects/explorer-view";
 import { FolderView } from "@/components/features/projects/folder-view";
+import { KanbanView } from "@/components/features/projects/kanban-view";
 import { ListView } from "@/components/features/projects/list-view";
 import { ProjectDetailsModal } from "@/components/features/projects/project-details-modal";
+import { WorkflowVelocityModal } from "@/components/features/workflows/workflow-velocity-modal";
 import { Button } from "@/components/ui/button";
 import {
   DropdownMenu,
@@ -35,7 +37,8 @@ export default function ProjectsPage() {
   const [projectToEdit, setProjectToEdit] = useState<any>(null);
   const [projectToView, setProjectToView] = useState<any>(null);
   const [clientToView, setClientToView] = useState<any>(null);
-  const [viewMode, setViewMode] = useState<"list" | "tree" | "folder">("list");
+  const [viewMode, setViewMode] = useState<"list" | "board" | "tree" | "folder">("list");
+  const [isVelocityModalOpen, setIsVelocityModalOpen] = useState(false);
   const [sortBy, setSortBy] = useState<string>("createdAt_desc");
   const [groupByKey, setGroupByKey] = useState<string>("createdAt");
   const [activeTab, setActiveTab] = useState<"active" | "archived">("active");
@@ -71,7 +74,7 @@ export default function ProjectsPage() {
     },
   });
 
-  const { data: rawCustomFields, isLoading: customFieldsLoading } = useQuery({
+  const { data: rawCustomFields } = useQuery({
     queryKey: ["custom-fields", "project"],
     queryFn: async () => {
       const res = await fetch(`${apiUrl}/api/workspaces/custom-fields?entityType=project`, {
@@ -231,6 +234,9 @@ export default function ProjectsPage() {
             <ToggleGroupItem value="list" aria-label="Toggle list view">
               <List className="h-4 w-4 mr-2" /> List
             </ToggleGroupItem>
+            <ToggleGroupItem value="board" aria-label="Toggle board view">
+              <Kanban className="h-4 w-4 mr-2" /> Board
+            </ToggleGroupItem>
             <ToggleGroupItem value="tree" aria-label="Toggle tree view">
               <FolderTree className="h-4 w-4 mr-2" /> Tree
             </ToggleGroupItem>
@@ -284,6 +290,18 @@ export default function ProjectsPage() {
                   </SelectContent>
                 </Select>
               </div>
+            )}
+
+            {viewMode === "board" && (
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => setIsVelocityModalOpen(true)}
+                className="gap-1.5 text-xs h-9 border-primary/20 hover:border-primary hover:bg-primary/5 shadow-2xs"
+              >
+                <Gauge className="w-3.5 h-3.5 text-primary" />
+                <span className="hidden sm:inline">Workflow Velocity</span>
+              </Button>
             )}
 
             <DropdownMenu>
@@ -361,6 +379,20 @@ export default function ProjectsPage() {
                 allStatuses={allStatuses || []}
                 workflowsEnabled={workflowsEnabled}
               />
+            ) : viewMode === "board" ? (
+              <KanbanView
+                projects={sortedProjects}
+                customFields={customFields || []}
+                isLoading={projectsLoading}
+                onEdit={handleEdit}
+                onDelete={handleDelete}
+                onView={setProjectToView}
+                onArchiveToggle={handleArchiveToggle}
+                onViewClient={setClientToView}
+                allStatuses={allStatuses || []}
+                workflowsEnabled={workflowsEnabled}
+                hiddenColumns={hiddenCols}
+              />
             ) : viewMode === "tree" ? (
               <FolderView
                 projects={sortedProjects}
@@ -412,6 +444,20 @@ export default function ProjectsPage() {
                 allStatuses={allStatuses || []}
                 workflowsEnabled={workflowsEnabled}
               />
+            ) : viewMode === "board" ? (
+              <KanbanView
+                projects={sortedProjects}
+                customFields={customFields || []}
+                isLoading={projectsLoading}
+                onEdit={handleEdit}
+                onDelete={handleDelete}
+                onView={setProjectToView}
+                onArchiveToggle={handleArchiveToggle}
+                onViewClient={setClientToView}
+                allStatuses={allStatuses || []}
+                workflowsEnabled={workflowsEnabled}
+                hiddenColumns={hiddenCols}
+              />
             ) : viewMode === "tree" ? (
               <FolderView
                 projects={sortedProjects}
@@ -459,6 +505,11 @@ export default function ProjectsPage() {
       <ProjectDetailsModal project={projectToView} onClose={() => setProjectToView(null)} />
 
       <ClientDetailsModal client={clientToView} mode="full" onClose={() => setClientToView(null)} />
+
+      <WorkflowVelocityModal
+        isOpen={isVelocityModalOpen}
+        onClose={() => setIsVelocityModalOpen(false)}
+      />
     </div>
   );
 }

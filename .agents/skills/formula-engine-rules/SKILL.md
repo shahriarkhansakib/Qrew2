@@ -8,7 +8,7 @@ description: Strict guidelines and architectural rules for interacting with, mod
 When working on the Invoice Builder or Formula Engine, you MUST adhere to the following rules to prevent hallucinated logic, UI bugs, or database corruption.
 
 ## 1. Row Architecture & UUID Tagging
-- **Storage vs. Display:** Formulas are stored in the database using immutable row UUID tags: \`{{$row:UUID}}\` and \`{{$row:UUID}}_TOTAL\`.
+- **Storage vs. Display:** Formulas are stored in the database using immutable unified token UUID tags: `{{$tok:UUID}}` (with `_BASE` and `_CHARGES` variants). Legacy tags (`{{$row:}}`, `{{$sec:}}`, `{{$tpl:}}`) are strictly purged.
 - **Codec Usage:** All API endpoints MUST call \`decodeFormula\` before serving formulas to the client (converting UUID tags to human-readable tokens) and \`encodeFormula\` before writing to the database.
 - **Why:** This ensures that renaming a row token never breaks existing formulas, as references are bound by UUID.
 

@@ -3,6 +3,8 @@ import { GripVertical, Trash2 } from "lucide-react";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
 import { Can } from "@/components/features/auth/can";
+import { invoiceApi } from "@/components/features/invoices/shared/invoice-api";
+import { invoiceKeys } from "@/components/features/invoices/shared/invoice-keys";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { decodeFormula, fmt, TokenMap } from "@/lib/formula-evaluator";
@@ -21,14 +23,26 @@ export function LabelCell({
   sectionId,
   value,
   zoomLevel = 0,
+  isEditing,
+  onEditingChange,
 }: {
   rowId: string;
   templateId: string;
   sectionId: string;
   value: string;
   zoomLevel?: number;
+  isEditing?: boolean;
+  onEditingChange?: (editing: boolean) => void;
 }) {
-  const [editing, setEditing] = useState(false);
+  const [internalEditing, setInternalEditing] = useState(false);
+  const editing = isEditing !== undefined ? isEditing : internalEditing;
+  const setEditing = useCallback(
+    (val: boolean) => {
+      if (onEditingChange) onEditingChange(val);
+      else setInternalEditing(val);
+    },
+    [onEditingChange],
+  );
   const [draft, setDraft] = useState(value);
   const inputRef = useRef<HTMLInputElement>(null);
   const queryClient = useQueryClient();
@@ -36,13 +50,14 @@ export function LabelCell({
   const { canAny } = usePermissionStore();
 
   const canEditLabel =
-    mode === "template" ||
-    canAny([
-      "invoice:edit_line_labels",
-      "finance:manage_invoices",
-      "template:edit",
-      "workspace:manage_settings",
-    ]);
+    mode !== "preview" &&
+    (mode === "template" ||
+      canAny([
+        "invoice:edit_line_labels",
+        "finance:manage_invoices",
+        "template:edit",
+        "workspace:manage_settings",
+      ]));
 
   useEffect(() => {
     if (!editing) setDraft(value);
@@ -71,7 +86,7 @@ export function LabelCell({
     } catch {
       toast.error("Failed to save label");
     }
-  }, [draft, value, rowId, sectionId, queryClient, apiBasePath, invalidateKey]);
+  }, [draft, value, rowId, sectionId, queryClient, apiBasePath, invalidateKey, setEditing]);
 
   return (
     <div
@@ -79,7 +94,7 @@ export function LabelCell({
       tabIndex={canEditLabel ? 0 : undefined}
       onClick={() => canEditLabel && !editing && setEditing(true)}
       onKeyDown={(e) => canEditLabel && e.key === "Enter" && !editing && setEditing(true)}
-      className={cn("w-full h-full", !canEditLabel && "cursor-default")}
+      className={cn("w-full h-full flex items-center min-w-0", !canEditLabel && "cursor-default")}
     >
       {editing ? (
         <input
@@ -108,7 +123,7 @@ export function LabelCell({
       ) : (
         <span
           className={cn(
-            "font-medium text-foreground leading-snug",
+            "font-medium text-foreground leading-snug truncate",
             !value && "text-muted-foreground/30",
           )}
           style={{ fontSize: 14 + zoomLevel }}
@@ -160,12 +175,26 @@ export function SingleRow({
     apiBasePath,
     invalidateKey,
     draftId,
+    headerFields,
+    templateConstants,
+    openAdditionalLineItemsPanel,
   } = useBuilderContext();
   const queryClient = useQueryClient();
   const isFormulaMode = !!selectedCell;
   const isOptionalService = !!row.isOptionalService;
   const charges: any[] = row.charges ?? [];
   const hasCharges = charges.length > 0;
+  const { canAny } = usePermissionStore();
+  const canEditLabel =
+    mode !== "preview" &&
+    (mode === "template" ||
+      canAny([
+        "invoice:edit_line_labels",
+        "finance:manage_invoices",
+        "template:edit",
+        "workspace:manage_settings",
+      ]));
+  const [isEditingLabel, setIsEditingLabel] = useState(false);
 
   const handleDeleteOptionalService = async (e: React.MouseEvent) => {
     e.stopPropagation();
@@ -200,10 +229,51 @@ export function SingleRow({
   const isSelected = selectedCell?.rowId === row.id;
 
   const decodedFormula =
-    row.valueType === "formula" ? decodeFormula(row.formula, allSections) : undefined;
+    row.valueType === "formula"
+      ? decodeFormula(row.formula, allSections, templateConstants, headerFields)
+      : undefined;
 
-  const handleValueClick = () =>
+  const isCellEditable = mode !== "preview" && (mode !== "fill" || row.valueType === "normal");
+
+  const handleValueClick = () => {
+    if (!isCellEditable) return;
     setSelectedCell(cellFromRow({ templateId, sectionId, row, decodedFormula }));
+  };
+
+  const handleSaveToAdditionalLineItems = async () => {
+    try {
+      if (templateId) {
+        await invoiceApi.addTemplateOptionalRow(templateId, {
+          rowToken: row.rowToken,
+          label: row.label,
+          subDescription: row.description || null,
+          valueType: row.valueType || "normal",
+          formula: row.formula || null,
+          initialValue: row.initialValue || null,
+        });
+        queryClient.invalidateQueries({
+          queryKey: invoiceKeys.optionalRows.byTemplate(templateId),
+        });
+        openAdditionalLineItemsPanel?.();
+        toast.success(`Copied "${row.label || row.rowToken}" to Additional Line Items`);
+      } else if (draftId) {
+        await invoiceApi.addDraftOptionalRow(draftId, {
+          canonicalToken: row.canonicalToken || row.rowToken,
+          customLabel: row.label,
+          customValue:
+            row.valueType === "normal" && row.initialValue ? Number(row.initialValue) : undefined,
+          customFormula: row.valueType === "formula" ? row.formula : undefined,
+        });
+        queryClient.invalidateQueries({
+          queryKey: invoiceKeys.optionalRows.byDraft(draftId),
+        });
+        openAdditionalLineItemsPanel?.();
+        toast.success(`Copied "${row.label || row.rowToken}" to Additional Line Items`);
+      }
+    } catch (e: any) {
+      toast.error(e.message || "Failed to copy row to Additional Line Items");
+    }
+  };
 
   const formulaAnnotation = decodedFormula;
 
@@ -211,7 +281,7 @@ export function SingleRow({
     <>
       <TableRow
         token={row.rowToken}
-        onEditToken={mode !== "fill" ? onEdit : undefined}
+        onEditToken={mode !== "fill" && mode !== "preview" ? onEdit : undefined}
         zoomLevel={zoomLevel}
         sl={
           <div className="group/sl relative flex items-center justify-center w-full h-full min-h-[32px]">
@@ -223,7 +293,7 @@ export function SingleRow({
             >
               {globalSl}
             </span>
-            {mode !== "fill" && (
+            {mode !== "fill" && mode !== "preview" && (
               <div
                 className={cn(
                   "absolute inset-0 flex items-center justify-center transition-opacity",
@@ -239,9 +309,14 @@ export function SingleRow({
           </div>
         }
         actions={
-          mode !== "fill" ? (
-            <RowActions onEdit={onEdit} onDelete={onDelete} onAddCharge={onAddCharge} />
-          ) : isOptionalService ? (
+          mode !== "fill" && mode !== "preview" ? (
+            <RowActions
+              onEdit={onEdit}
+              onDelete={onDelete}
+              onAddCharge={onAddCharge}
+              onMoveToAdditionalLineItems={handleSaveToAdditionalLineItems}
+            />
+          ) : mode === "fill" && isOptionalService ? (
             <Can I={["invoice:manage_optional_rows", "finance:manage_invoices"]}>
               <Button
                 variant="ghost"
@@ -256,9 +331,14 @@ export function SingleRow({
           ) : undefined
         }
         mobileActions={
-          mode !== "fill" ? (
-            <MobileRowActions onEdit={onEdit} onDelete={onDelete} onAddCharge={onAddCharge} />
-          ) : isOptionalService ? (
+          mode !== "fill" && mode !== "preview" ? (
+            <MobileRowActions
+              onEdit={onEdit}
+              onDelete={onDelete}
+              onAddCharge={onAddCharge}
+              onMoveToAdditionalLineItems={handleSaveToAdditionalLineItems}
+            />
+          ) : mode === "fill" && isOptionalService ? (
             <Can I={["invoice:manage_optional_rows", "finance:manage_invoices"]}>
               <Button
                 variant="ghost"
@@ -272,7 +352,10 @@ export function SingleRow({
           ) : undefined
         }
         formula={formulaAnnotation}
-        onClickFormula={mode !== "fill" && formulaAnnotation ? handleValueClick : undefined}
+        onClickFormula={
+          mode !== "fill" && mode !== "preview" && formulaAnnotation ? handleValueClick : undefined
+        }
+        onClickLabel={canEditLabel ? () => setIsEditingLabel(true) : undefined}
         labelContent={
           <div className="flex items-center gap-2 min-w-0 truncate w-full">
             <LabelCell
@@ -281,6 +364,8 @@ export function SingleRow({
               sectionId={sectionId}
               value={row.label ?? ""}
               zoomLevel={zoomLevel}
+              isEditing={isEditingLabel}
+              onEditingChange={setIsEditingLabel}
             />
             {isOptionalService && (
               <Badge
@@ -291,11 +376,10 @@ export function SingleRow({
                 Optional
               </Badge>
             )}
-            {notices && notices.length > 0 && <UnresolvedNoticeButton notices={notices} />}
           </div>
         }
-        onClickUsd1={hasCharges ? handleValueClick : undefined}
-        onClickUsd2={!hasCharges ? handleValueClick : undefined}
+        onClickUsd1={hasCharges && isCellEditable ? handleValueClick : undefined}
+        onClickUsd2={!hasCharges && isCellEditable ? handleValueClick : undefined}
         isUsd1Selected={hasCharges && isSelected}
         isUsd2Selected={!hasCharges && isSelected}
         usd1={hasCharges && displayBase ? <span>{displayBase}</span> : undefined}
@@ -308,7 +392,7 @@ export function SingleRow({
         const chargeVal = charge.chargeToken ? tokenMap[charge.chargeToken] : null;
         const displayCharge = chargeVal != null ? fmt(chargeVal) : undefined;
         const chargeDecodedFormula = charge.formula
-          ? decodeFormula(charge.formula, allSections)
+          ? decodeFormula(charge.formula, allSections, templateConstants, headerFields)
           : undefined;
         const isChargeSelected = selectedCell?.chargeId === charge.id;
 
@@ -321,7 +405,7 @@ export function SingleRow({
             zoomLevel={zoomLevel}
             rowTotal={isLastCharge ? displayTotal : undefined}
             onClickUsd1={() => {
-              if (mode !== "fill") {
+              if (mode !== "fill" && mode !== "preview") {
                 setSelectedCell(
                   cellFromRowCharge({
                     templateId,
@@ -334,10 +418,14 @@ export function SingleRow({
               }
             }}
             isUsd1Selected={isChargeSelected}
-            onEditCharge={mode !== "fill" ? () => onEditCharge(charge) : undefined}
-            onDeleteCharge={mode !== "fill" ? () => onDeleteCharge(charge.id) : undefined}
-            rowId={mode !== "fill" ? row.id : undefined}
-            sectionId={mode !== "fill" ? sectionId : undefined}
+            onEditCharge={
+              mode !== "fill" && mode !== "preview" ? () => onEditCharge(charge) : undefined
+            }
+            onDeleteCharge={
+              mode !== "fill" && mode !== "preview" ? () => onDeleteCharge(charge.id) : undefined
+            }
+            rowId={mode !== "fill" && mode !== "preview" ? row.id : undefined}
+            sectionId={mode !== "fill" && mode !== "preview" ? sectionId : undefined}
             allSections={allSections}
           />
         );

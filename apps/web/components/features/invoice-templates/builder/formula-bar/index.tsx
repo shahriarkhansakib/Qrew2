@@ -10,8 +10,10 @@ import { useBuilderContext } from "../builder-context";
 import { renderHighlightedToken, SyntaxOverlay } from "../formula-bar-syntax";
 import {
   getChunkAtCursor,
+  getSmartBackspaceResult,
   isValidTokenPrefix,
   MATH_FUNCTIONS,
+  normalizeFormulaSpacing,
   validateFormulaSave,
 } from "../formula-bar-utils";
 import { useFormulaAutocomplete } from "../use-formula-autocomplete";
@@ -31,17 +33,20 @@ export function TemplateFormulaBar() {
     invalidTokens,
     getTokenDisabledReason,
     mode,
+    sections,
+    externalTokens,
   } = useBuilderContext();
   const { canAny } = usePermissionStore();
 
   const canAuthorFormulas =
-    mode === "template" ||
-    canAny([
-      "invoice:author_formulas",
-      "finance:manage_invoices",
-      "template:edit",
-      "workspace:manage_settings",
-    ]);
+    mode !== "fill" &&
+    (mode === "template" ||
+      canAny([
+        "invoice:author_formulas",
+        "finance:manage_invoices",
+        "template:edit",
+        "workspace:manage_settings",
+      ]));
 
   const canFillValues =
     mode === "template" ||
@@ -66,10 +71,15 @@ export function TemplateFormulaBar() {
   const inputRef = useRef<HTMLTextAreaElement>(null);
   const overlayRef = useRef<HTMLDivElement>(null);
 
-  const isFormulaInput = selectedCell?.valueType === "formula";
+  // In Builder/Template mode with formula authoring permissions, any row cell can accept formulas or numbers dynamically.
+  // In Fill mode, only formula cells (which are locked) are formula inputs; normal cells are manual rate/quantity inputs.
+  const isFormulaInput =
+    mode !== "fill" && canAuthorFormulas ? true : selectedCell?.valueType === "formula";
   const isActive = !!selectedCell;
   const isLocked =
-    isActive && ((isFormulaInput && !canAuthorFormulas) || (!isFormulaInput && !canFillValues));
+    isActive &&
+    ((selectedCell?.valueType === "formula" && !canAuthorFormulas && mode === "fill") ||
+      (!canAuthorFormulas && !canFillValues));
 
   // We need to sync cursorPos whenever inputValue changes or selection changes.
   useEffect(() => {
@@ -102,6 +112,7 @@ export function TemplateFormulaBar() {
     selectedCell?.token,
     invalidTokens,
     hiddenTokens,
+    isFormulaInput,
   );
 
   const allTokensRef = useRef<string[]>(allTokens);
@@ -114,19 +125,37 @@ export function TemplateFormulaBar() {
   }, [allTokens, hiddenTokens, invalidTokens]);
 
   useEffect(() => {
-    const initial = selectedCell?.currentInput ?? "";
+    const raw = selectedCell?.currentInput ?? "";
+    const initial = selectedCell?.valueType === "formula" ? normalizeFormulaSpacing(raw) : raw;
     resetHistory(initial);
     setInputValue(initial);
     isDirty.current = false;
     if (overlayRef.current && inputRef.current) {
       overlayRef.current.scrollLeft = inputRef.current.scrollLeft;
     }
+    if (selectedCell) {
+      setTimeout(() => {
+        inputRef.current?.focus();
+      }, 50);
+    }
   }, [selectedCell, resetHistory]);
 
   useEffect(() => {
     const handleInsertToken = (e: any) => {
       if (!selectedCellRef.current || isLocked) return;
-      const tokenToInsert: string = e.detail.trim();
+      const tokenToInsert: string = e.detail?.trim() ?? "";
+      if (!tokenToInsert) return;
+
+      const isMathOpOrFn =
+        ["+", "-", "*", "/", "%", "//", "(", ")", ","].includes(tokenToInsert) ||
+        MATH_FUNCTIONS.some((fn) => tokenToInsert.startsWith(fn));
+
+      if (!isFormulaInput && !isMathOpOrFn) {
+        toast.error(
+          "Tokens can only be used in Builder Mode. Enter a number or mathematical expression.",
+        );
+        return;
+      }
 
       setInputValue((prev) => {
         const base = prev ?? "";
@@ -176,8 +205,8 @@ export function TemplateFormulaBar() {
           return newVal;
         }
 
-        // ── Math function with open parenthesis: e.g. MIN(, MAX( ──
-        const isFnWithParen = /^[A-Z]+\($/.test(tokenToInsert);
+        // ── Math function with open parenthesis: e.g. min(, MIN(, MAX( ──
+        const isFnWithParen = /^[a-zA-Z]+\($/.test(tokenToInsert);
         if (isFnWithParen) {
           if (trimmedBefore.length > 0 && lastChar && /[A-Za-z0-9_)]/.test(lastChar)) {
             toast.error("Add an operator before inserting a function.");
@@ -208,7 +237,7 @@ export function TemplateFormulaBar() {
 
         if (isBinaryOp || isOpenParen) {
           if (trimmedBefore.length > 0) {
-            const lastWordMatch = trimmedBefore.match(/[A-Z0-9_]+$/);
+            const lastWordMatch = trimmedBefore.match(/[a-zA-Z0-9_]+$/);
             const lastWordInBuffer = lastWordMatch ? lastWordMatch[0] : "";
             const isLegacy =
               lastWordInBuffer.startsWith("GBL_") ||
@@ -221,7 +250,7 @@ export function TemplateFormulaBar() {
               lastWordInBuffer &&
               !allTokensRef.current.includes(lastWordInBuffer) &&
               !(isLegacy && allTokensRef.current.includes(canonicalEquivalent)) &&
-              !(MATH_FUNCTIONS as readonly string[]).includes(lastWordInBuffer) &&
+              !(MATH_FUNCTIONS as readonly string[]).includes(lastWordInBuffer.toUpperCase()) &&
               !/^[0-9.]+$/.test(lastWordInBuffer)
             ) {
               toast.error(
@@ -232,8 +261,8 @@ export function TemplateFormulaBar() {
             if (
               isOpenParen &&
               lastChar &&
-              /[A-Z0-9_)]/.test(lastChar) &&
-              !(MATH_FUNCTIONS as readonly string[]).includes(lastWordInBuffer)
+              /[A-Za-z0-9_)]/.test(lastChar) &&
+              !(MATH_FUNCTIONS as readonly string[]).includes(lastWordInBuffer.toUpperCase())
             ) {
               toast.error("Add an operator before opening a parenthesis after a token or number.");
               return prev;
@@ -277,22 +306,49 @@ export function TemplateFormulaBar() {
           }
         }
 
-        const prefix = before.endsWith(" ") || before === "" ? "" : " ";
-        // If 'after' already starts with a space or is empty, no suffix needed.
-        const suffix =
-          after.startsWith(" ") || after === "" || isOpenParen || isCloseParen ? "" : " ";
-
-        let inserted = tokenToInsert;
-        if (!isOpenParen && !isCloseParen) {
-          inserted = tokenToInsert + suffix;
+        if (isBinaryOp) {
+          const cleanBefore = before.trimEnd();
+          const cleanAfter = after.trimStart();
+          const newVal = `${cleanBefore} ${tokenToInsert} ${cleanAfter}`;
+          const newCursorPos = cleanBefore.length + 1 + tokenToInsert.length + 1;
+          setTimeout(() => inputRef.current?.setSelectionRange(newCursorPos, newCursorPos), 0);
+          return newVal;
         }
 
-        const newVal = before + prefix + inserted + after;
+        if (isOpenParen) {
+          const trimmedB = before.trimEnd();
+          const lastWordMatch = trimmedB.match(/[a-zA-Z0-9_]+$/);
+          const lastWord = lastWordMatch ? lastWordMatch[0] : "";
+          const isFn = (MATH_FUNCTIONS as readonly string[]).includes(lastWord.toUpperCase());
+          const cleanBefore = isFn
+            ? trimmedB
+            : before.endsWith(" ")
+              ? before
+              : trimmedB.length > 0
+                ? `${trimmedB} `
+                : "";
+          const cleanAfter = after.trimStart();
+          const newVal = `${cleanBefore}(${cleanAfter}`;
+          const newCursorPos = cleanBefore.length + 1;
+          setTimeout(() => inputRef.current?.setSelectionRange(newCursorPos, newCursorPos), 0);
+          return newVal;
+        }
 
-        // Reposition cursor exactly after the insertion (including suffix)
-        const newCursorPos = before.length + prefix.length + inserted.length;
+        if (isCloseParen) {
+          const cleanBefore = before.trimEnd();
+          const cleanAfter = after.trimStart();
+          const newVal = `${cleanBefore})${cleanAfter}`;
+          const newCursorPos = cleanBefore.length + 1;
+          setTimeout(() => inputRef.current?.setSelectionRange(newCursorPos, newCursorPos), 0);
+          return newVal;
+        }
+
+        // Bare token insertion: tokens never have trailing spaces!
+        const prefix = before.endsWith(" ") || before === "" || before.endsWith("(") ? "" : " ";
+        const cleanAfter = after.trimStart();
+        const newVal = before + prefix + tokenToInsert + cleanAfter;
+        const newCursorPos = before.length + prefix.length + tokenToInsert.length;
         setTimeout(() => inputRef.current?.setSelectionRange(newCursorPos, newCursorPos), 0);
-
         return newVal;
       });
       isDirty.current = true;
@@ -319,7 +375,8 @@ export function TemplateFormulaBar() {
       setSelectedCell(null);
       return;
     }
-    const trimmed = inputValue.trim();
+    const raw = inputValue.trim();
+    const trimmed = selectedCell.valueType === "formula" ? normalizeFormulaSpacing(raw) : raw;
     if (trimmed === selectedCell.currentInput) {
       setSelectedCell(null);
       return;
@@ -361,7 +418,8 @@ export function TemplateFormulaBar() {
         target.closest(".formula-bar-container") ||
         target.closest(".token-pool-container") ||
         target.closest(".row-action-trigger") ||
-        target.closest(".insertable-token")
+        target.closest(".insertable-token") ||
+        target.closest(".file-details-header-box")
       ) {
         return;
       }
@@ -391,8 +449,8 @@ export function TemplateFormulaBar() {
         withoutPartial.endsWith(" ") || withoutPartial === "" || withoutPartial.endsWith("(")
           ? ""
           : " ";
-      const padRight = isMathFn ? "" : " ";
-      const newVal = `${withoutPartial + padLeft + tokenWithParen}${padRight}${afterCursor}`;
+      const cleanAfter = afterCursor.trimStart();
+      const newVal = `${withoutPartial + padLeft + tokenWithParen}${cleanAfter}`;
 
       setInputValue(newVal);
       isDirty.current = true;
@@ -401,8 +459,7 @@ export function TemplateFormulaBar() {
 
       setTimeout(() => {
         inputRef.current?.focus();
-        const pos =
-          withoutPartial.length + padLeft.length + tokenWithParen.length + (isMathFn ? 0 : 1);
+        const pos = withoutPartial.length + padLeft.length + tokenWithParen.length;
         inputRef.current?.setSelectionRange(pos, pos);
       }, 0);
     },
@@ -426,6 +483,7 @@ export function TemplateFormulaBar() {
     invalidTokens,
     onUndo: () => undo(inputRef, isDirty),
     onRedo: () => redo(inputRef, isDirty),
+    isFormulaCell: isFormulaInput,
   });
 
   const handleMouseDeleteWord = (e: React.MouseEvent) => {
@@ -462,6 +520,15 @@ export function TemplateFormulaBar() {
     if (!inputRef.current) return;
     const cursor = cursorPosRef.current;
     if (cursor === 0) return;
+
+    const smart = getSmartBackspaceResult(inputValue, cursor, allTokensRef.current);
+    if (smart) {
+      setInputValue(smart.newVal);
+      isDirty.current = true;
+      inputRef.current?.focus();
+      setTimeout(() => inputRef.current?.setSelectionRange(smart.newCursor, smart.newCursor), 0);
+      return;
+    }
 
     // We are deleting the character at `cursor - 1`.
     const charToDelete = inputValue[cursor - 1];
@@ -545,28 +612,29 @@ export function TemplateFormulaBar() {
     inputRef.current?.focus();
   };
 
+  const handleSwapToken = useCallback(
+    (oldToken: string, newToken: string, startIndex: number, endIndex: number) => {
+      setInputValue((prev) => {
+        const newVal = prev.slice(0, startIndex) + newToken + prev.slice(endIndex);
+        const newCursor = startIndex + newToken.length;
+        setTimeout(() => {
+          inputRef.current?.focus();
+          inputRef.current?.setSelectionRange(newCursor, newCursor);
+        }, 0);
+        return newVal;
+      });
+      isDirty.current = true;
+    },
+    [],
+  );
+
+  const handleTokenClick = useCallback((cursorPos: number) => {
+    inputRef.current?.focus();
+    inputRef.current?.setSelectionRange(cursorPos, cursorPos);
+  }, []);
+
   return (
     <div className="flex flex-col w-full sticky top-0 z-30 formula-bar-container">
-      <FormulaActions
-        isActive={isActive && !isLocked}
-        historyIndex={historyIndex}
-        historyLength={history.length}
-        clipboardToken={clipboardToken}
-        onUndo={(e) => {
-          e.preventDefault();
-          undo(inputRef, isDirty);
-        }}
-        onRedo={(e) => {
-          e.preventDefault();
-          redo(inputRef, isDirty);
-        }}
-        onPaste={handleMousePaste}
-        onInsertChar={handleMouseInsertChar}
-        onDeleteWord={handleMouseDeleteWord}
-        onBackspace={handleMouseBackspace}
-        onClear={handleMouseClear}
-      />
-
       <div className="relative w-full z-40 shadow-sm" style={{ height: 36 }}>
         <div
           className={cn(
@@ -575,7 +643,7 @@ export function TemplateFormulaBar() {
           )}
           style={{ minHeight: 36 }}
         >
-          <div className="w-12 sm:w-48 md:w-52 shrink-0 flex items-center gap-2 px-2 sm:px-3 border-r border-border bg-muted/30">
+          <div className="w-12 sm:w-auto sm:max-w-[160px] md:max-w-[190px] shrink-0 flex items-center gap-2 px-2 sm:px-3 border-r border-border bg-muted/30">
             <span
               className="text-sm font-bold select-none shrink-0"
               style={{ color: isActive ? "#a78bfa" : undefined }}
@@ -600,10 +668,21 @@ export function TemplateFormulaBar() {
             {isActive && isFormulaInput && (
               <div
                 ref={overlayRef}
-                className="absolute inset-0 px-3 py-1.5 pointer-events-none whitespace-pre-wrap break-all overflow-hidden font-mono text-sm leading-normal"
+                className="absolute inset-0 px-3 py-1.5 pointer-events-none whitespace-pre-wrap break-all overflow-hidden font-mono text-sm leading-normal z-20"
                 aria-hidden="true"
               >
-                <SyntaxOverlay value={inputValue} getTokenColor={getTokenColor} />
+                <SyntaxOverlay
+                  value={inputValue}
+                  getTokenColor={getTokenColor}
+                  tokenMap={tokenMap}
+                  sections={sections}
+                  externalTokens={externalTokens}
+                  selectedCell={selectedCell}
+                  isActive={isActive}
+                  disabled={isLocked}
+                  onSwapToken={handleSwapToken}
+                  onTokenClick={handleTokenClick}
+                />
               </div>
             )}
 
@@ -678,18 +757,7 @@ export function TemplateFormulaBar() {
                 }
 
                 // 2. Strictly normalize operator spacing
-                let normalized = pasted
-                  .replace(/\s*\/\/\s*/g, " // ")
-                  .replace(/\s*([+\-*/])\s*/g, " $1 ")
-                  .replace(/\s{2,}/g, " ")
-                  .replace(/\(\s+/g, "(")
-                  .replace(/\s+\)/g, ")")
-                  .replace(/\)(?=[A-Z0-9])/g, ") ")
-                  .replace(/([A-Z0-9_])\(/g, "$1 (")
-                  .trim();
-
-                // Preserve percentage attached to numbers: "50 %" -> "50%"
-                normalized = normalized.replace(/(\d+)\s+%/g, "$1%");
+                const normalized = normalizeFormulaSpacing(pasted);
 
                 // 3. Boundary validation at cursor position
                 const target = inputRef.current;
@@ -795,87 +863,6 @@ export function TemplateFormulaBar() {
               spellCheck={false}
               autoComplete="off"
             />
-
-            {acVisible && ac.items.length > 0 && (
-              <div className="absolute top-full left-0 z-50 w-80 bg-popover border border-border rounded-b-md shadow-xl overflow-hidden">
-                <div className="px-3 py-1 border-b border-border/40 bg-muted/20 flex items-center justify-between">
-                  <span className="text-[10px] font-mono text-muted-foreground/50 select-none">
-                    ↑↓ navigate · Tab/Enter insert · Esc close
-                  </span>
-                  <span className="text-[10px] font-mono text-muted-foreground/30 select-none">
-                    {ac.items.length} token{ac.items.length !== 1 ? "s" : ""}
-                  </span>
-                </div>
-                <div className="max-h-56 overflow-y-auto no-scrollbar [scrollbar-width:none] [-ms-overflow-style:none] [&::-webkit-scrollbar]:hidden">
-                  {ac.items.map((token, i) => {
-                    const val = tokenMap[token];
-                    const display =
-                      val == null ? "—" : val % 1 === 0 ? String(val) : val.toFixed(2);
-                    const isInvalid = invalidTokens.has(token);
-                    const disabledReason = isInvalid
-                      ? getTokenDisabledReason(token) || "Creates circular dependency"
-                      : undefined;
-
-                    return (
-                      <button
-                        key={token}
-                        type="button"
-                        title={disabledReason}
-                        className={cn(
-                          "w-full flex items-center justify-between gap-3 px-3 py-1.5 text-left transition-colors relative group/item",
-                          isInvalid
-                            ? "opacity-50 cursor-not-allowed bg-muted/10"
-                            : "hover:bg-muted/20",
-                          i === ac.activeIdx && !isInvalid && "bg-primary/10",
-                        )}
-                        onMouseDown={(e) => {
-                          e.preventDefault();
-                          if (!isInvalid) insertToken(token);
-                        }}
-                        onMouseEnter={() => {
-                          if (!isInvalid) setActiveIdx(i);
-                        }}
-                      >
-                        <div className="flex items-center gap-2 overflow-hidden flex-1">
-                          <span
-                            className={cn(
-                              "w-1.5 h-1.5 rounded-full shrink-0",
-                              getTokenColor(token).replace("text-", "bg-").split(" ")[0],
-                            )}
-                          />
-                          <span
-                            className={cn(
-                              "font-mono text-xs truncate min-w-0",
-                              isInvalid
-                                ? "text-muted-foreground line-through"
-                                : getTokenColor(token),
-                            )}
-                          >
-                            {renderHighlightedToken(token, lastWord)}
-                          </span>
-                          {isInvalid && (
-                            <div
-                              title={disabledReason}
-                              className="text-yellow-500 flex items-center shrink min-w-0 gap-1.5"
-                            >
-                              <AlertTriangle className="h-3.5 w-3.5 shrink-0" />
-                              <span className="text-[10px] text-yellow-600/80 truncate font-sans">
-                                {disabledReason
-                                  ?.replace(/^Creates circular dependency:\s*/i, "")
-                                  .replace(/^Disabled:\s*/i, "") || "Creates circular dependency"}
-                              </span>
-                            </div>
-                          )}
-                        </div>
-                        <span className="font-mono text-xs text-muted-foreground/50 shrink-0">
-                          {display}
-                        </span>
-                      </button>
-                    );
-                  })}
-                </div>
-              </div>
-            )}
           </div>
 
           {isPending && (
@@ -922,6 +909,122 @@ export function TemplateFormulaBar() {
             </div>
           )}
         </div>
+
+        {/* Floating Companion Area: Operators on Left, Autocomplete on Right */}
+        {isActive && !isLocked && isFormulaInput && (
+          <div className="absolute top-[40px] left-0 z-50 flex items-start gap-2.5 pointer-events-auto max-w-full animate-in fade-in slide-in-from-top-1 duration-150">
+            {/* 1. Left Companion: Operator Panel */}
+            <FormulaActions
+              isActive={isActive && !isLocked}
+              historyIndex={historyIndex}
+              historyLength={history.length}
+              clipboardToken={clipboardToken}
+              onUndo={(e) => {
+                e.preventDefault();
+                undo(inputRef, isDirty);
+              }}
+              onRedo={(e) => {
+                e.preventDefault();
+                redo(inputRef, isDirty);
+              }}
+              onPaste={handleMousePaste}
+              onInsertChar={handleMouseInsertChar}
+              onDeleteWord={handleMouseDeleteWord}
+              onBackspace={handleMouseBackspace}
+              onClear={handleMouseClear}
+            />
+
+            {/* 2. Right Companion: Autocomplete Dropdown */}
+            {acVisible && ac.items.length > 0 && (
+              <div className="w-80 sm:w-96 max-w-[calc(100vw-2rem)] bg-popover border border-border rounded-md shadow-xl overflow-hidden shrink-0">
+                <div className="px-3 py-1 border-b border-border/40 bg-muted/20 flex items-center justify-between">
+                  <span className="text-[10px] font-mono text-muted-foreground/50 select-none">
+                    ↑↓ navigate · Tab/Enter insert · Esc close
+                  </span>
+                  <span className="text-[10px] font-mono text-muted-foreground/30 select-none">
+                    {ac.items.length} token{ac.items.length !== 1 ? "s" : ""}
+                  </span>
+                </div>
+                <div className="max-h-56 overflow-y-auto no-scrollbar [scrollbar-width:none] [-ms-overflow-style:none] [&::-webkit-scrollbar]:hidden">
+                  {ac.items.map((token, i) => {
+                    const val = tokenMap[token];
+                    const display =
+                      val == null ? "—" : val % 1 === 0 ? String(val) : val.toFixed(2);
+                    const isInvalid = invalidTokens.has(token);
+                    const disabledReason = isInvalid
+                      ? getTokenDisabledReason(token) || "Creates circular dependency"
+                      : undefined;
+
+                    return (
+                      <button
+                        key={token}
+                        type="button"
+                        title={disabledReason}
+                        className={cn(
+                          "w-full flex items-center justify-between gap-2 px-3 py-1.5 text-left transition-colors relative group/item",
+                          isInvalid
+                            ? "opacity-50 cursor-not-allowed bg-muted/10"
+                            : "hover:bg-muted/20",
+                          i === ac.activeIdx && !isInvalid && "bg-primary/10",
+                        )}
+                        onMouseDown={(e) => {
+                          e.preventDefault();
+                          if (!isInvalid) insertToken(token);
+                        }}
+                        onMouseEnter={() => {
+                          if (!isInvalid) setActiveIdx(i);
+                        }}
+                      >
+                        <div className="flex items-center gap-1.5 min-w-0 flex-1">
+                          <span
+                            className={cn(
+                              "w-1.5 h-1.5 rounded-full shrink-0",
+                              getTokenColor(token).replace("text-", "bg-").split(" ")[0],
+                            )}
+                          />
+                          <span
+                            className={cn(
+                              "font-mono text-xs truncate shrink min-w-0",
+                              isInvalid
+                                ? "text-muted-foreground line-through"
+                                : getTokenColor(token),
+                            )}
+                          >
+                            {renderHighlightedToken(token, lastWord)}
+                          </span>
+                          <span
+                            className={cn(
+                              "font-mono text-[11px] font-semibold tabular-nums px-1 py-0.2 rounded shrink-0",
+                              isInvalid
+                                ? "text-muted-foreground/50 bg-muted/20"
+                                : cn(getTokenColor(token), "bg-muted/40"),
+                            )}
+                          >
+                            {display}
+                          </span>
+                        </div>
+
+                        {isInvalid && (
+                          <div
+                            title={disabledReason}
+                            className="text-yellow-500 flex items-center shrink-0 min-w-0 gap-1 ml-2 max-w-[140px]"
+                          >
+                            <AlertTriangle className="h-3.5 w-3.5 shrink-0" />
+                            <span className="text-[10px] text-yellow-600/80 truncate font-sans">
+                              {disabledReason
+                                ?.replace(/^Creates circular dependency:\s*/i, "")
+                                ?.replace(/^Disabled:\s*/i, "") || "Circular dependency"}
+                            </span>
+                          </div>
+                        )}
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+            )}
+          </div>
+        )}
       </div>
     </div>
   );

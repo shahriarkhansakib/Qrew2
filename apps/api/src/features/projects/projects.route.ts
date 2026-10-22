@@ -5,11 +5,21 @@ import { ProjectsController } from "./projects.controller";
 
 export const projectsRouter = new Hono();
 
-// IMPORTANT: Mount /statuses BEFORE /:id routes so Hono matches the literal path first
+// IMPORTANT: Mount /statuses and /analytics BEFORE /:id routes so Hono matches the literal path first
 projectsRouter.route("/statuses", projectStatusesRoute);
+projectsRouter.get(
+  "/analytics/workflow-velocity",
+  requireOrgPermission("file:view"),
+  ProjectsController.getWorkflowVelocityAnalytics,
+);
 
 projectsRouter.get("/", requireOrgPermission("file:view"), ProjectsController.listProjects);
 projectsRouter.post("/", requireOrgPermission("file:create"), ProjectsController.createProject);
+projectsRouter.get(
+  "/:id/status-logs",
+  requireOrgPermission("file:view"),
+  ProjectsController.getStatusLogs,
+);
 projectsRouter.put("/:id", requireOrgPermission("file:edit"), ProjectsController.updateProject);
 projectsRouter.patch(
   "/:id/advance-status",

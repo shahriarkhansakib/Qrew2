@@ -257,14 +257,11 @@ export const auditLogs = pgTable(
     id: text("id")
       .primaryKey()
       .$defaultFn(() => randomUUID()),
-    adminId: text("admin_id")
-      .notNull()
-      .references(() => users.id, { onDelete: "cascade" }),
-    targetUserId: text("target_user_id")
-      .notNull()
-      .references(() => users.id, { onDelete: "cascade" }),
+    adminId: text("admin_id").references(() => users.id, { onDelete: "set null" }),
+    targetUserId: text("target_user_id").references(() => users.id, { onDelete: "set null" }),
     action: text("action").notNull(),
     reason: text("reason").notNull(),
+    metadata: text("metadata"),
     ipAddress: text("ip_address").notNull().default("unknown"),
     createdAt: timestamp("created_at", { mode: "date" }).defaultNow().notNull(),
   },

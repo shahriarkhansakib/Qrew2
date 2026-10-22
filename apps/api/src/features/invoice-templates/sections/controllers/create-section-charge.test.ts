@@ -215,7 +215,7 @@ describe("createSectionCharge", () => {
     it("createSectionCharge response formula is decoded (not raw UUID form)", async () => {
       mockSectionOwned();
       (db.query.tokens.findFirst as any).mockResolvedValue(null);
-      const rawCharge = makeSectionCharge({ formula: "{{$row:abc-123}} * 0.10" });
+      const rawCharge = makeSectionCharge({ formula: "{{$tok:abc-123}} * 0.10" });
       mockInsertReturns(rawCharge);
       (db.select as any)
         .mockReturnValueOnce(hoistedChain([]))
@@ -230,7 +230,7 @@ describe("createSectionCharge", () => {
       });
       const res = await createSectionCharge(ctx);
       expect(res.status).toBe(201);
-      expect((res as any).data.formula).not.toContain("{{$row:");
+      expect((res as any).data.formula).not.toContain("{{$tok:");
       expect((res as any).data.formula).toBe("SEC_SECTION_A * 0.10");
     });
   });

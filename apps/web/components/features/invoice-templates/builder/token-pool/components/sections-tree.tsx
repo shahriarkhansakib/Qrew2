@@ -23,7 +23,9 @@ function SectionItem({
   handleTokenClick: (token: string) => void;
   setShowLegend: (show: boolean) => void;
 }) {
-  const { selectedCell, invalidTokens, hiddenTokens, getTokenDisabledReason } = useBuilderContext();
+  const { selectedCell, invalidTokens, hiddenTokens, getTokenDisabledReason, templateType } =
+    useBuilderContext();
+  const isSheet = templateType === "sheet" || templateType === "general";
   const isFormulaMode = !!selectedCell;
   const [activeTab, setActiveTab] = useState<"rows" | "section">("rows");
   const sectionToken: string = section.sectionToken;
@@ -117,22 +119,26 @@ function SectionItem({
                   {sectionToken}
                 </span>
               </div>
-              <TokenRow
-                token={`SEC_${sectionToken}_BASE`}
-                value={secBase ?? null}
-                type="sec-base"
-                zoomLevel={tokenZoomLevel}
-                onLegendClick={() => setShowLegend(true)}
-                onClick={() => handleTokenClick(`SEC_${sectionToken}_BASE`)}
-              />
-              <TokenRow
-                token={`SEC_${sectionToken}_CHARGES`}
-                value={secCharges ?? null}
-                type="sec-charges"
-                zoomLevel={tokenZoomLevel}
-                onLegendClick={() => setShowLegend(true)}
-                onClick={() => handleTokenClick(`SEC_${sectionToken}_CHARGES`)}
-              />
+              {!isSheet && (
+                <>
+                  <TokenRow
+                    token={`SEC_${sectionToken}_BASE`}
+                    value={secBase ?? null}
+                    type="sec-base"
+                    zoomLevel={tokenZoomLevel}
+                    onLegendClick={() => setShowLegend(true)}
+                    onClick={() => handleTokenClick(`SEC_${sectionToken}_BASE`)}
+                  />
+                  <TokenRow
+                    token={`SEC_${sectionToken}_CHARGES`}
+                    value={secCharges ?? null}
+                    type="sec-charges"
+                    zoomLevel={tokenZoomLevel}
+                    onLegendClick={() => setShowLegend(true)}
+                    onClick={() => handleTokenClick(`SEC_${sectionToken}_CHARGES`)}
+                  />
+                </>
+              )}
               <TokenRow
                 token={`SEC_${sectionToken}`}
                 value={secTotal ?? null}
@@ -143,7 +149,7 @@ function SectionItem({
               />
             </div>
 
-            {sectionCharges.length > 0 && (
+            {sectionCharges.length > 0 && !isSheet && (
               <div className="bg-muted/5 border border-border/20 rounded-md p-1.5 space-y-0.5">
                 <div className="text-[10px] uppercase font-bold text-muted-foreground/50 px-1 mb-0.5 tracking-wider">
                   Individual Section Charges
@@ -207,7 +213,7 @@ function SectionItem({
                   >
                     {/* Row Dropdown Header: Default token at top, caret after, total value on right */}
                     <div
-                      onClick={() => toggleRow(row.id)}
+                      onClick={isSheet ? onRowTokenClick : () => toggleRow(row.id)}
                       className="flex items-center justify-between px-2 py-1.5 hover:bg-muted/30 cursor-pointer select-none group"
                     >
                       <div className="flex items-center gap-1.5 min-w-0">
@@ -235,7 +241,7 @@ function SectionItem({
                               setShowLegend(true);
                             }}
                             className="w-1.5 h-1.5 rounded-full shrink-0 bg-slate-400 cursor-pointer"
-                            title="Row Total (Base + Charges)"
+                            title={isSheet ? "Row Value" : "Row Total (Base + Charges)"}
                           />
                           {isRowTokenInvalid && (
                             <AlertTriangle className="w-3 h-3 text-accent-foreground shrink-0 mr-0.5" />
@@ -245,13 +251,15 @@ function SectionItem({
                           </span>
                         </span>
 
-                        {/* Caret / down arrow icon after the token */}
-                        <ChevronRight
-                          className={cn(
-                            "w-3.5 h-3.5 text-muted-foreground/60 group-hover:text-foreground transition-transform duration-200 shrink-0",
-                            isRowOpen && "rotate-90",
-                          )}
-                        />
+                        {/* Caret / down arrow icon after the token (Standard templates only) */}
+                        {!isSheet && (
+                          <ChevronRight
+                            className={cn(
+                              "w-3.5 h-3.5 text-muted-foreground/60 group-hover:text-foreground transition-transform duration-200 shrink-0",
+                              isRowOpen && "rotate-90",
+                            )}
+                          />
+                        )}
                       </div>
 
                       {/* Total value at the rightmost side after the token */}
@@ -264,7 +272,7 @@ function SectionItem({
                     </div>
 
                     {/* Dropped down tokens: remaining 3 types (Base, Line Charges, Charges Total) */}
-                    {isRowOpen && (
+                    {!isSheet && isRowOpen && (
                       <div className="px-1.5 py-1 space-y-0.5 bg-background/20 border-t border-border/20">
                         {/* 1. Base Token */}
                         <TokenRow

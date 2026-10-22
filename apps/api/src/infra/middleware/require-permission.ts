@@ -1,4 +1,4 @@
-import { type AppPermission, db, members } from "@starter/db";
+import { type AppPermission, db, members, orgMemberRoles } from "@starter/db";
 import { and, eq } from "drizzle-orm";
 import { Context, Next } from "hono";
 import { PermissionService } from "../../features/permissions/permission.service";
@@ -14,9 +14,34 @@ export const requireOrgPermission = (requiredPermission: AppPermission | AppPerm
 
     c.set("user", sessionData.user);
 
+    // Guard against banned or suspended accounts
+    const user = sessionData.user as any;
+    if (user?.status === "banned") {
+      return c.json(
+        {
+          error: "Forbidden",
+          code: "ACCOUNT_BANNED",
+          message: "This account has been permanently banned.",
+        },
+        403,
+      );
+    }
+    if (user?.status === "suspended") {
+      return c.json(
+        {
+          error: "Forbidden",
+          code: "ACCOUNT_SUSPENDED",
+          message: "This account is temporarily suspended. Please contact support.",
+        },
+        403,
+      );
+    }
+
     // 2. Global Admin Bypass (Super Admins ignore tenant boundaries)
     if (sessionData.user.role === "super_admin") {
       c.set("isOwner", true);
+      c.set("memberRole", "owner");
+      c.set("memberRoleIds", []);
       return await next();
     }
 
@@ -29,12 +54,29 @@ export const requireOrgPermission = (requiredPermission: AppPermission | AppPerm
     // Set the organizationId in the context so downstream controllers can use it
     c.set("organizationId", orgId);
 
-    // NEW: Tenant Owner Bypass
+    // Validate active workspace enrollment
     const currentMember = await db.query.members.findFirst({
       where: and(eq(members.userId, sessionData.user.id), eq(members.organizationId, orgId)),
     });
 
-    if (currentMember?.role === "owner") {
+    if (!currentMember) {
+      // Invalidate any stale Redis permission cache that might linger
+      await PermissionService.invalidateCache(sessionData.user.id, orgId);
+      return c.json(
+        { error: "Forbidden", message: "You are not an active member of this workspace." },
+        403,
+      );
+    }
+
+    const memberRoles = await db.query.orgMemberRoles.findMany({
+      where: eq(orgMemberRoles.memberId, currentMember.id),
+    });
+    const memberRoleIds = memberRoles.map((mr) => mr.roleId);
+
+    c.set("memberRole", currentMember.role);
+    c.set("memberRoleIds", memberRoleIds);
+
+    if (currentMember.role === "owner") {
       c.set("isOwner", true);
       return await next(); // Owners bypass all PBAC checks
     }

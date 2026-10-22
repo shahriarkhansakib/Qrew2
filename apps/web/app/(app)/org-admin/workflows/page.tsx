@@ -1,14 +1,18 @@
 "use client";
 
 import { useQuery } from "@tanstack/react-query";
-import { ArrowLeft, GitBranch } from "lucide-react";
+import { ArrowLeft, Gauge, GitBranch } from "lucide-react";
 import { useRouter } from "next/navigation";
+import { useState } from "react";
 import { WorkflowBuilder } from "@/components/features/workflows/workflow-builder";
+import { WorkflowVelocityModal } from "@/components/features/workflows/workflow-velocity-modal";
+import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { apiUrl } from "@/lib/constants";
 
 export default function WorkflowsPage() {
   const router = useRouter();
+  const [isVelocityOpen, setIsVelocityOpen] = useState(false);
 
   const { data: statuses, isLoading: loadingStatuses } = useQuery({
     queryKey: ["project-statuses"],
@@ -71,10 +75,23 @@ export default function WorkflowsPage() {
             </div>
           </div>
         </div>
+
+        <Button
+          variant="outline"
+          size="sm"
+          onClick={() => setIsVelocityOpen(true)}
+          className="gap-2 text-xs font-medium shadow-xs h-9 border-primary/20 hover:border-primary hover:bg-primary/5"
+        >
+          <Gauge className="w-4 h-4 text-primary" />
+          Workflow Velocity
+        </Button>
       </div>
 
       {/* Workflow Builder */}
       <WorkflowBuilder initialStatuses={statuses} customFields={customFields} disabled={false} />
+
+      {/* Workflow Velocity Analytics Modal (Option 4) */}
+      <WorkflowVelocityModal isOpen={isVelocityOpen} onClose={() => setIsVelocityOpen(false)} />
     </div>
   );
 }

@@ -4,9 +4,17 @@
  */
 
 /** Valid character regex for a preprocessed formula (includes commas for function arguments) */
-const VALID_CHAR_RE = /^[A-Z0-9_.+\-*/%,\s()]+$/;
+const VALID_CHAR_RE = /^[a-zA-Z0-9_.+\-*/%,\s()]+$/;
 
-export const MATH_FUNCTION_NAMES = new Set(["MIN", "MAX", "ROUND", "CLAMP", "ABS"]);
+export const MATH_FUNCTION_NAMES = new Set([
+  "MIN",
+  "MAX",
+  "ROUND",
+  "CLAMP",
+  "ABS",
+  "FLOOR",
+  "CEIL",
+]);
 
 /**
  * Validate a formula string for character allowlist and basic syntax.
@@ -25,7 +33,7 @@ export function validateFormulaStrict(
 
   // 1. Character allowlist
   if (!VALID_CHAR_RE.test(f)) {
-    const bad = f.match(/[^A-Z0-9_.+\-*/%,\s()]/);
+    const bad = f.match(/[^a-zA-Z0-9_.+\-*/%,\s()]/);
     return {
       valid: false,
       error: `Invalid character in formula: "${bad?.[0]}" — only tokens, numbers, and operators are allowed`,
@@ -34,21 +42,23 @@ export function validateFormulaStrict(
 
   // 1.5. Self-referencing (circular dependency) checks
   if (currentToken) {
-    const tokensInFormula: string[] = f.match(/[A-Z_][A-Z0-9_]*/g) ?? [];
-    if (tokensInFormula.includes(currentToken)) {
+    const rawTokens = f.match(/[a-zA-Z_][a-zA-Z0-9_]*/g) ?? [];
+    const tokensInFormula: string[] = rawTokens.map((t) => t.toUpperCase());
+    const curUpper = currentToken.toUpperCase();
+    if (tokensInFormula.includes(curUpper)) {
       return {
         valid: false,
         error: `Circular reference: a formula cannot reference its own token "${currentToken}"`,
       };
     }
-    const baseToken = `${currentToken}_BASE`;
+    const baseToken = `${curUpper}_BASE`;
     if (tokensInFormula.includes(baseToken)) {
       return {
         valid: false,
         error: `Circular reference: a formula cannot reference its own base "${baseToken}"`,
       };
     }
-    const totalToken = `${currentToken}_TOTAL`;
+    const totalToken = `${curUpper}_TOTAL`;
     if (tokensInFormula.includes(totalToken)) {
       return {
         valid: false,
@@ -59,10 +69,10 @@ export function validateFormulaStrict(
 
   // 2. Word segments must be known tokens or whitelisted math functions
   if (validTokens.size > 0) {
-    const wordSegments = f.match(/[A-Z_][A-Z0-9_]*/g) ?? [];
+    const wordSegments = f.match(/[a-zA-Z_][a-zA-Z0-9_]*/g) ?? [];
     for (const word of wordSegments) {
-      if (MATH_FUNCTION_NAMES.has(word)) continue;
-      if (!validTokens.has(word)) {
+      if (MATH_FUNCTION_NAMES.has(word.toUpperCase())) continue;
+      if (!validTokens.has(word) && !validTokens.has(word.toUpperCase())) {
         return {
           valid: false,
           error: `Unknown token "${word}" — not found in this template's token registry`,
@@ -96,7 +106,7 @@ export function validateFormulaChars(
 
 /**
  * Strict validator for rate charge formulas.
- * Enforces: <PARENT_TOKEN>_BASE * <RATE>%
+ * Enforces: <PARENT_TOKEN>_BASE * <RATE>% or <PARENT_TOKEN> * <RATE>%
  * Desugared representations like: <PARENT_TOKEN>_BASE * (<RATE>/100) or <PARENT_TOKEN>_BASE * 0.XX are also accepted.
  */
 export function validateRateChargeFormula(

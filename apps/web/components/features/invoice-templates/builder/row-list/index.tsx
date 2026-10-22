@@ -7,6 +7,7 @@ import { toast } from "sonner";
 import { ConfirmDeleteModal } from "@/components/shared/confirm-delete-modal";
 import { apiUrl } from "@/lib/constants";
 import { TokenMap } from "@/lib/formula-evaluator";
+import { cn } from "@/lib/utils";
 import { AddEditRowModal } from "../add-edit-row-modal";
 import { AddRowChargeModal } from "../add-row-charge-modal";
 import { useBuilderContext } from "../builder-context";
@@ -27,6 +28,7 @@ export function TemplateRowList({
   tokenMap,
   allSections,
   zoomLevel = 0,
+  isSharedDnd = false,
 }: {
   templateId: string;
   sectionId: string;
@@ -38,6 +40,7 @@ export function TemplateRowList({
   tokenMap: TokenMap;
   allSections: any[];
   zoomLevel?: number;
+  isSharedDnd?: boolean;
 }) {
   const { apiBasePath, invalidateKey, mode, selectedCell } = useBuilderContext();
   const isFormulaMode = !!selectedCell;
@@ -142,7 +145,7 @@ export function TemplateRowList({
 
   const sortedRows = [...(rows || [])].sort((a: any, b: any) => a.sortOrder - b.sortOrder);
 
-  if (sortedRows.length === 0) return null;
+  if (sortedRows.length === 0 && (mode === "fill" || mode === "preview")) return null;
 
   const onDragEnd = (result: DropResult) => {
     if (!result.destination) return;
@@ -157,7 +160,7 @@ export function TemplateRowList({
     reorderMutation.mutate(newOrder.map((r: any) => r.id));
   };
 
-  if (mode === "fill") {
+  if (mode === "fill" || mode === "preview") {
     return (
       <div className="flex flex-col bg-background overflow-visible">
         {sortedRows.map((row: any, idx: number) => (
@@ -184,56 +187,72 @@ export function TemplateRowList({
     );
   }
 
-  return (
-    <DragDropContext onDragEnd={onDragEnd}>
-      <Droppable droppableId={`rows-${sectionId}`}>
-        {(provided) => (
-          <div
-            ref={provided.innerRef}
-            {...provided.droppableProps}
-            className="flex flex-col bg-background overflow-visible"
-          >
-            {sortedRows.map((row: any, idx: number) => (
-              <Draggable
-                key={row.id}
-                draggableId={row.id}
-                index={idx}
-                isDragDisabled={isFormulaMode}
-              >
-                {(provided) => (
-                  <div
-                    ref={provided.innerRef}
-                    {...provided.draggableProps}
-                    className="overflow-visible"
-                  >
-                    <SingleRow
-                      row={row}
-                      globalSl={slOffset + idx + 1}
-                      sectionColor={sectionColor}
-                      tokenMap={tokenMap}
-                      templateId={templateId}
-                      sectionId={sectionId}
-                      allSections={allSections}
-                      onEdit={() => setEditingRow(row)}
-                      onDelete={() => setRowToDelete(row)}
-                      onAddCharge={() => setAddingChargeForRow(row)}
-                      onDeleteCharge={(chargeId) => {
-                        const charge = row.charges.find((c: any) => c.id === chargeId);
-                        setChargeToDelete({ rowId: row.id, charge });
-                      }}
-                      onEditCharge={(charge) => setEditingChargeForRow({ row, charge })}
-                      dragHandleProps={provided.dragHandleProps}
-                      zoomLevel={zoomLevel}
-                    />
-                  </div>
-                )}
-              </Draggable>
-            ))}
-            {provided.placeholder}
-          </div>
-        )}
-      </Droppable>
+  const droppableContent = (
+    <Droppable droppableId={`rows-${sectionId}`}>
+      {(provided, snapshot) => (
+        <div
+          ref={provided.innerRef}
+          {...provided.droppableProps}
+          className={cn(
+            "flex flex-col bg-background overflow-visible transition-all duration-150 w-full min-w-fit",
+            sortedRows.length === 0 &&
+              "min-h-[58px] border-b border-dashed border-border/60 flex items-center justify-center p-2",
+            snapshot.isDraggingOver && "bg-primary/5 ring-2 ring-primary/40 ring-inset",
+          )}
+        >
+          {sortedRows.length === 0 && (
+            <div
+              className={cn(
+                "text-[11px] font-medium transition-colors select-none pointer-events-none py-1.5 px-3 rounded-md",
+                snapshot.isDraggingOver
+                  ? "text-primary font-bold bg-primary/10 animate-pulse"
+                  : "text-muted-foreground/50",
+              )}
+            >
+              {snapshot.isDraggingOver
+                ? "Drop row here to add to section"
+                : "Empty section — drag line items or rows here"}
+            </div>
+          )}
+          {sortedRows.map((row: any, idx: number) => (
+            <Draggable key={row.id} draggableId={row.id} index={idx} isDragDisabled={isFormulaMode}>
+              {(provided) => (
+                <div
+                  ref={provided.innerRef}
+                  {...provided.draggableProps}
+                  className="overflow-visible w-full min-w-fit"
+                >
+                  <SingleRow
+                    row={row}
+                    globalSl={slOffset + idx + 1}
+                    sectionColor={sectionColor}
+                    tokenMap={tokenMap}
+                    templateId={templateId}
+                    sectionId={sectionId}
+                    allSections={allSections}
+                    onEdit={() => setEditingRow(row)}
+                    onDelete={() => setRowToDelete(row)}
+                    onAddCharge={() => setAddingChargeForRow(row)}
+                    onDeleteCharge={(chargeId) => {
+                      const charge = row.charges.find((c: any) => c.id === chargeId);
+                      setChargeToDelete({ rowId: row.id, charge });
+                    }}
+                    onEditCharge={(charge) => setEditingChargeForRow({ row, charge })}
+                    dragHandleProps={provided.dragHandleProps}
+                    zoomLevel={zoomLevel}
+                  />
+                </div>
+              )}
+            </Draggable>
+          ))}
+          {provided.placeholder}
+        </div>
+      )}
+    </Droppable>
+  );
 
+  const modals = (
+    <>
       {editingRow && (
         <AddEditRowModal
           isOpen={!!editingRow}
@@ -290,6 +309,22 @@ export function TemplateRowList({
         entityName={chargeToDelete ? `Charge: ${chargeToDelete.charge.chargeToken}` : "this charge"}
         isDeleting={deleteChargeMutation.isPending}
       />
+    </>
+  );
+
+  if (isSharedDnd) {
+    return (
+      <>
+        {droppableContent}
+        {modals}
+      </>
+    );
+  }
+
+  return (
+    <DragDropContext onDragEnd={onDragEnd}>
+      {droppableContent}
+      {modals}
     </DragDropContext>
   );
 }

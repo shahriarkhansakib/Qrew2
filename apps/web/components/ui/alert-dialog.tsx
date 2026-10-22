@@ -38,16 +38,54 @@ function AlertDialogOverlay({
 function AlertDialogContent({
   className,
   size = "default",
+  onEscapeKeyDown,
   ...props
 }: React.ComponentProps<typeof AlertDialogPrimitive.Content> & {
   size?: "default" | "sm";
+  onPointerDownOutside?: (e: any) => void;
 }) {
+  const contentRef = React.useRef<HTMLDivElement>(null);
+
+  React.useEffect(() => {
+    const handleOutsideClick = (e: MouseEvent | TouchEvent) => {
+      if (contentRef.current && !contentRef.current.contains(e.target as Node)) {
+        const cancelBtn = contentRef.current.querySelector<HTMLElement>(
+          '[data-slot="alert-dialog-cancel"]',
+        );
+        cancelBtn?.click();
+      }
+    };
+
+    const timer = setTimeout(() => {
+      document.addEventListener("pointerdown", handleOutsideClick);
+    }, 50);
+
+    return () => {
+      clearTimeout(timer);
+      document.removeEventListener("pointerdown", handleOutsideClick);
+    };
+  }, []);
+
+  const handleEscapeKeyDown = (e: any) => {
+    onEscapeKeyDown?.(e);
+    if (!e.defaultPrevented) {
+      const cancelBtn = contentRef.current?.querySelector<HTMLElement>(
+        '[data-slot="alert-dialog-cancel"]',
+      );
+      if (cancelBtn) {
+        cancelBtn.click();
+      }
+    }
+  };
+
   return (
     <AlertDialogPortal>
       <AlertDialogOverlay />
       <AlertDialogPrimitive.Content
+        ref={contentRef}
         data-slot="alert-dialog-content"
         data-size={size}
+        onEscapeKeyDown={handleEscapeKeyDown}
         className={cn(
           "group/alert-dialog-content fixed top-1/2 left-1/2 z-50 grid w-full -translate-x-1/2 -translate-y-1/2 gap-4 rounded-xl bg-popover p-4 text-popover-foreground ring-1 ring-foreground/10 duration-100 outline-none data-[size=default]:max-w-xs data-[size=sm]:max-w-xs data-[size=default]:sm:max-w-sm data-open:animate-in data-open:fade-in-0 data-open:zoom-in-95 data-closed:animate-out data-closed:fade-out-0 data-closed:zoom-out-95",
           className,

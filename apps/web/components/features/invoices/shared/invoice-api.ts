@@ -172,6 +172,23 @@ export const invoiceApi = {
     return res.json();
   },
 
+  updateTemplateOptionalRow: async (templateId: string, idOrToken: string, payload: any) => {
+    const res = await fetch(
+      `${apiUrl}/api/invoice-templates/${templateId}/optional-rows/${idOrToken}`,
+      {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        credentials: "include",
+        body: JSON.stringify(payload),
+      },
+    );
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({}));
+      throw new Error(err.error || "Failed to update template optional row");
+    }
+    return res.json();
+  },
+
   deleteTemplateOptionalRow: async (templateId: string, canonicalToken: string) => {
     const res = await fetch(
       `${apiUrl}/api/invoice-templates/${templateId}/optional-rows/${canonicalToken}`,
@@ -183,6 +200,68 @@ export const invoiceApi = {
     if (!res.ok) {
       const err = await res.json().catch(() => ({}));
       throw new Error(err.error || "Failed to delete template optional row");
+    }
+    return res.json();
+  },
+
+  getDraftTemplateSyncStatus: async (draftId: string) => {
+    const res = await fetch(`${apiUrl}/api/invoices/drafts/${draftId}/template-sync-status`, {
+      credentials: "include",
+    });
+    if (!res.ok) throw new Error("Failed to fetch template sync status");
+    return res.json();
+  },
+
+  syncDraftWithTemplate: async (draftId: string) => {
+    const res = await fetch(`${apiUrl}/api/invoices/drafts/${draftId}/sync-template`, {
+      method: "POST",
+      credentials: "include",
+    });
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({}));
+      throw new Error(err.error || err.message || "Failed to sync draft with template");
+    }
+    return res.json();
+  },
+
+  resetDraftToInitial: async (draftId: string) => {
+    const res = await fetch(`${apiUrl}/api/invoices/drafts/${draftId}/reset-initial`, {
+      method: "POST",
+      credentials: "include",
+    });
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({}));
+      throw new Error(
+        err.error || err.message || "Failed to reset draft to initial template state",
+      );
+    }
+    return res.json();
+  },
+
+  updateDraftHeaderValues: async (draftId: string, values: Record<string, any>) => {
+    const res = await fetch(`${apiUrl}/api/invoices/drafts/${draftId}/header-values`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      credentials: "include",
+      body: JSON.stringify({ values }),
+    });
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({}));
+      throw new Error(err.error || err.message || "Failed to update file header values");
+    }
+    return res.json();
+  },
+
+  updateTemplateColumns: async (templateId: string, columnDefinitions: any[]) => {
+    const res = await fetch(`${apiUrl}/api/invoice-templates/${templateId}/columns`, {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      credentials: "include",
+      body: JSON.stringify({ columnDefinitions }),
+    });
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({}));
+      throw new Error(err.error || err.message || "Failed to update columns");
     }
     return res.json();
   },

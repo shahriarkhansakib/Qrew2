@@ -1,9 +1,20 @@
 "use client";
 
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { AlertTriangle, Edit2, Info, Trash2 } from "lucide-react";
+import {
+  AlertTriangle,
+  Columns2,
+  Edit2,
+  Hash,
+  Info,
+  Layers,
+  PanelRightClose,
+  Trash2,
+} from "lucide-react";
 import { useState } from "react";
 import { toast } from "sonner";
+import { invoiceApi } from "@/components/features/invoices/shared/invoice-api";
+import { invoiceKeys } from "@/components/features/invoices/shared/invoice-keys";
 import { AddEditOrgConfigModal } from "@/components/features/org-configs/add-edit-org-config-modal";
 import { ConfirmDeleteModal } from "@/components/shared/confirm-delete-modal";
 import {
@@ -20,9 +31,11 @@ import { buildTokenMap, fmt } from "@/lib/formula-evaluator";
 import { cn } from "@/lib/utils";
 import { AddEditTemplateConstantModal } from "../add-edit-template-constant-modal";
 import { useBuilderContext } from "../builder-context";
+import { AdditionalLineItemsPool } from "./components/additional-line-items-pool";
 import { ExpenseCategoriesSection } from "./components/expense-categories-section";
 import { FileDetailsSection } from "./components/file-details-section";
 import { GlobalConstantsSection } from "./components/global-constants-section";
+import { FILE_DETAILS_INFO, SHEET_DETAILS_INFO } from "./components/section-info-popover";
 import { SectionsTree } from "./components/sections-tree";
 import { TemplateConstantsSection } from "./components/template-constants-section";
 
@@ -68,16 +81,16 @@ const TOKEN_TYPE_CONFIG: Record<
     description: "The raw base value entered directly into a row cell",
   },
   "row-charge-item": {
-    chip: "bg-accent/5 text-accent-foreground/70 border border-amber-500/10",
-    dot: "bg-accent/70",
-    value: "text-accent-foreground/70",
+    chip: "bg-amber-500/5 text-amber-400/70 border border-amber-500/10",
+    dot: "bg-amber-400/70",
+    value: "text-amber-400/70",
     label: "Row Charge Item",
     description: "A single computed charge applied to a specific row",
   },
   "row-charges": {
-    chip: "bg-accent/10 text-accent-foreground border border-amber-500/20",
-    dot: "bg-accent",
-    value: "text-accent-foreground font-medium",
+    chip: "bg-amber-500/10 text-amber-400 border border-amber-500/20",
+    dot: "bg-amber-400",
+    value: "text-amber-400 font-medium",
     label: "Row Charges Sum",
     description: "Sum of all individual charges on a specific row",
   },
@@ -236,11 +249,13 @@ export function FileTokenRow({
   onClick?: () => void;
   onLegendClick?: () => void;
 }) {
-  const { selectedCell, invalidTokens, hiddenTokens, getTokenDisabledReason } = useBuilderContext();
+  const { selectedCell, invalidTokens, hiddenTokens, getTokenDisabledReason, tokenMap, mode } =
+    useBuilderContext();
+  const isFillMode = mode === "fill";
   const isFormulaMode = !!selectedCell;
   const isInvalid = isFormulaMode && invalidTokens.has(token);
   const isHidden = isFormulaMode && hiddenTokens.has(token);
-  const isDisabled = isInvalid || isHidden || !isNumeric;
+  const isDisabled = isFillMode ? false : isInvalid || isHidden || !isNumeric;
   const disabledReason = !isNumeric
     ? `${label} is a text field and cannot be used in formulas`
     : isDisabled
@@ -249,6 +264,7 @@ export function FileTokenRow({
       : undefined;
 
   const handleClick = () => {
+    if (isFillMode) return;
     if (!isNumeric) return;
     if (isInvalid || isHidden) {
       toast.error(`Cannot insert: ${disabledReason || `"${token}" is not allowed.`}`);
@@ -259,21 +275,40 @@ export function FileTokenRow({
 
   const type: TokenEntry["type"] = isNumeric ? "file" : "file-text";
   const cfg = TOKEN_TYPE_CONFIG[type];
+  const numVal = isNumeric
+    ? (tokenMap[token] ?? tokenMap[`FILE_${token}`] ?? tokenMap[token.replace(/^FILE_/, "")])
+    : null;
+
+  const textVal = !isNumeric
+    ? (tokenMap[token] ?? tokenMap[`FILE_${token}`] ?? tokenMap[token.replace(/^FILE_/, "")])
+    : null;
+
+  const normLabel = (label || "").toUpperCase().replace(/[^A-Z0-9]/g, "");
+  const normToken = (token || "")
+    .replace(/^FILE_/, "")
+    .toUpperCase()
+    .replace(/[^A-Z0-9]/g, "");
+  const isDuplicateLabel = normLabel === normToken;
+
   return (
     <div
       className={cn(
         "flex items-center justify-between gap-2 px-2 py-0.5 rounded transition-colors group",
-        isDisabled
-          ? "opacity-35 cursor-not-allowed bg-muted/5"
-          : "hover:bg-muted/20 cursor-pointer",
+        isFillMode
+          ? "cursor-default opacity-85"
+          : isDisabled
+            ? "opacity-35 cursor-not-allowed bg-muted/5"
+            : "hover:bg-muted/20 cursor-pointer",
       )}
       onClick={handleClick}
       title={
-        isDisabled
-          ? disabledReason?.startsWith("Disabled:")
-            ? disabledReason
-            : `Disabled: ${disabledReason}`
-          : `Insert ${token}`
+        isFillMode
+          ? undefined
+          : isDisabled
+            ? disabledReason?.startsWith("Disabled:")
+              ? disabledReason
+              : `Disabled: ${disabledReason}`
+            : `Insert ${token}`
       }
     >
       <span
@@ -296,7 +331,27 @@ export function FileTokenRow({
         {isInvalid && <AlertTriangle className="w-3 h-3 text-accent-foreground shrink-0 mr-0.5" />}
         {token}
       </span>
-      <span className="text-xs text-muted-foreground truncate">{label}</span>
+      <div className="flex items-center gap-2 min-w-0">
+        {!isDuplicateLabel && (
+          <span className="text-xs text-muted-foreground truncate">{label}</span>
+        )}
+        {isNumeric && numVal != null && (
+          <span
+            className="font-mono shrink-0 tabular-nums text-sky-400 font-medium"
+            style={{ fontSize: 13 + zoomLevel }}
+          >
+            {fmt(numVal)}
+          </span>
+        )}
+        {!isNumeric && textVal != null && (
+          <span
+            className="font-sans text-xs text-foreground/80 truncate font-medium"
+            style={{ fontSize: 12 + zoomLevel }}
+          >
+            {String(textVal)}
+          </span>
+        )}
+      </div>
     </div>
   );
 }
@@ -322,17 +377,20 @@ export function ConstantTokenCard({
   onDelete?: (e: React.MouseEvent) => void;
   onLegendClick?: () => void;
 }) {
-  const { selectedCell, invalidTokens, hiddenTokens, getTokenDisabledReason } = useBuilderContext();
+  const { selectedCell, invalidTokens, hiddenTokens, getTokenDisabledReason, mode } =
+    useBuilderContext();
+  const isFillMode = mode === "fill";
   const isFormulaMode = !!selectedCell;
   const isInvalid = isFormulaMode && invalidTokens.has(token);
   const isHidden = isFormulaMode && hiddenTokens.has(token);
-  const isDisabled = isInvalid || isHidden;
+  const isDisabled = isFillMode ? false : isInvalid || isHidden;
   const disabledReason = isDisabled
     ? getTokenDisabledReason(token) ||
       (isInvalid ? "Creates circular dependency" : "Not allowed in active cell")
     : undefined;
 
   const handleClick = () => {
+    if (isFillMode) return;
     if (isInvalid || isHidden) {
       toast.error(`Cannot insert: ${disabledReason || `"${token}" is not allowed.`}`);
       return;
@@ -354,15 +412,21 @@ export function ConstantTokenCard({
     <div
       className={cn(
         "group flex items-center justify-between gap-2 px-2 py-1 rounded transition-colors",
-        isDisabled ? "opacity-35 cursor-not-allowed bg-muted/5" : `cursor-pointer ${styles[type]}`,
+        isFillMode
+          ? "cursor-default opacity-85"
+          : isDisabled
+            ? "opacity-35 cursor-not-allowed bg-muted/5"
+            : `cursor-pointer ${styles[type]}`,
       )}
       onClick={handleClick}
       title={
-        isDisabled
-          ? disabledReason?.startsWith("Disabled:")
-            ? disabledReason
-            : `Disabled: ${disabledReason}`
-          : `Insert ${token}`
+        isFillMode
+          ? undefined
+          : isDisabled
+            ? disabledReason?.startsWith("Disabled:")
+              ? disabledReason
+              : `Disabled: ${disabledReason}`
+            : `Insert ${token}`
       }
     >
       <span
@@ -444,9 +508,21 @@ export function PoolSectionHeader({
 export function TemplateTokenPool({
   templateId,
   draftId,
+  activeTab: propActiveTab,
+  onTabChange: propOnTabChange,
+  onAddRowToSection,
+  onClose,
+  sidebarDisplayMode: propSidebarDisplayMode,
+  onToggleSidebarDisplayMode: propOnToggleSidebarDisplayMode,
 }: {
   templateId?: string;
   draftId?: string;
+  activeTab?: "tokens" | "line-items";
+  onTabChange?: (tab: "tokens" | "line-items") => void;
+  onAddRowToSection?: (item: any, sectionId?: string) => void;
+  onClose?: () => void;
+  sidebarDisplayMode?: "overlay" | "static";
+  onToggleSidebarDisplayMode?: () => void;
 }) {
   const isDraftMode = !!draftId;
   const apiBasePath = isDraftMode
@@ -461,7 +537,34 @@ export function TemplateTokenPool({
     ? ["draft-sections", draftId]
     : ["template-sections", templateId];
 
-  const { selectedCell, setClipboardToken } = useBuilderContext();
+  const {
+    selectedCell,
+    setClipboardToken,
+    sidebarTab,
+    setSidebarTab,
+    mode,
+    templateType,
+    sidebarDisplayMode: ctxDisplayMode,
+    toggleSidebarDisplayMode: ctxToggleMode,
+  } = useBuilderContext();
+  const currentTab = propActiveTab ?? sidebarTab;
+  const handleTabChange = propOnTabChange ?? setSidebarTab;
+  const activeDisplayMode = propSidebarDisplayMode ?? ctxDisplayMode ?? "static";
+  const handleToggleDisplayMode = propOnToggleSidebarDisplayMode ?? ctxToggleMode;
+
+  const { data: catalog = [] } = useQuery({
+    queryKey: templateId
+      ? invoiceKeys.optionalRows.byTemplate(templateId)
+      : invoiceKeys.optionalRows.byDraft(draftId || ""),
+    queryFn: () => {
+      if (templateId) return invoiceApi.getTemplateOptionalRows(templateId);
+      if (draftId) return invoiceApi.getDraftOptionalRows(draftId);
+      return [];
+    },
+    enabled: !!templateId || !!draftId,
+  });
+  const catalogCount = Array.isArray(catalog) ? catalog.length : 0;
+
   const [showLegend, setShowLegend] = useState(false);
   const [tokenZoomLevel, setTokenZoomLevel] = useState(0);
   const [isConfigModalOpen, setIsConfigModalOpen] = useState(false);
@@ -583,6 +686,9 @@ export function TemplateTokenPool({
   );
 
   const getFileToken = (field: any) => {
+    if (field.tokenKey) {
+      return field.tokenKey.toUpperCase().replace(/^FILE_/, "");
+    }
     if (field.fieldType === "file_field" && field.fileFieldKey) {
       return field.fileFieldKey.toUpperCase().replace(/^FILE_/, "");
     }
@@ -596,6 +702,7 @@ export function TemplateTokenPool({
   };
 
   const handleTokenClick = (token: string) => {
+    if (mode === "fill") return;
     if (selectedCell) {
       window.dispatchEvent(new CustomEvent("insert-token", { detail: token }));
     } else {
@@ -608,47 +715,116 @@ export function TemplateTokenPool({
   return (
     <>
       <div
-        className="flex flex-col h-full overflow-y-auto token-pool-container"
-        onMouseDown={(e) => e.preventDefault()}
+        className="flex flex-col h-full overflow-hidden token-pool-container bg-background"
+        onMouseDown={(e) => {
+          const target = e.target as HTMLElement;
+          if (
+            target.closest("input") ||
+            target.closest("textarea") ||
+            target.closest("select") ||
+            target.closest("button") ||
+            target.closest("[role='button']")
+          ) {
+            return;
+          }
+          if (target.closest(".insertable-token") || target.closest(".token-chip")) {
+            e.preventDefault();
+          }
+        }}
       >
-        <div className="px-4 py-3 border-b border-border bg-muted/20 shrink-0">
-          <div className="flex items-center justify-between">
-            <div>
-              <div className="flex items-center gap-1.5">
-                <h2 className="text-sm font-bold text-foreground">Token Pool</h2>
-                <button
-                  type="button"
-                  onClick={() => setShowLegend(true)}
-                  className={`p-1 rounded-full transition-colors cursor-pointer ${showLegend ? "bg-primary/10 text-primary" : "text-muted-foreground/40 hover:text-foreground hover:bg-muted/40"}`}
-                  title="Token color guide"
-                  aria-label="Token color guide"
-                >
-                  <Info className="w-3.5 h-3.5" />
-                </button>
-              </div>
-              <p className="text-[11px] text-muted-foreground/60 mt-0.5">
-                Click a token to insert it into a formula.
-              </p>
-            </div>
-            <div className="flex items-center gap-1 border border-border rounded-md px-0.5 h-7 bg-background shadow-sm">
+        {/* ── Adobe Illustrator-Style Tab Strip ── */}
+        <div className="flex items-center justify-between border-b border-border bg-muted/40 px-2 pt-1.5 select-none shrink-0 min-w-0">
+          <div className="flex items-center gap-1 -mb-[1px] min-w-0 overflow-hidden">
+            <button
+              type="button"
+              onClick={() => handleTabChange("tokens")}
+              className={cn(
+                "flex items-center gap-1 px-2.5 py-1.5 text-xs font-semibold rounded-t-md transition-all cursor-pointer border border-b-0 shrink-0",
+                currentTab === "tokens"
+                  ? "bg-background text-foreground border-border border-t-2 border-t-primary shadow-xs z-10"
+                  : "bg-transparent text-muted-foreground hover:text-foreground hover:bg-muted/50 border-transparent",
+              )}
+            >
+              <Hash className="w-3.5 h-3.5 text-primary shrink-0" />
+              <span>Token Pool</span>
+            </button>
+
+            <button
+              type="button"
+              onClick={() => handleTabChange("line-items")}
+              className={cn(
+                "flex items-center gap-1 px-2.5 py-1.5 text-xs font-semibold rounded-t-md transition-all cursor-pointer border border-b-0 min-w-0 truncate",
+                currentTab === "line-items"
+                  ? "bg-background text-foreground border-border border-t-2 border-t-primary shadow-xs z-10"
+                  : "bg-transparent text-muted-foreground hover:text-foreground hover:bg-muted/50 border-transparent",
+              )}
+              title="Additional Line Items"
+            >
+              <Layers className="w-3.5 h-3.5 text-primary shrink-0" />
+              <span className="truncate">Line Items</span>
+              {catalogCount > 0 && (
+                <span className="text-[10px] font-mono px-1.5 py-0.2 rounded-full bg-primary/10 text-primary font-bold shrink-0">
+                  {catalogCount}
+                </span>
+              )}
+            </button>
+          </div>
+
+          <div className="flex items-center gap-1 pb-1 shrink-0 ml-1">
+            {handleToggleDisplayMode && (
               <button
-                onClick={() => setTokenZoomLevel((z) => Math.max(z - 1, -4))}
-                className="h-5 w-5 flex items-center justify-center text-muted-foreground hover:text-foreground hover:bg-muted rounded transition-colors"
-                title="Decrease Font Size"
+                type="button"
+                onClick={handleToggleDisplayMode}
+                className={cn(
+                  "flex items-center gap-1 px-1.5 py-0.5 rounded text-xs transition-colors cursor-pointer border shrink-0",
+                  activeDisplayMode === "overlay"
+                    ? "bg-sky-500/10 text-sky-400 border-sky-500/25 hover:bg-sky-500/20"
+                    : "bg-muted/40 text-muted-foreground hover:text-foreground hover:bg-muted/70 border-border/60",
+                )}
+                title={
+                  activeDisplayMode === "overlay"
+                    ? "Mode: Overlay (Sidebar floats over table). Click to switch to Static (Docked side-by-side)."
+                    : "Mode: Static (Docked side-by-side). Click to switch to Overlay (Floating over table)."
+                }
+                aria-label="Toggle Studio display mode"
               >
-                <span className="text-lg leading-none font-medium mb-1">-</span>
+                {activeDisplayMode === "overlay" ? (
+                  <>
+                    <Layers className="w-3.5 h-3.5 shrink-0" />
+                    <span className="text-[10px] font-semibold tracking-wide">Overlay</span>
+                  </>
+                ) : (
+                  <>
+                    <Columns2 className="w-3.5 h-3.5 shrink-0" />
+                    <span className="text-[10px] font-semibold tracking-wide">Docked</span>
+                  </>
+                )}
               </button>
-              <span className="text-[10px] font-mono w-4 text-center select-none text-muted-foreground">
-                {tokenZoomLevel > 0 ? `+${tokenZoomLevel}` : tokenZoomLevel}
-              </span>
+            )}
+
+            {currentTab === "tokens" && (
               <button
-                onClick={() => setTokenZoomLevel((z) => Math.min(z + 1, 8))}
-                className="h-5 w-5 flex items-center justify-center text-muted-foreground hover:text-foreground hover:bg-muted rounded transition-colors"
-                title="Increase Font Size"
+                type="button"
+                onClick={() => setShowLegend(true)}
+                className={`p-1 rounded-full transition-colors cursor-pointer shrink-0 ${showLegend ? "bg-primary/10 text-primary" : "text-muted-foreground/40 hover:text-foreground hover:bg-muted/40"}`}
+                title="Token color guide"
+                aria-label="Token color guide"
               >
-                <span className="text-lg leading-none font-medium mb-1">+</span>
+                <Info className="w-3.5 h-3.5" />
               </button>
-            </div>
+            )}
+
+            {onClose && (
+              <button
+                type="button"
+                onClick={onClose}
+                className="p-1 rounded-md text-muted-foreground hover:text-foreground hover:bg-muted/60 transition-colors ml-0.5 cursor-pointer shrink-0"
+                title="Collapse Studio sidebar"
+                aria-label="Collapse Studio sidebar"
+              >
+                <PanelRightClose className="w-3.5 h-3.5" />
+              </button>
+            )}
           </div>
         </div>
 
@@ -1038,14 +1214,14 @@ export function TemplateTokenPool({
                       </p>
                       <p>
                         • <strong>Charges Sum:</strong>{" "}
-                        <code className="font-mono text-accent-foreground font-medium">
+                        <code className="font-mono text-amber-400 font-medium">
                           &lt;ROW&gt;_CHARGES
                         </code>{" "}
                         represents the sum of all charges for that row.
                       </p>
                       <p>
                         • <strong>Strict Rate Charges:</strong> Line charges evaluate predictably as{" "}
-                        <code className="font-mono text-accent-foreground/80">
+                        <code className="font-mono text-amber-400/80">
                           &lt;ROW&gt;_BASE * rate%
                         </code>
                         .
@@ -1151,11 +1327,11 @@ export function TemplateTokenPool({
                     </p>
 
                     <div className="flex items-start gap-3 p-3 rounded-lg border border-border/40 bg-muted/10">
-                      <span className="w-2.5 h-2.5 rounded-full shrink-0 mt-1 bg-rose-500" />
+                      <span className="w-2.5 h-2.5 rounded-full shrink-0 mt-1 bg-rose-400" />
                       <div className="min-w-0 flex-1">
                         <div className="flex items-center gap-2 flex-wrap">
-                          <span className="text-xs font-bold text-rose-500">EXP_TOTAL</span>
-                          <span className="font-mono text-[11px] px-1.5 py-0.5 rounded border bg-rose-500/15 text-rose-500 font-bold border-rose-500/30">
+                          <span className="text-xs font-semibold text-rose-400">EXP_TOTAL</span>
+                          <span className="font-mono text-[11px] px-1.5 py-0.5 rounded border bg-rose-500/10 text-rose-400 font-semibold border-rose-500/20">
                             EXP_TOTAL
                           </span>
                         </div>
@@ -1197,55 +1373,74 @@ export function TemplateTokenPool({
           </DialogContent>
         </Dialog>
 
-        <div className="flex-1 overflow-y-auto py-3 space-y-5">
-          <GlobalConstantsSection
-            orgConfigs={orgConfigs}
+        {currentTab === "line-items" ? (
+          <AdditionalLineItemsPool
+            templateId={templateId}
+            draftId={draftId}
             tokenZoomLevel={tokenZoomLevel}
-            handleTokenClick={handleTokenClick}
-            setEditConfig={setEditConfig}
-            setIsConfigModalOpen={setIsConfigModalOpen}
-            setConfigToDelete={setConfigToDelete}
-            setShowLegend={setShowLegend}
+            onAddRowToSection={onAddRowToSection}
           />
-          <TemplateConstantsSection
-            templateConstants={templateConstants}
-            tokenZoomLevel={tokenZoomLevel}
-            handleTokenClick={handleTokenClick}
-            setEditConstant={setEditConstant}
-            setIsConstantModalOpen={setIsConstantModalOpen}
-            setConstantToDelete={setConstantToDelete}
-            setShowLegend={setShowLegend}
-          />
-          <FileDetailsSection
-            allFileFields={allFileFields}
-            getFileToken={getFileToken}
-            tokenZoomLevel={tokenZoomLevel}
-            handleTokenClick={handleTokenClick}
-            setShowLegend={setShowLegend}
-          />
-          <ExpenseCategoriesSection
-            categories={expenseCategories || []}
-            tokenZoomLevel={tokenZoomLevel}
-            handleTokenClick={handleTokenClick}
-            setShowLegend={setShowLegend}
-          />
-          <SectionsTree
-            sortedSections={sortedSections}
-            tokenMap={tokenMap}
-            tokenZoomLevel={tokenZoomLevel}
-            handleTokenClick={handleTokenClick}
-            setShowLegend={setShowLegend}
-          />
+        ) : (
+          <div className="flex-1 overflow-y-auto py-3 space-y-5">
+            <GlobalConstantsSection
+              orgConfigs={orgConfigs}
+              tokenZoomLevel={tokenZoomLevel}
+              handleTokenClick={handleTokenClick}
+              setEditConfig={setEditConfig}
+              setIsConfigModalOpen={setIsConfigModalOpen}
+              setConfigToDelete={setConfigToDelete}
+              setShowLegend={setShowLegend}
+            />
+            <TemplateConstantsSection
+              templateConstants={templateConstants}
+              tokenZoomLevel={tokenZoomLevel}
+              handleTokenClick={handleTokenClick}
+              setEditConstant={setEditConstant}
+              setIsConstantModalOpen={setIsConstantModalOpen}
+              setConstantToDelete={setConstantToDelete}
+              setShowLegend={setShowLegend}
+            />
+            <FileDetailsSection
+              allFileFields={allFileFields}
+              getFileToken={getFileToken}
+              tokenZoomLevel={tokenZoomLevel}
+              handleTokenClick={handleTokenClick}
+              setShowLegend={setShowLegend}
+              title={
+                templateType === "sheet" || templateType === "general"
+                  ? "Sheet Details"
+                  : "File Details"
+              }
+              info={
+                templateType === "sheet" || templateType === "general"
+                  ? SHEET_DETAILS_INFO
+                  : FILE_DETAILS_INFO
+              }
+            />
+            <ExpenseCategoriesSection
+              categories={expenseCategories || []}
+              tokenZoomLevel={tokenZoomLevel}
+              handleTokenClick={handleTokenClick}
+              setShowLegend={setShowLegend}
+            />
+            <SectionsTree
+              sortedSections={sortedSections}
+              tokenMap={tokenMap}
+              tokenZoomLevel={tokenZoomLevel}
+              handleTokenClick={handleTokenClick}
+              setShowLegend={setShowLegend}
+            />
 
-          <div className="border-t-2 border-border mx-3 pt-2 pb-2">
-            <div className="flex items-center justify-between gap-2 px-2 py-1">
-              <span className="text-xs font-bold text-foreground">Grand Total</span>
-              <span className="font-mono text-sm font-bold text-foreground tabular-nums">
-                {fmt(grandTotal)}
-              </span>
+            <div className="border-t-2 border-border mx-3 pt-2 pb-2">
+              <div className="flex items-center justify-between gap-2 px-2 py-1">
+                <span className="text-xs font-bold text-foreground">Grand Total</span>
+                <span className="font-mono text-sm font-bold text-foreground tabular-nums">
+                  {fmt(grandTotal)}
+                </span>
+              </div>
             </div>
           </div>
-        </div>
+        )}
       </div>
 
       <AddEditOrgConfigModal

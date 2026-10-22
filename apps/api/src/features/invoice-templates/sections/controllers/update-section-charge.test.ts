@@ -167,7 +167,7 @@ describe("updateSectionCharge", () => {
   describe("regression: section charge response decoding", () => {
     it("updateSectionCharge response formula is decoded (not raw UUID form)", async () => {
       mockChargeOwned(makeSectionCharge(), true);
-      const rawUpdated = makeSectionCharge({ formula: "{{$row:abc-123}} * 0.15" });
+      const rawUpdated = makeSectionCharge({ formula: "{{$tok:abc-123}} * 0.15" });
       mockUpdateReturns(rawUpdated);
       const { decodeFormula } = await import("@starter/db");
       (decodeFormula as any).mockReturnValue("SEC_SECTION_A * 0.15");
@@ -178,7 +178,7 @@ describe("updateSectionCharge", () => {
       });
       const res = await updateSectionCharge(ctx);
       expect(res.status).toBe(200);
-      expect((res as any).data.formula).not.toContain("{{$row:");
+      expect((res as any).data.formula).not.toContain("{{$tok:");
       expect((res as any).data.formula).toBe("SEC_SECTION_A * 0.15");
     });
   });

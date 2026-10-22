@@ -1,5 +1,5 @@
 import { db, invoiceDocumentSequences, invoiceTemplates, TemplateOptionalRow } from "@starter/db";
-import { and, eq } from "drizzle-orm";
+import { and, eq, sql } from "drizzle-orm";
 import { Context } from "hono";
 import { z } from "zod";
 import { TokenService } from "../tokens/token.service";
@@ -10,6 +10,8 @@ const createTemplateSchema = z.object({
   description: z.string().optional(),
   documentPrefix: z.string().optional().default("INV"),
   numberingFormat: z.string().optional().default("{PREFIX}-{YYYY}-{SEQ:4}"),
+  templateType: z.enum(["standard", "general", "sheet"]).optional().default("standard"),
+  columnDefinitions: z.array(z.any()).optional(),
 });
 
 const updateTemplateSchema = z.object({
@@ -17,6 +19,8 @@ const updateTemplateSchema = z.object({
   description: z.string().optional(),
   documentPrefix: z.string().optional(),
   numberingFormat: z.string().optional(),
+  templateType: z.enum(["standard", "general", "sheet"]).optional(),
+  columnDefinitions: z.array(z.any()).optional(),
   optionalRows: z.array(z.any()).optional(),
 });
 
@@ -69,6 +73,50 @@ export class InvoiceTemplatesController {
     if (!parsed.success) return c.json({ error: parsed.error }, 400);
 
     const templateId = crypto.randomUUID();
+    const rawType = parsed.data.templateType || "standard";
+    const templateType = rawType === "sheet" ? "general" : rawType;
+    const isGeneral = templateType === "general";
+    const defaultSheetColumns = [
+      {
+        id: crypto.randomUUID(),
+        key: "col_serial",
+        label: "SL",
+        dataType: "serial",
+        width: "w-14",
+        align: "center",
+      },
+      {
+        id: crypto.randomUUID(),
+        key: "col_date",
+        label: "Date",
+        dataType: "date",
+        width: "w-36",
+        align: "left",
+      },
+      {
+        id: crypto.randomUUID(),
+        key: "col_desc",
+        label: "Description",
+        dataType: "text",
+        width: "flex-1",
+        align: "left",
+      },
+      {
+        id: crypto.randomUUID(),
+        key: "col_amount",
+        label: "Amount",
+        dataType: "number",
+        width: "w-36",
+        align: "right",
+        isTotaled: true,
+      },
+    ];
+
+    const columnDefinitions = isGeneral
+      ? parsed.data.columnDefinitions && parsed.data.columnDefinitions.length > 0
+        ? parsed.data.columnDefinitions
+        : defaultSheetColumns
+      : [];
 
     const [newTemplate] = await db
       .insert(invoiceTemplates)
@@ -79,9 +127,41 @@ export class InvoiceTemplatesController {
         description: parsed.data.description,
         documentPrefix: parsed.data.documentPrefix,
         numberingFormat: parsed.data.numberingFormat,
+        templateType,
+        columnDefinitions,
         createdByUserId: user.id,
       })
       .returning();
+
+    if (isGeneral) {
+      // Seed default section for general templates (e.g. "Expenses")
+      const secId = crypto.randomUUID();
+      await TokenService.createSectionToken({
+        id: secId,
+        templateId,
+        sectionToken: "SECTION_1",
+        label: "Expenses",
+        organizationId,
+        sortOrder: 0,
+      });
+
+      // Seed initial blank row with serial-based canonical token
+      await TokenService.createRowToken({
+        id: crypto.randomUUID(),
+        templateId,
+        sectionId: secId,
+        rowToken: "ROW_1",
+        label: "Expense item 1",
+        organizationId,
+        sortOrder: 0,
+        cellValues: {
+          col_desc: "General Expense",
+          col_amount: 0,
+        },
+      });
+
+      return c.json(newTemplate, 201);
+    }
 
     // Seed default system fields for the template header
     const systemFields = [
@@ -170,7 +250,11 @@ export class InvoiceTemplatesController {
 
     const [updated] = await db
       .update(invoiceTemplates)
-      .set(parsed.data)
+      .set({
+        ...parsed.data,
+        version: sql`${invoiceTemplates.version} + 1`,
+        updatedAt: new Date(),
+      })
       .where(and(eq(invoiceTemplates.id, id), eq(invoiceTemplates.organizationId, organizationId)))
       .returning();
 
@@ -226,6 +310,7 @@ export class InvoiceTemplatesController {
       formula: body.formula || null,
       initialValue: body.initialValue ? String(body.initialValue) : null,
       suggestedSectionToken: body.suggestedSectionToken || null,
+      cellValues: body.cellValues || null,
     };
 
     const [tpl] = await db
@@ -236,6 +321,14 @@ export class InvoiceTemplatesController {
 
     if (!tpl) return c.json({ error: "Template not found" }, 404);
     const currentRows = (tpl.optionalRows as TemplateOptionalRow[]) || [];
+    if (currentRows.some((r) => r.rowToken === rowToken)) {
+      return c.json(
+        {
+          error: `An additional line item with token "${rowToken}" already exists in this template.`,
+        },
+        409,
+      );
+    }
     const updatedRows = [...currentRows, newRow];
 
     await db
@@ -260,7 +353,9 @@ export class InvoiceTemplatesController {
 
     if (!tpl) return c.json({ error: "Template not found" }, 404);
     const currentRows = (tpl.optionalRows as TemplateOptionalRow[]) || [];
-    const updatedRows = currentRows.filter((r) => r.id !== optionalRowId);
+    const updatedRows = currentRows.filter(
+      (r) => r.id !== optionalRowId && r.rowToken !== optionalRowId,
+    );
 
     await db
       .update(invoiceTemplates)
@@ -268,5 +363,101 @@ export class InvoiceTemplatesController {
       .where(and(eq(invoiceTemplates.id, id), eq(invoiceTemplates.organizationId, organizationId)));
 
     return c.json({ success: true });
+  }
+
+  static async updateOptionalRow(c: Context) {
+    const id = c.req.param("id") as string;
+    const optionalRowId = c.req.param("optionalRowId") as string;
+    const organizationId = c.get("organizationId");
+    if (!organizationId) return c.json({ error: "Unauthorized" }, 401);
+
+    const body = await c.req.json();
+    const [tpl] = await db
+      .select({ optionalRows: invoiceTemplates.optionalRows })
+      .from(invoiceTemplates)
+      .where(and(eq(invoiceTemplates.id, id), eq(invoiceTemplates.organizationId, organizationId)))
+      .limit(1);
+
+    if (!tpl) return c.json({ error: "Template not found" }, 404);
+    const currentRows = (tpl.optionalRows as TemplateOptionalRow[]) || [];
+
+    let matched = false;
+    const updatedRows = currentRows.map((r) => {
+      if (r.id === optionalRowId || r.rowToken === optionalRowId) {
+        matched = true;
+        const newFormula = body.formula !== undefined ? body.formula : r.formula;
+        const newValueType =
+          body.valueType !== undefined
+            ? body.valueType
+            : newFormula && newFormula.trim()
+              ? "formula"
+              : r.valueType || "normal";
+
+        return {
+          ...r,
+          label: body.label !== undefined ? String(body.label).trim() : r.label,
+          subDescription:
+            body.subDescription !== undefined
+              ? body.subDescription
+              : body.description !== undefined
+                ? body.description
+                : r.subDescription,
+          initialValue: body.initialValue !== undefined ? body.initialValue : r.initialValue,
+          formula: newFormula,
+          valueType: newValueType,
+          cellValues: body.cellValues !== undefined ? body.cellValues : r.cellValues,
+        };
+      }
+      return r;
+    });
+
+    if (!matched) return c.json({ error: "Optional row not found" }, 404);
+
+    await db
+      .update(invoiceTemplates)
+      .set({ optionalRows: updatedRows })
+      .where(and(eq(invoiceTemplates.id, id), eq(invoiceTemplates.organizationId, organizationId)));
+
+    const updatedRow = updatedRows.find(
+      (r) => r.id === optionalRowId || r.rowToken === optionalRowId,
+    );
+    return c.json(updatedRow || { success: true });
+  }
+
+  static async updateColumns(c: Context) {
+    const id = c.req.param("id") as string;
+    const organizationId = c.get("organizationId");
+    if (!organizationId) return c.json({ error: "Unauthorized" }, 401);
+
+    const body = await c.req.json();
+    const columns = body.columnDefinitions || body.columns || [];
+    if (!Array.isArray(columns)) return c.json({ error: "Invalid columns payload" }, 400);
+
+    const [updated] = await db
+      .update(invoiceTemplates)
+      .set({
+        columnDefinitions: columns,
+        version: sql`${invoiceTemplates.version} + 1`,
+        updatedAt: new Date(),
+      })
+      .where(and(eq(invoiceTemplates.id, id), eq(invoiceTemplates.organizationId, organizationId)))
+      .returning();
+
+    if (!updated) return c.json({ error: "Template not found" }, 404);
+    return c.json(updated);
+  }
+}
+
+export async function touchTemplate(templateId: string, tx: any = db) {
+  try {
+    await tx
+      .update(invoiceTemplates)
+      .set({
+        version: sql`${invoiceTemplates.version} + 1`,
+        updatedAt: new Date(),
+      })
+      .where(eq(invoiceTemplates.id, templateId));
+  } catch (err) {
+    console.error("[touchTemplate] Failed to bump version", err);
   }
 }

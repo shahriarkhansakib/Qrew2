@@ -20,29 +20,58 @@ export function getParenStyle(depth: number): { style: React.CSSProperties; clas
   return { style: { color: `hsl(${spectralHue}, 85%, 60%)` }, className: "font-bold" };
 }
 
-// ─── SyntaxOverlay ────────────────────────────────────────────────────────────
+import { cn } from "@/lib/utils";
+import { TokenCapsule } from "./formula-bar/token-capsule";
+import { MATH_FUNCTIONS } from "./formula-bar-utils";
 
-/** Renders formula text with colored parentheses by depth, and semantic tokens. */
+export interface SyntaxOverlayProps {
+  value: string;
+  getTokenColor?: (token: string) => string;
+  tokenMap?: Record<string, number>;
+  sections?: any[];
+  templateConstants?: any[];
+  externalTokens?: {
+    global: Set<string>;
+    template: Set<string>;
+    file: Set<string>;
+    category: Set<string>;
+  };
+  selectedCell?: { token?: string; breadcrumb?: string } | null;
+  isActive?: boolean;
+  disabled?: boolean;
+  onSwapToken?: (oldToken: string, newToken: string, startIndex: number, endIndex: number) => void;
+  onTokenClick?: (cursorPos: number) => void;
+}
+
+/** Renders formula text with colored parentheses by depth, and semantic tokens / interactive capsules. */
 export function SyntaxOverlay({
   value,
   getTokenColor,
-}: {
-  value: string;
-  getTokenColor?: (token: string) => string;
-}) {
+  tokenMap,
+  sections,
+  templateConstants,
+  externalTokens,
+  selectedCell,
+  isActive = true,
+  disabled = false,
+  onSwapToken,
+  onTokenClick,
+}: SyntaxOverlayProps) {
   if (!value) return null;
   const elements: React.ReactNode[] = [];
   let depth = 0;
 
-  const regex = /(\b[A-Z_][A-Z0-9_]*\b|\(|\))/g;
+  const regex = /(\b[a-zA-Z_][a-zA-Z0-9_]*\b|\(|\))/g;
   let lastIdx = 0;
   let match;
   let keyIdx = 0;
 
+  const isInteractive = Boolean(onSwapToken || (tokenMap && isActive));
+
   while ((match = regex.exec(value)) !== null) {
     if (match.index > lastIdx) {
       elements.push(
-        <span key={keyIdx++} className="text-foreground/80">
+        <span key={keyIdx++} className="text-foreground/80 pointer-events-none">
           {value.slice(lastIdx, match.index)}
         </span>,
       );
@@ -53,7 +82,11 @@ export function SyntaxOverlay({
       const parenProps = getParenStyle(depth);
       depth++;
       elements.push(
-        <span key={keyIdx++} style={parenProps.style} className={parenProps.className}>
+        <span
+          key={keyIdx++}
+          style={parenProps.style}
+          className={cn(parenProps.className, "pointer-events-none")}
+        >
           {token}
         </span>,
       );
@@ -61,17 +94,52 @@ export function SyntaxOverlay({
       depth = Math.max(0, depth - 1);
       const parenProps = getParenStyle(depth);
       elements.push(
-        <span key={keyIdx++} style={parenProps.style} className={parenProps.className}>
+        <span
+          key={keyIdx++}
+          style={parenProps.style}
+          className={cn(parenProps.className, "pointer-events-none")}
+        >
           {token}
         </span>,
       );
     } else {
       const colorClass = getTokenColor ? getTokenColor(token) : "text-violet-400";
-      elements.push(
-        <span key={keyIdx++} className={colorClass}>
-          {token}
-        </span>,
-      );
+      const isMathFn = (MATH_FUNCTIONS as readonly string[]).includes(token.toUpperCase());
+
+      if (isInteractive && !isMathFn) {
+        elements.push(
+          <TokenCapsule
+            key={`tok-${match.index}-${token}`}
+            token={token}
+            startIndex={match.index}
+            endIndex={regex.lastIndex}
+            colorClass={colorClass}
+            tokenMap={tokenMap}
+            sections={sections}
+            templateConstants={templateConstants}
+            externalTokens={externalTokens}
+            selectedCell={selectedCell}
+            disabled={disabled || !isActive}
+            onSwapToken={onSwapToken}
+            onTokenClick={onTokenClick}
+          />,
+        );
+      } else if (isMathFn) {
+        elements.push(
+          <span
+            key={keyIdx++}
+            className="text-amber-500/90 dark:text-amber-400 font-mono italic lowercase font-medium pointer-events-none"
+          >
+            {token.toLowerCase()}
+          </span>,
+        );
+      } else {
+        elements.push(
+          <span key={keyIdx++} className={cn(colorClass, "pointer-events-none")}>
+            {token}
+          </span>,
+        );
+      }
     }
 
     lastIdx = regex.lastIndex;
@@ -79,7 +147,7 @@ export function SyntaxOverlay({
 
   if (lastIdx < value.length) {
     elements.push(
-      <span key={keyIdx++} className="text-foreground/80">
+      <span key={keyIdx++} className="text-foreground/80 pointer-events-none">
         {value.slice(lastIdx)}
       </span>,
     );

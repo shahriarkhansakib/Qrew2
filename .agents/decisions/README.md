@@ -18,6 +18,13 @@ Each record documents the context, alternatives considered, exact decision taken
 | [**0006**](./0006-optional-period-billing-and-backend-engine-isolation.md) | **Optional Period Billing, Backend Engine Isolation, and Multi-Draft Lifecycle** | 2026-10-17 | Accepted | Invoices, Drafts, Scope, Bundles |
 | [**0007**](./0007-prebuilt-optional-service-rows-and-granular-pbac.md) | **Prebuilt Optional Service Rows and Granular Invoicing PBAC Architecture** | 2026-10-17 | Accepted | Templates, Drafts, PBAC, Services |
 | [**0008**](./0008-embedded-api-primary-and-optional-standalone-runner.md) | **Next.js Embedded API Primary Execution and Purely Optional Standalone Server Runner** | 2026-10-17 | Accepted | Monorepo, API, Next.js, DX |
+| [**0009**](./0009-token-capsule-formula-editor-and-engine-hardening.md) | **Token Capsule Formula Editor, Quick Swap Menu, Autocomplete Layout, and DAG Engine Hardening** | 2026-10-18 | Accepted | Formula Editor, UX, DAG, Math Engine, Tests |
+| [**0010**](./0010-adobe-illustrator-tabbed-studio-and-bidirectional-line-items-pool.md) | **Adobe Illustrator Tabbed Studio Sidebar and Bidirectional Grab-and-Drag Line Items Pool** | 2026-10-18 | Accepted | Invoices, Templates, Additional Line Items, DND, UX |
+| [**0011**](./0011-builder-layout-zoom-isolation-and-cross-section-dnd-refactor.md) | **Workspace Zoom Isolation, Full-Cell Row Selection, Token-Only Creation, and Cross-Section DnD** | 2026-10-19 | Accepted | Invoices, Templates, DnD, Layout, UI/UX |
+| [**0012**](./0012-workflow-graph-stage-gating-and-connection-architecture.md) | **Workflow Studio Graph Architecture, Terminal Stage Semantics, Role-Gated Transitions, and Interactive Connection Engine** | 2026-10-19 | Accepted | Workflows, Visual Graph, PBAC, State Machine |
+| [**0013**](./0013-template-sync-legacy-purge-and-database-rebuild.md) | **Template Drift 3-Way Synchronization, Legacy Code & Token Purge, and Clean Baseline Database Rebuild** | 2026-10-20 | Accepted | Invoices, Drafts, Codec, PBAC, DB Rebuild |
+| [**0014**](./0014-workflow-graph-dynamic-degrees-role-gating-modal-and-reachability.md) | **Workflow Studio Dynamic Node Degrees, 5-Color Hierarchy, Modal Gating, and BFS Path Reachability Architecture** | 2026-10-21 | Accepted | Workflows, Visual Graph, PBAC, State Machine, BFS Reachability |
+| [**0015**](./0015-general-template-architecture-and-direct-invoice-generation.md) | **General Template Architecture, Multi-Column Line Items, Studio Overlay/Static Modes, Serial Resequencing, and Direct Invoice Generation** | 2026-10-22 | Accepted | Invoices, Templates, General Sheets, Multi-Column, PBAC |
 
 ---
 

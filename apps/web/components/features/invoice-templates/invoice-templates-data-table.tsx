@@ -2,10 +2,11 @@
 
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { format } from "date-fns";
-import { Edit, Trash2 } from "lucide-react";
+import { Edit, Receipt, Trash2 } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { useMemo, useState } from "react";
 import { toast } from "sonner";
+import { GenerateInvoiceModal } from "@/components/features/invoices/generate-invoice-modal";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -39,6 +40,7 @@ export function InvoiceTemplatesDataTable({
   const queryClient = useQueryClient();
   const router = useRouter();
   const [templateToDelete, setTemplateToDelete] = useState<any | null>(null);
+  const [generatingTemplate, setGeneratingTemplate] = useState<any | null>(null);
 
   const { filters, toggleFilter, clearColumnFilter, filterRows, isColumnFiltered } =
     useTableCellFilter();
@@ -148,11 +150,24 @@ export function InvoiceTemplatesDataTable({
                 <Button
                   variant="ghost"
                   size="icon"
+                  className="h-8 w-8 text-primary hover:text-primary hover:bg-primary/10"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    setGeneratingTemplate(template);
+                  }}
+                  title="Generate Invoice"
+                >
+                  <Receipt className="h-3.5 w-3.5" />
+                </Button>
+                <Button
+                  variant="ghost"
+                  size="icon"
                   className="h-8 w-8"
                   onClick={(e) => {
                     e.stopPropagation();
                     if (onEdit) onEdit(template);
                   }}
+                  title="Edit details"
                 >
                   <Edit className="h-3.5 w-3.5 text-muted-foreground" />
                 </Button>
@@ -236,7 +251,24 @@ export function InvoiceTemplatesDataTable({
                     onToggleFilter={toggleFilter}
                     onTextClick={() => router.push(`/org-admin/invoice-templates/${template.id}`)}
                   >
-                    {template.name}
+                    <div className="flex items-center gap-2">
+                      <span className="font-medium">{template.name}</span>
+                      {template.templateType === "sheet" ? (
+                        <Badge
+                          variant="secondary"
+                          className="text-[10px] font-bold uppercase tracking-wider px-1.5 py-0 border border-primary/20 bg-primary/10 text-primary"
+                        >
+                          Sheet
+                        </Badge>
+                      ) : (
+                        <Badge
+                          variant="outline"
+                          className="text-[10px] font-bold uppercase tracking-wider px-1.5 py-0 text-muted-foreground/70"
+                        >
+                          Standard
+                        </Badge>
+                      )}
+                    </div>
                   </FilterableTableCell>
                   <FilterableTableCell
                     columnKey="description"
@@ -269,6 +301,18 @@ export function InvoiceTemplatesDataTable({
                   </FilterableTableCell>
                   <TableCell className="text-right" onClick={(e) => e.stopPropagation()}>
                     <div className="flex items-center justify-end gap-2">
+                      <Button
+                        variant="default"
+                        size="sm"
+                        className="h-8 text-xs font-semibold gap-1.5"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          setGeneratingTemplate(template);
+                        }}
+                      >
+                        <Receipt className="h-3.5 w-3.5" />
+                        Generate Invoice
+                      </Button>
                       <Button
                         variant="outline"
                         size="sm"
@@ -338,6 +382,14 @@ export function InvoiceTemplatesDataTable({
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+
+      {generatingTemplate && (
+        <GenerateInvoiceModal
+          isOpen={Boolean(generatingTemplate)}
+          onClose={() => setGeneratingTemplate(null)}
+          initialTemplateId={generatingTemplate.id}
+        />
+      )}
     </>
   );
 }

@@ -73,7 +73,12 @@ function AppShellInner({
 
   return (
     <TooltipProvider delayDuration={0}>
-      <div className="flex flex-col md:flex-row h-screen w-full bg-background overflow-hidden">
+      <div
+        className={cn(
+          "flex flex-col md:flex-row h-screen w-full bg-background overflow-hidden",
+          session?.session?.impersonatedBy && "pt-10",
+        )}
+      >
         {/* Desktop Sidebar: Animated Width */}
         <div
           className={cn(
@@ -85,35 +90,27 @@ function AppShellInner({
         >
           {/* Header Layout */}
           <div className={cn("flex flex-col gap-4 border-b p-3", styles.border)}>
-            <div
-              className={cn(
-                "flex items-center justify-between",
-                isCollapsed ? "justify-center" : "px-1",
-              )}
-            >
-              {/* Logo Container */}
-              <div
-                className={cn(
-                  "flex items-center overflow-hidden whitespace-nowrap transition-all duration-300 ease-in-out",
-                  isCollapsed ? "hidden" : "opacity-100",
-                )}
-              >
-                <Link
-                  href="/"
-                  className={cn(
-                    "flex items-center gap-2 font-bold outline-none rounded",
-                    styles.primaryText,
-                  )}
-                >
-                  <QrewLogo className="h-7 w-7 shrink-0" />
-                  <span className="tracking-tight font-extrabold text-xl truncate">
-                    {systemName}
-                  </span>
-                </Link>
-              </div>
+            {isCollapsed ? (
+              <div className="flex flex-col items-center gap-2 py-0.5">
+                {/* Collapsed Brand Identity: Always visible Logo icon (Gemini / Claude style) */}
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <Link
+                      href="/"
+                      className={cn(
+                        "flex items-center justify-center p-1 rounded-md hover:bg-muted/50 transition-colors",
+                        styles.primaryText,
+                      )}
+                    >
+                      <QrewLogo className="h-7 w-7 shrink-0" />
+                    </Link>
+                  </TooltipTrigger>
+                  <TooltipContent side="right">
+                    <span className="font-semibold">{systemName}</span>
+                  </TooltipContent>
+                </Tooltip>
 
-              {/* Toggle Button */}
-              <div className="shrink-0 flex items-center justify-center">
+                {/* Toggle Button to Expand */}
                 <Tooltip>
                   <TooltipTrigger asChild>
                     <Button
@@ -122,29 +119,70 @@ function AppShellInner({
                       onClick={toggle}
                       className="h-8 w-8 text-muted-foreground hover:bg-muted/50"
                     >
-                      {isCollapsed ? (
-                        <PanelLeft className="h-4 w-4" />
-                      ) : (
-                        <PanelLeftClose className="h-4 w-4" />
-                      )}
+                      <PanelLeft className="h-4 w-4" />
                     </Button>
                   </TooltipTrigger>
-                  <TooltipContent side="right">
-                    {isCollapsed ? "Expand" : "Collapse"}
-                  </TooltipContent>
+                  <TooltipContent side="right">Expand sidebar</TooltipContent>
                 </Tooltip>
               </div>
-            </div>
+            ) : (
+              <div className="flex items-center justify-between px-1">
+                {/* Logo Container */}
+                <div className="flex items-center overflow-hidden whitespace-nowrap transition-all duration-300 ease-in-out opacity-100">
+                  <Link
+                    href="/"
+                    className={cn(
+                      "flex items-center gap-2 font-bold outline-none rounded",
+                      styles.primaryText,
+                    )}
+                  >
+                    <QrewLogo className="h-7 w-7 shrink-0" />
+                    <span className="tracking-tight font-extrabold text-xl truncate">
+                      {systemName}
+                    </span>
+                  </Link>
+                </div>
+
+                {/* Toggle Button */}
+                <div className="shrink-0 flex items-center justify-center">
+                  <Tooltip>
+                    <TooltipTrigger asChild>
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        onClick={toggle}
+                        className="h-8 w-8 text-muted-foreground hover:bg-muted/50"
+                      >
+                        <PanelLeftClose className="h-4 w-4" />
+                      </Button>
+                    </TooltipTrigger>
+                    <TooltipContent side="right">Collapse sidebar</TooltipContent>
+                  </Tooltip>
+                </div>
+              </div>
+            )}
 
             {/* Inject the Organization Switcher — hidden in admin panels */}
             {showOrgSwitcher ? (
               <OrganizationSwitcher isCollapsed={isCollapsed} />
             ) : (
               !isCollapsed && (
-                <div className="flex items-center gap-2 px-2 py-1.5 rounded-md bg-accent/10 border border-amber-500/20">
-                  <div className="h-2 w-2 rounded-full bg-accent animate-pulse" />
-                  <span className="text-xs font-semibold text-accent-foreground uppercase tracking-wider">
-                    Admin Mode
+                <div
+                  className={cn(
+                    "flex items-center gap-2 px-2 py-1.5 rounded-md",
+                    theme === "destructive"
+                      ? "bg-destructive/10 border border-destructive/20 text-destructive"
+                      : "bg-accent/10 border border-amber-500/20 text-accent-foreground",
+                  )}
+                >
+                  <div
+                    className={cn(
+                      "h-2 w-2 rounded-full animate-pulse",
+                      theme === "destructive" ? "bg-destructive" : "bg-accent",
+                    )}
+                  />
+                  <span className="text-xs font-semibold uppercase tracking-wider">
+                    {theme === "destructive" ? "Root Admin Mode" : "Admin Mode"}
                   </span>
                 </div>
               )

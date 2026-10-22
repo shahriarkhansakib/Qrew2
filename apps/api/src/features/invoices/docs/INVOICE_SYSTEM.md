@@ -98,7 +98,7 @@ Parent line items within a section.
 | `parent_label` | text | Group heading label |
 | `row_token` | text | **Globally unique per template.** Drives `<TOKEN>` (base) and `<TOKEN>_TOTAL` (base + charges) tokens. |
 | `value_type` | enum | `normal` = manual entry, `formula` = engine-computed |
-| `formula` | text | Stored as `{{$row:UUID}}` references. Decoded before evaluation. |
+| `formula` | text | Stored as `{{$tok:UUID}}` references. Decoded before evaluation. |
 | `initial_value` | numeric(20,6) | Pre-fill value for manual rows |
 
 #### `template_row_components`
@@ -170,10 +170,10 @@ Tokens are string identifiers that serve as variables in formula expressions. Al
 
 ### 4.2 Formula Storage Format
 
-Formulas stored in the database use `{{$row:UUID}}` reference format to decouple token names from database IDs:
+Formulas stored in the database use `{{$tok:UUID}}` reference format to decouple token names from database IDs:
 
 ```
-DB stored:   "{{$row:abc123}} * 0.15"
+DB stored:   "{{$tok:abc123}} * 0.15"
 Decoded:     "PORT_DUES * 0.15"
 Evaluated:   "1000 * 0.15" → 150
 ```

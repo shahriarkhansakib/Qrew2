@@ -88,6 +88,10 @@ vi.mock("@starter/db", () => {
       sortOrder: "sortOrder",
       columnPosition: "columnPosition",
     },
+    customFieldDefinitions: {
+      id: "id",
+      fieldKey: "fieldKey",
+    },
     invoiceTemplates: { id: "id", organizationId: "organizationId" },
   };
 });

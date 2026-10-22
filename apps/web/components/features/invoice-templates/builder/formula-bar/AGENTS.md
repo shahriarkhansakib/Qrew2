@@ -17,21 +17,31 @@ Only the following inputs are permitted into formula mode:
 - **No Auto-Underscore**: Automatic insertion of `_` when typing letters is strictly disabled. The user must explicitly type `_` or press `<Space>` (which converts to `_` if matching a token).
 - **Exact Prefix Continuation**: Typing a letter is allowed ONLY if the resulting segment (`currentLastWord + letter`) forms an exact prefix or valid continuation of an active token in the template. If no match exists, the keystroke is rejected.
 
-### Strict Binary Operator Spacing
-- **Rule**: Spaces exist strictly on both sides of binary operators (` + `, ` - `, ` * `, ` / `, ` // `).
-- **Enforcement**:
-  - When typing any binary operator (`+`, `-`, `*`, `/`), the input is automatically normalized to `before.trimEnd() + " " + op + " " + after.trimStart()`.
+### Canonical Delimiter-Owned Spacing
+- **Rule**: Tokens and numbers NEVER own whitespace. Delimiters (binary operators and commas) strictly own spaces.
+  - Binary operators (`+`, `-`, `*`, `/`, `//`, `%`) have strictly one space on either side (` + `, ` - `, ` * `, ` / `, ` // `, ` % `).
+  - Unary minus clings to its operand (`-10`, `(-5)`).
+  - Parentheses have zero internal padding (`(A + B)`, never `( A + B )`).
+  - Function calls have zero space before `(` (`CLAMP(x, min, max)`, never `CLAMP (x)`).
+  - Function arguments are delimited by `, ` (zero space before comma, single space after).
+  - Percentages cling to numbers (`50%`, `0.15%`).
+- **Enforcement & Normalization**:
+  - `normalizeFormulaSpacing` runs on formula load, paste, and save, ensuring clean canonical format across UI and database.
+  - When typing any binary operator (`+`, `-`, `*`, `/`, `%`), the input is automatically normalized to `before.trimEnd() + " " + op + " " + after.trimStart()`.
   - Typing an operator on an empty formula or directly following an open parenthesis `(` is blocked with an error toast.
   - Typing consecutive operators (e.g. `+ *`) is silently rejected.
   - Double-slash modulo: typing `/` after an existing `" / "` immediately converts it to `" // "` with single spaces preserved.
 - **Smart Atomic Backspace**:
   - Pressing `<Backspace>` when the cursor is directly after a spaced operator (e.g. `" + "`) atomically deletes the entire operator block in one stroke.
+  - Pressing `<Backspace>` after `", "` removes both the comma and trailing space atomically.
   - Pressing `<Backspace>` after `") "` removes both the parenthesis and the space atomically.
+  - Deleting backwards through a token with variant suffix (e.g. `PORT_DUES_BASE`) strips the suffix atomically (`_BASE` -> `PORT_DUES`).
   - Manual deletion of spaces with `<Delete>` is blocked.
 
 ### Parenthesis Balance Guards
 - Typing `)` is rejected if the number of closing parentheses would exceed the number of currently open parentheses.
-- Typing `(` directly following a complete token or number without an operator is blocked.
+- Typing `)` automatically collapses any trailing space before it, preventing `(TOKEN )` from leaking into formulas.
+- Typing `(` directly following a complete token or number without an operator is blocked (except after registered math functions).
 
 ### Keyboard Shortcuts
 - **Undo**: `Ctrl+Z` (or `Cmd+Z` on macOS).
@@ -137,4 +147,30 @@ Native browser paste is fully intercepted (`e.preventDefault()`) to prevent form
 - **In-Place Leftward Expansion**: When hovered, if the formula is truncated because it exceeds the allocated pill width (`max-w-[12rem]`), the badge itself expands **towards the left** (`absolute right-0 top-1`), keeping its right edge pinned beside the row while its left edge expands over the table surface.
 - **Downward Multiline Wrapping**: If the formula is too long to fit horizontally across the table surface (`max-w-xl`), it automatically wraps into multiple lines (`whitespace-pre-wrap break-words`). The badge grows downward across the row boundary (`z-50`), cleanly overlaying the row below with a rich elevation shadow (`shadow-2xl`) and backdrop blur (`bg-background/98 backdrop-blur-md`).
 - **Non-Truncated Invariance**: If a formula fits completely within the allocated pill space without truncation, it does NOT expand over the table on hover.
+
+---
+
+## 8. Builder Workspace, DnD, & Line Items Invariants
+
+- **Builder Zoom Isolation (`page.tsx`)**: The builder zoom controls strictly scale the workspace container (`TemplateBuilderWorkspace`). The top header bar and Studio sidebar maintain a fixed 100% scale at all times.
+- **Full-Cell Row Label Click (`table-row.tsx`, `row-item.tsx`)**: Clicking anywhere within the row label column cell (including padding and empty space) triggers the inline select-and-edit mode. Action buttons on the right are protected from triggering edit mode.
+- **Additional Line Items Table Layout (`additional-line-items-pool.tsx`)**:
+  - Mirrors main table layout: `[ Grip / Index ] [ Token ] [ Label ] [ USD / Value ]`.
+  - Token is displayed in clean monospace typography with semantic coloring (`getTokenColor`), without heavy background badges.
+  - Label is clean bold white typography (`font-medium text-foreground`) with inline click-to-edit.
+  - Action buttons (`Edit2` to edit token, `Trash2` to delete) appear on hover pinned to the right edge of the label cell with gradient fade.
+  - The Quick Add `+` button is removed; items are added strictly via drag-and-drop or via the Add Row modal.
+  - Add button is clamped directly beneath the list using `sticky bottom-0 z-20` with gradient backdrop blur, staying directly below short lists and docking to the viewport during scrolling.
+- **Add Row Modal with Catalog Selection & Target Section Selector (`add-edit-row-modal.tsx`)**:
+  - When opened from the table, users can toggle between `[ From Line Items (${catalog.length}) ]` and `[ Create New Token ]`.
+  - In catalog mode, selecting an item stamps it into the chosen target section with automatic collision avoidance (`_2`, `_3`).
+  - Target Section dropdown allows routing the line item to any section in the template.
+  - Derived label and formula token preview cards are permanently eliminated.
+- **Strict Duplicate Prevention (`invoice-templates.controller.ts`)**:
+  - Adding duplicate tokens to the Additional Line Items catalog is strictly rejected by the backend with `409 Conflict` and blocked by the frontend modal validation.
+- **Cross-Section Drag-and-Drop (`row-list/index.tsx`, `update-row.controller.ts`, `page.tsx`)**:
+  - Empty sections render an active droppable zone with placeholder message rather than returning `null`.
+  - Backend `updateRow` accepts `sectionId` to support moving rows between sections.
+  - `page.tsx`'s `onDragEnd` handles cross-section dragging with optimistic UI updates and server synchronization.
+
 

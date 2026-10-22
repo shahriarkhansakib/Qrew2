@@ -32,8 +32,15 @@ export const projects = pgTable("projects", {
   customFields: jsonb("custom_fields").$type<Record<string, any>>().default({}),
   /** Ordered list of status IDs the file has passed through (not including current). */
   statusHistory: jsonb("status_history").$type<string[]>().default([]),
+  /** Historical snapshots of fields captured at each stage transition. */
+  stageFieldHistory: jsonb("stage_field_history")
+    .$type<
+      Array<{ stageId: string; stageName: string; timestamp: string; fields: Record<string, any> }>
+    >()
+    .default([]),
   lifecycleState: projectLifecycleStateEnum("lifecycle_state").default("open").notNull(),
   archivedAt: timestamp("archived_at", { mode: "date" }),
+  version: integer("version").default(1).notNull(),
 });
 
 export const projectsRelations = relations(projects, ({ one }) => ({

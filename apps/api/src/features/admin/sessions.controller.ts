@@ -3,6 +3,7 @@ import { desc, eq } from "drizzle-orm";
 import { Context } from "hono";
 import { z } from "zod";
 import { logger } from "../../infra/lib/logger";
+import { redis } from "../../infra/lib/redis";
 
 const sessionsControllerLog = logger.child({ module: "sessions-controller" });
 
@@ -55,8 +56,18 @@ export class SessionsController {
         return c.json({ error: "Session not found or belongs to another user" }, 404);
       }
 
-      // Delete the session
+      // Delete the session from database
       await db.delete(sessions).where(eq(sessions.id, sessionId));
+
+      // Invalidate secondaryStorage/Redis session keys to prevent ghost session reuse
+      try {
+        if (session.token) {
+          await redis.del(session.token);
+          await redis.del(`session:${session.token}`);
+        }
+      } catch (cacheErr) {
+        sessionsControllerLog.warn({ err: cacheErr }, "Failed to purge Redis session key");
+      }
 
       // Audit Log
       const auditPromise = db

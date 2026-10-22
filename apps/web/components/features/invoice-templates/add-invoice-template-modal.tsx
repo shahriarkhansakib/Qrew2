@@ -1,7 +1,7 @@
 "use client";
 
 import { useMutation, useQueryClient } from "@tanstack/react-query";
-import { Loader2, Plus, X } from "lucide-react";
+import { Calculator, Loader2, Plus, Table, X } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { useEffect, useMemo, useState } from "react";
 import { toast } from "sonner";
@@ -31,6 +31,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { apiUrl } from "@/lib/constants";
+import { cn } from "@/lib/utils";
 
 // ─── Block type ───────────────────────────────────────────────────────────────
 
@@ -58,6 +59,7 @@ export function AddEditInvoiceTemplateModal({
   const [description, setDescription] = useState("");
 
   const [prefix, setPrefix] = useState("INV");
+  const [templateType, setTemplateType] = useState<"standard" | "general">("standard");
   const [isPrefixDirty, setIsPrefixDirty] = useState(false);
   const [isNavigating, setIsNavigating] = useState(false);
 
@@ -77,6 +79,9 @@ export function AddEditInvoiceTemplateModal({
       setName(editTemplate.name || "");
       setDescription(editTemplate.description || "");
       setPrefix(editTemplate.documentPrefix || "INV");
+      setTemplateType(
+        editTemplate.templateType === "sheet" ? "general" : editTemplate.templateType || "standard",
+      );
       setIsPrefixDirty(true);
 
       const rawFormat: string = editTemplate.numberingFormat || "{PREFIX}-{YYYY}-{SEQ:3}";
@@ -105,6 +110,7 @@ export function AddEditInvoiceTemplateModal({
       setName("");
       setDescription("");
       setPrefix("INV");
+      setTemplateType("standard");
       setIsPrefixDirty(false);
       setDynamicBlocks([{ type: "year", format: "YYYY" }]);
       setDigits("3");
@@ -288,7 +294,7 @@ export function AddEditInvoiceTemplateModal({
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    mutation.mutate({ name, description, documentPrefix: prefix, numberingFormat });
+    mutation.mutate({ name, description, documentPrefix: prefix, numberingFormat, templateType });
   };
 
   // ── Render ──────────────────────────────────────────────────────────────────
@@ -318,6 +324,70 @@ export function AddEditInvoiceTemplateModal({
           </DialogTitle>
         </DialogHeader>
         <form onSubmit={handleSubmit} className="space-y-6">
+          {/* Template Archetype Selector (New Template only) */}
+          {!editTemplate && (
+            <div className="space-y-2">
+              <Label>Template Type</Label>
+              <div className="grid grid-cols-2 gap-3">
+                <div
+                  role="button"
+                  tabIndex={0}
+                  onClick={() => {
+                    setTemplateType("standard");
+                    if (!isPrefixDirty) setPrefix("INV");
+                  }}
+                  className={cn(
+                    "flex flex-col gap-1.5 p-3 rounded-lg border text-left cursor-pointer transition-all",
+                    templateType === "standard"
+                      ? "border-primary bg-primary/5 ring-1 ring-primary"
+                      : "border-border hover:border-border/80 hover:bg-muted/30",
+                  )}
+                >
+                  <div className="flex items-center gap-2">
+                    <Calculator
+                      className={cn(
+                        "w-4 h-4",
+                        templateType === "standard" ? "text-primary" : "text-muted-foreground",
+                      )}
+                    />
+                    <span className="text-xs font-bold text-foreground">Standard Invoice</span>
+                  </div>
+                  <p className="text-[11px] text-muted-foreground leading-tight">
+                    Project-bound invoice with AST formulas and file details.
+                  </p>
+                </div>
+
+                <div
+                  role="button"
+                  tabIndex={0}
+                  onClick={() => {
+                    setTemplateType("general");
+                    if (!isPrefixDirty) setPrefix("EXP");
+                  }}
+                  className={cn(
+                    "flex flex-col gap-1.5 p-3 rounded-lg border text-left cursor-pointer transition-all",
+                    templateType === "general"
+                      ? "border-primary bg-primary/5 ring-1 ring-primary"
+                      : "border-border hover:border-border/80 hover:bg-muted/30",
+                  )}
+                >
+                  <div className="flex items-center gap-2">
+                    <Table
+                      className={cn(
+                        "w-4 h-4",
+                        templateType === "general" ? "text-primary" : "text-muted-foreground",
+                      )}
+                    />
+                    <span className="text-xs font-bold text-foreground">General Template</span>
+                  </div>
+                  <p className="text-[11px] text-muted-foreground leading-tight">
+                    General-purpose customizable Excel-style sheet with flexible columns.
+                  </p>
+                </div>
+              </div>
+            </div>
+          )}
+
           {/* Template Name */}
           <div className="space-y-2">
             <Label htmlFor="name">Template Name</Label>

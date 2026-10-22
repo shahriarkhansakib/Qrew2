@@ -1,4 +1,4 @@
-import { Edit2, MoreHorizontal, Plus, Trash2, TriangleAlert } from "lucide-react";
+import { Edit2, Layers, MoreHorizontal, Plus, Trash2, TriangleAlert } from "lucide-react";
 import { useState } from "react";
 import { Button } from "@/components/ui/button";
 import {
@@ -54,25 +54,29 @@ export function UnresolvedNoticeButton({ notices }: { notices: any[] }) {
 }
 
 export function RowActions({
-  onEdit,
+  onEdit: _onEdit,
   onDelete,
   onAddCharge,
+  onMoveToAdditionalLineItems,
 }: {
-  onEdit: () => void;
+  onEdit?: () => void;
   onDelete: () => void;
   onAddCharge?: () => void;
+  onMoveToAdditionalLineItems?: () => void;
 }) {
   return (
     <>
-      <Button
-        variant="ghost"
-        size="icon"
-        className="h-6 w-6 text-muted-foreground hover:text-foreground"
-        onClick={onEdit}
-        title="Edit Token"
-      >
-        <Edit2 className="h-3.5 w-3.5" />
-      </Button>
+      {onMoveToAdditionalLineItems && (
+        <Button
+          variant="ghost"
+          size="icon"
+          className="h-6 w-6 text-muted-foreground hover:text-primary"
+          onClick={onMoveToAdditionalLineItems}
+          title="Copy to Additional Line Items"
+        >
+          <Layers className="h-3.5 w-3.5" />
+        </Button>
+      )}
       <Button
         variant="ghost"
         size="icon"
@@ -101,11 +105,13 @@ export function MobileRowActions({
   onEdit,
   onDelete,
   onAddCharge,
+  onMoveToAdditionalLineItems,
   isCharge = false,
 }: {
   onEdit?: () => void;
   onDelete?: () => void;
   onAddCharge?: () => void;
+  onMoveToAdditionalLineItems?: () => void;
   isCharge?: boolean;
 }) {
   return (
@@ -119,11 +125,16 @@ export function MobileRowActions({
           <MoreHorizontal className="h-4 w-4" />
         </Button>
       </DropdownMenuTrigger>
-      <DropdownMenuContent align="end" className="w-40 z-[100]">
+      <DropdownMenuContent align="end" className="w-48 z-[100]">
         {onEdit && (
           <DropdownMenuItem onClick={onEdit}>
             <Edit2 className="h-4 w-4 mr-2 text-muted-foreground" />{" "}
             {isCharge ? "Edit charge" : "Edit row"}
+          </DropdownMenuItem>
+        )}
+        {onMoveToAdditionalLineItems && !isCharge && (
+          <DropdownMenuItem onClick={onMoveToAdditionalLineItems}>
+            <Layers className="h-4 w-4 mr-2 text-primary" /> Copy to Line Items
           </DropdownMenuItem>
         )}
         {onAddCharge && (

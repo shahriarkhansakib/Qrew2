@@ -25,13 +25,14 @@ export type TokenMap = Record<string, number>;
 
 /**
  * Decode an AST formula string from the database back to human-readable tokens.
- * - Replaces {{$row:UUID}} with the row's rowToken
- * - Strips {{ and }} from external tokens like {{FILE_GRT}}
+ * - Replaces {{$tok:UUID}} with the row/section/charge/constant token name
+ * - Strips {{ and }} from external tokens
  */
 export function decodeFormula(
   formula: string | null | undefined,
   sections: any[],
   templateConstants?: any[],
+  headerFields?: any[],
 ): string {
   if (!formula) return "";
   let decoded = formula;
@@ -79,75 +80,26 @@ export function decodeFormula(
         : Object.values(templateConstants);
       const constant = arr.find((c: any) => c.id === id);
       if (constant?.token) return constant.token;
+      if (constant?.tokenKey) return constant.tokenKey;
+    }
+    if (headerFields) {
+      const arr = Array.isArray(headerFields) ? headerFields : Object.values(headerFields);
+      const field = arr.find((f: any) => f.id === id);
+      if (field?.tokenKey) {
+        return field.tokenKey.startsWith("FILE_")
+          ? field.tokenKey
+          : `FILE_${field.tokenKey.toUpperCase()}`;
+      }
+      if (field?.fieldKey) {
+        return field.fieldKey.startsWith("FILE_")
+          ? field.fieldKey
+          : `FILE_${field.fieldKey.toUpperCase()}`;
+      }
     }
     return match;
   });
 
-  // 1. Replace row UUIDs (legacy)
-  decoded = decoded.replace(/\{\{\$row:([0-9a-fA-F-]+)\}\}_BASE/g, (match, id) => {
-    for (const sec of sections || []) {
-      const row = sec.rows?.find((r: any) => r.id === id);
-      if (row?.rowToken) return `${row.rowToken}_BASE`;
-    }
-    return match;
-  });
-  decoded = decoded.replace(/\{\{\$row:([0-9a-fA-F-]+)\}\}_CHARGES/g, (match, id) => {
-    for (const sec of sections || []) {
-      const row = sec.rows?.find((r: any) => r.id === id);
-      if (row?.rowToken) return `${row.rowToken}_CHARGES`;
-    }
-    return match;
-  });
-  decoded = decoded.replace(/\{\{\$row:([0-9a-fA-F-]+)\}\}_TOTAL/g, (match, id) => {
-    for (const sec of sections || []) {
-      const row = sec.rows?.find((r: any) => r.id === id);
-      if (row?.rowToken) return row.rowToken;
-    }
-    return match;
-  });
-  decoded = decoded.replace(/\{\{\$row:([0-9a-fA-F-]+)\}\}/g, (match, id) => {
-    for (const sec of sections || []) {
-      const row = sec.rows?.find((r: any) => r.id === id);
-      if (row?.rowToken) return row.rowToken;
-    }
-    return match;
-  });
-
-  // 1.5 Replace sec UUIDs (legacy)
-  decoded = decoded.replace(/\{\{\$sec:([0-9a-fA-F-]+)\}\}_BASE/g, (match, id) => {
-    const sec = (sections || []).find((s: any) => s.id === id);
-    if (sec?.sectionToken) return `SEC_${sec.sectionToken}_BASE`;
-    return match;
-  });
-  decoded = decoded.replace(/\{\{\$sec:([0-9a-fA-F-]+)\}\}_CHARGES/g, (match, id) => {
-    const sec = (sections || []).find((s: any) => s.id === id);
-    if (sec?.sectionToken) return `SEC_${sec.sectionToken}_CHARGES`;
-    return match;
-  });
-  decoded = decoded.replace(/\{\{\$sec:([0-9a-fA-F-]+)\}\}_TOTAL/g, (match, id) => {
-    const sec = (sections || []).find((s: any) => s.id === id);
-    if (sec?.sectionToken) return `SEC_${sec.sectionToken}`;
-    return match;
-  });
-  decoded = decoded.replace(/\{\{\$sec:([0-9a-fA-F-]+)\}\}/g, (match, id) => {
-    const sec = (sections || []).find((s: any) => s.id === id);
-    if (sec?.sectionToken) return `SEC_${sec.sectionToken}`;
-    return match;
-  });
-
-  // 1.7 Replace tpl UUIDs (legacy)
-  const tplRegex = /\{\{\$tpl:([0-9a-fA-F-]+)\}\}/g;
-  decoded = decoded.replace(tplRegex, (match, id) => {
-    if (!templateConstants) return match;
-    const arr = Array.isArray(templateConstants)
-      ? templateConstants
-      : Object.values(templateConstants);
-    const constant = arr.find((c: any) => c.id === id);
-    if (constant?.token) return constant.token;
-    return match;
-  });
-
-  // 2. Strip {{ and }} from other tokens
+  // Strip {{ and }} from other tokens
   decoded = decoded.replace(/\{\{([A-Z0-9_]+)\}\}/g, "$1");
 
   // 3. Strip FILE_, GBL_/ORG_, and EXP_ (except EXP_TOTAL) prefixes to bare tokens for UI display
@@ -158,12 +110,20 @@ export function decodeFormula(
   return decoded;
 }
 
-export const MATH_FUNCTION_NAMES = new Set(["MIN", "MAX", "ROUND", "CLAMP", "ABS"]);
+export const MATH_FUNCTION_NAMES = new Set([
+  "MIN",
+  "MAX",
+  "ROUND",
+  "CLAMP",
+  "ABS",
+  "FLOOR",
+  "CEIL",
+]);
 
 /**
  * Safely evaluate an arithmetic expression string where all identifiers have
  * already been substituted with numeric literals.
- * Supports standard operators as well as MIN, MAX, ROUND, CLAMP, ABS functions.
+ * Supports standard operators as well as MIN, MAX, ROUND, CLAMP, ABS, FLOOR, CEIL functions.
  * Returns null if evaluation fails or result is not finite.
  */
 export function safeEval(expr: string): number | null {
@@ -176,17 +136,26 @@ export function safeEval(expr: string): number | null {
 
     // Check that identifiers are only allowed math functions
     const idents = trimmed.match(/[A-Za-z_][A-Za-z0-9_]*/g) || [];
-    const allowed = new Set(["MIN", "MAX", "ROUND", "CLAMP", "ABS"]);
+    const allowed = new Set(["MIN", "MAX", "ROUND", "CLAMP", "ABS", "FLOOR", "CEIL"]);
     if (idents.some((id) => !allowed.has(id.toUpperCase()))) {
       return null;
     }
 
     const fn = new Function(
       "MIN",
+      "min",
       "MAX",
+      "max",
       "ROUND",
+      "round",
       "CLAMP",
+      "clamp",
       "ABS",
+      "abs",
+      "FLOOR",
+      "floor",
+      "CEIL",
+      "ceil",
       `"use strict"; return (${trimmed});`,
     );
 
@@ -199,7 +168,22 @@ export function safeEval(expr: string): number | null {
       return Math.min(Math.max(val, min), max);
     };
 
-    const result = fn(Math.min, Math.max, round, clamp, Math.abs);
+    const result = fn(
+      Math.min,
+      Math.min,
+      Math.max,
+      Math.max,
+      round,
+      round,
+      clamp,
+      clamp,
+      Math.abs,
+      Math.abs,
+      Math.floor,
+      Math.floor,
+      Math.ceil,
+      Math.ceil,
+    );
     return typeof result === "number" && Number.isFinite(result) ? result : null;
   } catch {
     return null;
@@ -399,7 +383,8 @@ export function getCircularDependencyTokens(
         if (charge.formula) {
           const decoded = decodeFormula(charge.formula, sections, templateConstants);
           for (const ref of extractTokens(decoded)) {
-            addEdge(ref, charge.chargeToken);
+            const dependency = ref === rowToken ? rowBase : ref;
+            addEdge(dependency, charge.chargeToken);
           }
         }
       }
@@ -467,7 +452,7 @@ export function getCircularDependencyTokens(
     const cellLabel = selectedCell.breadcrumb || "active cell";
     const seeds = new Set<string>();
 
-    if (selectedCell.row) {
+    if (selectedCell.row && !selectedCell.chargeId) {
       const rowToken = selectedCell.row.rowToken;
       if (rowToken) {
         seeds.add(rowToken);
@@ -550,6 +535,9 @@ export function getCircularDependencyTokens(
     // Row expansion
     const row = tokenToRowMap.get(token);
     if (row?.rowToken) {
+      const isParentOfActiveCharge =
+        Boolean(selectedCell?.chargeId) && selectedCell?.row?.id === row.id;
+
       const rowVariants = [
         row.rowToken,
         `${row.rowToken}_BASE`,
@@ -559,6 +547,13 @@ export function getCircularDependencyTokens(
       ].filter(Boolean);
 
       for (const variant of rowVariants) {
+        if (
+          isParentOfActiveCharge &&
+          (variant === `${row.rowToken}_BASE` || variant === row.rowToken)
+        ) {
+          // Parent row's base does not depend on row charge
+          continue;
+        }
         if (!invalidTokens.has(variant)) {
           invalidTokens.add(variant);
           tokenReasons.set(
@@ -572,6 +567,9 @@ export function getCircularDependencyTokens(
     // Section expansion
     const sec = tokenToSectionMap.get(token);
     if (sec?.sectionToken) {
+      const isParentOfActiveSecCharge =
+        Boolean(selectedCell?.isSectionCharge) && selectedCell?.sectionId === sec.id;
+
       const secVariants = [
         `SEC_${sec.sectionToken}`,
         `SEC_${sec.sectionToken}_BASE`,
@@ -581,6 +579,10 @@ export function getCircularDependencyTokens(
       ].filter(Boolean);
 
       for (const variant of secVariants) {
+        if (isParentOfActiveSecCharge && variant === `SEC_${sec.sectionToken}_BASE`) {
+          // Section base does not depend on section charge
+          continue;
+        }
         if (!invalidTokens.has(variant)) {
           invalidTokens.add(variant);
           tokenReasons.set(
@@ -622,10 +624,11 @@ export function buildTokenMap(
   templateConstants?: any[],
   fileFields?: any[],
   categoriesData?: any[],
+  externalTokenValues?: Record<string, any>,
 ): TokenMap {
   const tokens: TokenMap = {};
 
-  // Inject global constants first so they are available for formulas (bare canonical key only)
+  // Inject global constants first so they are available for formulas
   if (orgConfigs) {
     for (const config of orgConfigs) {
       if (config.isFormulaInjectable && config.configKey) {
@@ -634,11 +637,12 @@ export function buildTokenMap(
         const numVal = config.valueType === "percentage" ? val / 100 : val;
         const baseKey = config.configKey.replace(/^(ORG_|GBL_)/, "");
         tokens[baseKey] = numVal;
+        tokens[`GBL_${baseKey}`] = numVal;
       }
     }
   }
 
-  // Inject template constants next (bare canonical key only)
+  // Inject template constants next
   if (templateConstants) {
     const constantsArray = Array.isArray(templateConstants)
       ? templateConstants
@@ -649,11 +653,14 @@ export function buildTokenMap(
       const key = constant.key ?? constant.token;
       if (key) {
         tokens[key] = val;
+        const bare = key.replace(/^TPL_/, "");
+        tokens[bare] = val;
+        tokens[`TPL_${bare}`] = val;
       }
     }
   }
 
-  // Inject file fields (bare canonical key only)
+  // Inject file fields
   if (fileFields) {
     for (const field of fileFields) {
       if (field.isFormulaInjectable) {
@@ -666,19 +673,66 @@ export function buildTokenMap(
         } else if (field.fieldType === "org_config" && field.orgConfigKey) {
           bareToken = field.orgConfigKey.toUpperCase().replace(/^(GBL_|ORG_)/, "");
         }
-        tokens[bareToken] = 0;
+        let val = 0;
+        if (externalTokenValues) {
+          const raw =
+            externalTokenValues[bareToken] ??
+            externalTokenValues[`FILE_${bareToken}`] ??
+            (field.fileFieldKey ? externalTokenValues[field.fileFieldKey] : undefined) ??
+            (field.label ? externalTokenValues[field.label] : undefined);
+          if (raw !== undefined && raw !== null) {
+            const parsed = parseFloat(String(raw));
+            if (!Number.isNaN(parsed)) val = parsed;
+          }
+        }
+        tokens[bareToken] = val;
+        tokens[`FILE_${bareToken}`] = val;
       }
     }
   }
 
   // Inject expense categories (bare canonical key and EXP_TOTAL)
-  tokens.EXP_TOTAL = 0;
+  let expTotalVal = 0;
+  if (externalTokenValues?.EXP_TOTAL !== undefined) {
+    const parsed = parseFloat(String(externalTokenValues.EXP_TOTAL));
+    if (!Number.isNaN(parsed)) expTotalVal = parsed;
+  }
+  tokens.EXP_TOTAL = expTotalVal;
+
   if (categoriesData) {
     for (const cat of categoriesData) {
       const key = cat.tokenKey;
       if (key && key !== "EXP_TOTAL") {
         const bare = key.replace(/^EXP_/, "");
-        tokens[bare] = 0;
+        let catVal = 0;
+        if (externalTokenValues) {
+          const raw =
+            externalTokenValues[bare] ??
+            externalTokenValues[key] ??
+            externalTokenValues[`EXP_${bare}`];
+          if (raw !== undefined && raw !== null) {
+            const parsed = parseFloat(String(raw));
+            if (!Number.isNaN(parsed)) catVal = parsed;
+          }
+        }
+        tokens[bare] = catVal;
+        tokens[`EXP_${bare}`] = catVal;
+      }
+    }
+  }
+
+  // Any other external tokens passed in (e.g. from engine preview scope)
+  if (externalTokenValues) {
+    for (const [k, v] of Object.entries(externalTokenValues)) {
+      if (tokens[k] === undefined || tokens[k] === 0) {
+        const parsed = parseFloat(String(v));
+        if (!Number.isNaN(parsed)) {
+          tokens[k] = parsed;
+          const upper = k.toUpperCase();
+          if (tokens[upper] === undefined || tokens[upper] === 0) {
+            tokens[upper] = parsed;
+          }
+        }
       }
     }
   }
@@ -738,6 +792,9 @@ export function buildTokenMap(
           tokens[`${row.rowToken}_BASE`] = rowBase;
           changed = true;
         }
+
+        // Expose base value on canonical rowToken before evaluating charges per Rule 1
+        tokens[row.rowToken] = rowBase;
 
         let rowChargesSum = 0;
         for (const charge of rowCharges) {

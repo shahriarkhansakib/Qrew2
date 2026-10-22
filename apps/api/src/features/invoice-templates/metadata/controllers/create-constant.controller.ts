@@ -3,6 +3,7 @@ import { and, eq } from "drizzle-orm";
 import { Context } from "hono";
 import { z } from "zod";
 import { TokenService } from "../../../tokens/token.service";
+import { touchTemplate } from "../../invoice-templates.controller";
 
 const createConstantSchema = z.object({
   key: z
@@ -41,5 +42,6 @@ export async function createConstant(c: Context) {
     organizationId,
   });
 
+  await touchTemplate(templateId);
   return c.json(newConstant, 201);
 }

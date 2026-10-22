@@ -29,21 +29,51 @@ import { cn } from "@/lib/utils";
 export function GenerateInvoiceModal({
   isOpen,
   onClose,
-  projectId,
-  projectName,
+  projectId: propProjectId,
+  projectName: propProjectName,
+  initialTemplateId,
 }: {
   isOpen: boolean;
   onClose: () => void;
-  projectId: string;
+  projectId?: string;
   projectName?: string;
+  initialTemplateId?: string;
 }) {
   const router = useRouter();
-  const [selectedTemplateId, setSelectedTemplateId] = useState<string>("");
+  const [selectedProjectId, setSelectedProjectId] = useState<string>(propProjectId || "");
+  const [selectedTemplateId, setSelectedTemplateId] = useState<string>(initialTemplateId || "");
   const [draftName, setDraftName] = useState<string>("");
   const [billingScope, setBillingScope] = useState<"lifetime" | "period">("lifetime");
   const [periodStart, setPeriodStart] = useState<string>("");
   const [periodEnd, setPeriodEnd] = useState<string>("");
   const [isNavigating, setIsNavigating] = useState(false);
+
+  useEffect(() => {
+    if (propProjectId) {
+      setSelectedProjectId(propProjectId);
+    }
+  }, [propProjectId]);
+
+  useEffect(() => {
+    if (initialTemplateId) {
+      setSelectedTemplateId(initialTemplateId);
+    }
+  }, [initialTemplateId]);
+
+  // Fetch projects list if not already provided with a specific project
+  const { data: projectsData, isLoading: isProjectsLoading } = useQuery({
+    queryKey: ["projects", "active"],
+    queryFn: async () => {
+      const res = await fetch(`${apiUrl}/api/workspaces/projects?status=active`, {
+        credentials: "include",
+      });
+      if (!res.ok) throw new Error("Failed to fetch files");
+      return res.json();
+    },
+    enabled: isOpen && !propProjectId,
+  });
+
+  const projects = Array.isArray(projectsData) ? projectsData : [];
 
   const { data: templates, isLoading } = useQuery({
     queryKey: ["invoice-templates"],
@@ -55,27 +85,38 @@ export function GenerateInvoiceModal({
     enabled: isOpen,
   });
 
-  // Auto-select template if only one exists
+  // Auto-select template if only one exists and none was pre-selected
   useEffect(() => {
-    if (templates && templates.length === 1) {
+    if (!selectedTemplateId && templates && templates.length === 1) {
       setSelectedTemplateId(templates[0].id);
     }
-  }, [templates]);
+  }, [templates, selectedTemplateId]);
+
+  // Auto-select project if only one exists and none was passed
+  useEffect(() => {
+    if (!propProjectId && !selectedProjectId && projects.length === 1) {
+      setSelectedProjectId(projects[0].id);
+    }
+  }, [projects, propProjectId, selectedProjectId]);
 
   // Set default draft name based on selected template and project name
   useEffect(() => {
-    if (selectedTemplateId && templates) {
-      const t = templates.find((tpl: any) => tpl.id === selectedTemplateId);
-      if (t) {
-        const baseProject = projectName ? `${projectName} - ` : "";
-        setDraftName(`${baseProject}${t.name}`);
-      }
+    const activeProject = propProjectId
+      ? { name: propProjectName }
+      : projects.find((p: any) => p.id === selectedProjectId);
+    const activeTemplate = templates?.find((t: any) => t.id === selectedTemplateId);
+
+    if (activeTemplate) {
+      const baseProject = activeProject?.name ? `${activeProject.name} - ` : "";
+      setDraftName(`${baseProject}${activeTemplate.name}`);
     }
-  }, [selectedTemplateId, templates, projectName]);
+  }, [selectedTemplateId, selectedProjectId, propProjectId, propProjectName, projects, templates]);
 
   const generateMutation = useMutation({
     mutationFn: async () => {
-      if (!selectedTemplateId) throw new Error("Please select a template");
+      const targetProjectId = propProjectId || selectedProjectId;
+      if (!targetProjectId) throw new Error("Please select a file / project");
+      if (!selectedTemplateId) throw new Error("Please select an invoice template");
 
       const draftHeaderValues: Record<string, string> = {};
       if (billingScope === "period") {
@@ -94,7 +135,7 @@ export function GenerateInvoiceModal({
         headers: { "Content-Type": "application/json" },
         credentials: "include",
         body: JSON.stringify({
-          projectId,
+          projectId: targetProjectId,
           sourceTemplateId: selectedTemplateId,
           name: draftName.trim() || undefined,
           draftHeaderValues:
@@ -143,6 +184,42 @@ export function GenerateInvoiceModal({
             </DialogHeader>
 
             <div className="space-y-4 mt-2">
+              {/* File / Project Selection (when not pre-scoped to a specific project) */}
+              {!propProjectId && (
+                <div className="space-y-1.5">
+                  <Label className="text-xs font-medium text-foreground">File / Project</Label>
+                  {isProjectsLoading ? (
+                    <div className="flex items-center gap-2 text-sm text-muted-foreground py-1">
+                      <Loader2 className="w-4 h-4 animate-spin" /> Loading files...
+                    </div>
+                  ) : projects.length === 0 ? (
+                    <div className="text-sm text-destructive">
+                      No active files found. Please create a file / project first.
+                    </div>
+                  ) : (
+                    <Select value={selectedProjectId} onValueChange={setSelectedProjectId}>
+                      <SelectTrigger>
+                        <SelectValue placeholder="Select a file / project to bill" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {projects.map((p: any) => (
+                          <SelectItem key={p.id} value={p.id}>
+                            <div className="flex items-center gap-2">
+                              <span className="font-medium">{p.name}</span>
+                              {p.client?.name && (
+                                <span className="text-xs text-muted-foreground">
+                                  ({p.client.name})
+                                </span>
+                              )}
+                            </div>
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  )}
+                </div>
+              )}
+
               {/* Template Selection */}
               <div className="space-y-1.5">
                 <Label className="text-xs font-medium text-foreground">Invoice Template</Label>

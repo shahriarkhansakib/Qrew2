@@ -3,9 +3,14 @@
 import { useCallback } from "react";
 import { toast } from "sonner";
 import type { SelectedCell } from "./builder-context";
-import { getChunkAtCursor, getLastWord, isValidTokenPrefix } from "./formula-bar-utils";
+import {
+  getChunkAtCursor,
+  getLastWord,
+  getSmartBackspaceResult,
+  isValidTokenPrefix,
+} from "./formula-bar-utils";
 
-export const MATH_FUNCTIONS = ["MIN", "MAX", "ROUND", "CLAMP", "ABS"] as const;
+export const MATH_FUNCTIONS = ["MIN", "MAX", "ROUND", "CLAMP", "ABS", "FLOOR", "CEIL"] as const;
 
 export function isTokenOrFnPrefix(cand: string, tokens: string[]): boolean {
   return (
@@ -30,6 +35,7 @@ export interface UseFormulaKeyDownProps {
   currentToken?: string;
   onUndo?: () => void;
   onRedo?: () => void;
+  isFormulaCell?: boolean;
 }
 
 export function useFormulaKeyDown({
@@ -49,6 +55,7 @@ export function useFormulaKeyDown({
   invalidTokens = new Set<string>(),
   onUndo,
   onRedo,
+  isFormulaCell = true,
 }: UseFormulaKeyDownProps & { invalidTokens?: Set<string> }) {
   return useCallback(
     (e: React.KeyboardEvent<HTMLInputElement>) => {
@@ -130,57 +137,27 @@ export function useFormulaKeyDown({
       )
         return;
 
-      // Smart Backspace: delete spaced operators as a single block
+      // Smart Backspace: delete spaced operators as a single block or token suffixes/tokens atomically
       if (e.key === "Backspace") {
         const target = e.target as HTMLInputElement;
         const selStart = target.selectionStart ?? 0;
         const selEnd = target.selectionEnd ?? 0;
         if (selStart === selEnd && selStart > 0) {
+          const smart = getSmartBackspaceResult(inputValue, selStart, allTokens);
+          if (smart) {
+            e.preventDefault();
+            setInputValue(smart.newVal);
+            isDirty.current = true;
+            setTimeout(
+              () => inputRef.current?.setSelectionRange(smart.newCursor, smart.newCursor),
+              0,
+            );
+            return;
+          }
+
           const before = inputValue.slice(0, selStart);
-          const after = inputValue.slice(selEnd);
 
-          // 1. Match a full spaced operator block " + " / " - " / " * " / " / " / " // " before cursor
-          const matchSpaced = before.match(/ (\+|-|\*|\/|\/\/) $/);
-          if (matchSpaced) {
-            e.preventDefault();
-            const toRemove = matchSpaced[0].length;
-            const newVal = before.slice(0, -toRemove) + after;
-            setInputValue(newVal);
-            isDirty.current = true;
-            setTimeout(
-              () => inputRef.current?.setSelectionRange(selStart - toRemove, selStart - toRemove),
-              0,
-            );
-            return;
-          }
-
-          // 2. Match a partial operator (cursor right after operator, trailing space not yet typed)
-          const matchPartial = before.match(/ (\+|-|\*|\/|\/\/)$/);
-          if (matchPartial) {
-            e.preventDefault();
-            const toRemove = matchPartial[0].length;
-            const newVal = before.slice(0, -toRemove) + after;
-            setInputValue(newVal);
-            isDirty.current = true;
-            setTimeout(
-              () => inputRef.current?.setSelectionRange(selStart - toRemove, selStart - toRemove),
-              0,
-            );
-            return;
-          }
-
-          // 3. Trailing space after ) — delete both the space and the ) as a pair
-          if (before.endsWith(") ")) {
-            e.preventDefault();
-            const newVal = before.slice(0, -2) + after;
-            setInputValue(newVal);
-            isDirty.current = true;
-            setTimeout(() => inputRef.current?.setSelectionRange(selStart - 2, selStart - 2), 0);
-            return;
-          }
-
-          // 4. Any other trailing space — let native backspace handle it!
-          // This allows users to delete anomalous spaces (e.g. from old formulas) without getting stuck.
+          // Any trailing space — let native backspace handle it!
           if (before.endsWith(" ")) {
             return;
           }
@@ -303,23 +280,69 @@ export function useFormulaKeyDown({
         }
       }
 
-      // Digit or decimal: allowed (if it passed the space check)
-      if (/^[0-9.]$/.test(e.key)) return;
-
-      // Prevent typing unmatched closing parenthesis
-      if (e.key === ")") {
+      // Digit or decimal: validate against function and token boundaries
+      if (/^[0-9.]$/.test(e.key)) {
         const target = e.target as HTMLInputElement;
         const selStart = target.selectionStart ?? inputValue.length;
         const before = inputValue.slice(0, selStart);
+        const currentLastWord = getLastWord(before);
+
+        if (!isFormulaCell) {
+          // In scalar/fill cells, reject digits if preceded by letters (prevent entering tokens/functions like FLOOR000)
+          if (currentLastWord && /[a-zA-Z]/.test(currentLastWord)) {
+            e.preventDefault();
+            toast.error("Tokens and functions cannot be used in Fill Mode.");
+            return;
+          }
+        } else {
+          // If preceded by a word containing letters (like FLOOR or a token prefix)
+          if (currentLastWord && /[a-zA-Z]/.test(currentLastWord)) {
+            // 1. Math functions cannot be directly followed by digits (e.g. FLOOR0)
+            if ((MATH_FUNCTIONS as readonly string[]).includes(currentLastWord.toUpperCase())) {
+              e.preventDefault();
+              toast.error(
+                `Function "${currentLastWord.toLowerCase()}()" must be followed by "(" before numbers.`,
+              );
+              return;
+            }
+
+            // 2. Extending a token path: ensure the candidate token exists
+            const cand = (currentLastWord + e.key).toUpperCase();
+            const matchesToken = allTokens.some((t) => t.startsWith(cand) || t.includes(cand));
+            if (!matchesToken) {
+              e.preventDefault();
+              return;
+            }
+          }
+        }
+        return;
+      }
+
+      // Prevent typing unmatched closing parenthesis and collapse preceding whitespace
+      if (e.key === ")") {
+        e.preventDefault();
+        const target = e.target as HTMLInputElement;
+        const selStart = target.selectionStart ?? inputValue.length;
+        const selEnd = target.selectionEnd ?? inputValue.length;
+        const before = inputValue.slice(0, selStart);
+        const after = inputValue.slice(selEnd);
         const openCount = (before.match(/\(/g) || []).length;
         const closeCount = (before.match(/\)/g) || []).length;
 
         if (closeCount >= openCount) {
-          e.preventDefault();
           toast.error("Cannot add closing parenthesis (no open pair)");
           return;
         }
-        // ) is valid — let it pass through natively
+
+        const cleanBefore = before.trimEnd();
+        const cleanAfter = after.trimStart();
+        const newVal = `${cleanBefore})${cleanAfter}`;
+        setInputValue(newVal);
+        isDirty.current = true;
+        setTimeout(() => {
+          const newPos = cleanBefore.length + 1;
+          inputRef.current?.setSelectionRange(newPos, newPos);
+        }, 0);
         return;
       }
 
@@ -483,11 +506,13 @@ export function useFormulaKeyDown({
 
           // If preceded by a whitelisted math function (e.g. MAX, MIN, ROUND, CLAMP, ABS), allow ( directly without an operator!
           if (lastWordInBuf && (MATH_FUNCTIONS as readonly string[]).includes(lastWordInBuf)) {
-            const newVal = `${before}(${after}`;
+            const cleanBefore = before.trimEnd();
+            const cleanAfter = after.trimStart();
+            const newVal = `${cleanBefore}(${cleanAfter}`;
             setInputValue(newVal);
             isDirty.current = true;
             setTimeout(() => {
-              const newPos = before.length + 1;
+              const newPos = cleanBefore.length + 1;
               inputRef.current?.setSelectionRange(newPos, newPos);
             }, 0);
             return;
@@ -523,7 +548,8 @@ export function useFormulaKeyDown({
           }
 
           const prefix = before.endsWith(" ") || before === "" ? "" : " ";
-          const newVal = `${before + prefix}(${after}`;
+          const cleanAfter = after.trimStart();
+          const newVal = `${before + prefix}(${cleanAfter}`;
           setInputValue(newVal);
           isDirty.current = true;
           setTimeout(() => {
@@ -594,9 +620,13 @@ export function useFormulaKeyDown({
 
         // Exact match continuation (e.g. typing "P", "PO", "PORT" or "M", "MA", "MAX")
         const directCandidate = currentLastWord ? currentLastWord + upper : upper;
-        const hasDirectMatch =
-          allTokens.some((t) => t.startsWith(directCandidate) || t.includes(directCandidate)) ||
-          MATH_FUNCTIONS.some((fn) => fn.startsWith(directCandidate));
+        const tokenMatches = isFormulaCell
+          ? allTokens.some((t) => t.startsWith(directCandidate) || t.includes(directCandidate))
+          : false;
+        const fnMatches = isFormulaCell
+          ? MATH_FUNCTIONS.some((fn) => fn.startsWith(directCandidate))
+          : false;
+        const hasDirectMatch = tokenMatches || fnMatches;
 
         if (hasDirectMatch) {
           const newVal = before + upper + after;
@@ -606,6 +636,9 @@ export function useFormulaKeyDown({
           return;
         }
 
+        if (!isFormulaCell) {
+          toast.error("Tokens can only be used in Builder Mode.");
+        }
         // Keystroke does not match any token path or math function -> reject
         return;
       }

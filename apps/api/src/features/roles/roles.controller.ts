@@ -209,7 +209,7 @@ export class RolesController {
             name: name ?? existingRole.name,
             description: description !== undefined ? description : existingRole.description,
           })
-          .where(eq(orgRoles.id, roleId))
+          .where(and(eq(orgRoles.id, roleId), eq(orgRoles.organizationId, activeOrgId)))
           .returning();
 
         if (permissionKeys && Array.isArray(permissionKeys)) {
@@ -295,7 +295,9 @@ export class RolesController {
         );
       }
 
-      await db.delete(orgRoles).where(eq(orgRoles.id, roleId));
+      await db
+        .delete(orgRoles)
+        .where(and(eq(orgRoles.id, roleId), eq(orgRoles.organizationId, activeOrgId)));
 
       return c.json({ success: true, message: "Role deleted successfully" }, 200);
     } catch (error) {

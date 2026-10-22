@@ -5,10 +5,11 @@ import {
   invoices,
   projectStatuses,
   projectStatusFields,
+  projectStatusLogs,
   projectStatusTransitions,
   projects,
 } from "@starter/db";
-import { and, count, eq, ne, type SQL, sql, sum } from "drizzle-orm";
+import { and, asc, count, desc, eq, ne, type SQL, sql, sum } from "drizzle-orm";
 import { type Context } from "hono";
 import { v4 as uuidv4 } from "uuid";
 import { z } from "zod";
@@ -26,7 +27,7 @@ const baseProjectSchema = z.object({
 });
 
 export class ProjectsController {
-  static async listProjects(c: Context) {
+  static async listProjects(c: Context): Promise<any> {
     const orgId = c.get("organizationId");
     const clientId = c.req.query("clientId");
     const statusFilter = c.req.query("status"); // 'archived' or 'active'
@@ -122,7 +123,7 @@ export class ProjectsController {
     return c.json(scrubbedResult);
   }
 
-  static async createProject(c: Context) {
+  static async createProject(c: Context): Promise<any> {
     const orgId = c.get("organizationId");
     const body = await c.req.json();
 
@@ -198,7 +199,7 @@ export class ProjectsController {
     return c.json(newProject, 201);
   }
 
-  static async updateProject(c: Context) {
+  static async updateProject(c: Context): Promise<any> {
     const orgId = c.get("organizationId");
     const id = c.req.param("id");
     if (!id) {
@@ -237,21 +238,34 @@ export class ProjectsController {
       );
     }
 
+    if (baseValidation.data.status && baseValidation.data.status !== existing.status) {
+      return c.json(
+        {
+          error: "Direct status updates forbidden",
+          message:
+            "Project status cannot be changed directly via general updates. Use the advance-status workflow endpoint.",
+        },
+        400,
+      );
+    }
+
     const [updatedProject] = await db
       .update(projects)
       .set({
         clientId: baseValidation.data.clientId,
         name: baseValidation.data.name,
-        status: baseValidation.data.status,
+        status: existing.status,
         customFields: customFieldsValidation.data,
+        version: sql`${projects.version} + 1`,
+        updatedAt: new Date(),
       })
-      .where(eq(projects.id, id))
+      .where(and(eq(projects.id, id), eq(projects.organizationId, orgId)))
       .returning();
 
     return c.json(updatedProject);
   }
 
-  static async archiveProject(c: Context) {
+  static async archiveProject(c: Context): Promise<any> {
     const orgId = c.get("organizationId");
     const id = c.req.param("id");
     if (!id) {
@@ -279,7 +293,7 @@ export class ProjectsController {
     return c.json(updated);
   }
 
-  static async unarchiveProject(c: Context) {
+  static async unarchiveProject(c: Context): Promise<any> {
     const orgId = c.get("organizationId");
     const id = c.req.param("id");
     if (!id) {
@@ -307,7 +321,7 @@ export class ProjectsController {
     return c.json(updated);
   }
 
-  static async deleteProject(c: Context) {
+  static async deleteProject(c: Context): Promise<any> {
     const orgId = c.get("organizationId");
     const id = c.req.param("id");
     if (!id) {
@@ -344,7 +358,7 @@ export class ProjectsController {
     return c.json({ success: true });
   }
 
-  static async deleteAttachment(c: Context) {
+  static async deleteAttachment(c: Context): Promise<any> {
     const orgId = c.get("organizationId");
     const projectId = c.req.param("id");
     const attachmentId = c.req.param("attachmentId");
@@ -375,7 +389,7 @@ export class ProjectsController {
     return c.json({ success: true });
   }
 
-  static async getAttachmentUploadUrl(c: Context) {
+  static async getAttachmentUploadUrl(c: Context): Promise<any> {
     const orgId = c.get("organizationId");
     const projectId = c.req.param("id");
 
@@ -401,7 +415,7 @@ export class ProjectsController {
     return c.json({ ...result, fileId });
   }
 
-  static async saveAttachment(c: Context) {
+  static async saveAttachment(c: Context): Promise<any> {
     const orgId = c.get("organizationId");
     const projectId = c.req.param("id");
 
@@ -431,7 +445,7 @@ export class ProjectsController {
     return c.json(attachment, 201);
   }
 
-  static async listAttachments(c: Context) {
+  static async listAttachments(c: Context): Promise<any> {
     const orgId = c.get("organizationId");
     const projectId = c.req.param("id");
 
@@ -455,7 +469,7 @@ export class ProjectsController {
     return c.json(result);
   }
 
-  static async renameAttachment(c: Context) {
+  static async renameAttachment(c: Context): Promise<any> {
     const orgId = c.get("organizationId");
     const projectId = c.req.param("id");
     const attachmentId = c.req.param("attachmentId");
@@ -539,6 +553,7 @@ export class ProjectsController {
    */
   static async advanceStatus(c: Context): Promise<any> {
     const orgId = c.get("organizationId");
+    const user = c.get("user") as any;
     const id = c.req.param("id");
     if (!id) return c.json({ error: "Missing project ID" }, 400);
 
@@ -577,7 +592,10 @@ export class ProjectsController {
 
     // 4. Validate the transition is allowed in the workflow graph
     const [allowedTransition] = await db
-      .select({ id: projectStatusTransitions.id })
+      .select({
+        id: projectStatusTransitions.id,
+        allowedRoleIds: projectStatusTransitions.allowedRoleIds,
+      })
       .from(projectStatusTransitions)
       .where(
         and(
@@ -606,6 +624,30 @@ export class ProjectsController {
       );
     }
 
+    // Role-gating check (Option 1)
+    const isOwner = c.get("isOwner") as boolean;
+    const memberRole = c.get("memberRole") as string;
+    const memberRoleIds = (c.get("memberRoleIds") as string[]) || [];
+    if (
+      !isOwner &&
+      allowedTransition?.allowedRoleIds &&
+      allowedTransition.allowedRoleIds.length > 0
+    ) {
+      const allowed = allowedTransition.allowedRoleIds;
+      const hasMatchingRole =
+        (memberRole && allowed.includes(memberRole)) ||
+        memberRoleIds.some((id) => allowed.includes(id));
+      if (!hasMatchingRole) {
+        return c.json(
+          {
+            error: "Forbidden",
+            message: `Your role does not have permission to advance files to "${targetStatus.name}".`,
+          },
+          403,
+        );
+      }
+    }
+
     // 5. Check Scenario A: fields required BEFORE entering the target status
     const requiredFields = await db
       .select({
@@ -625,14 +667,21 @@ export class ProjectsController {
       );
 
     // Merge existing customFields with incoming overrides for this transition
-    const mergedFields = { ...project.customFields, ...incomingCustomFields };
+    const rawMergedFields = {
+      ...((project.customFields as Record<string, any>) ?? {}),
+      ...incomingCustomFields,
+    };
 
-    const missingFields: { fieldKey: string; fieldName: string }[] = [];
+    const missingFields: { fieldId: string; fieldKey: string; fieldName: string }[] = [];
     for (const rf of requiredFields) {
-      const value = mergedFields[rf.fieldKey];
+      const value = rawMergedFields[rf.fieldKey];
       const isEmpty = value === undefined || value === null || value === "";
       if (isEmpty) {
-        missingFields.push({ fieldKey: rf.fieldKey, fieldName: rf.fieldName });
+        missingFields.push({
+          fieldId: rf.fieldId,
+          fieldKey: rf.fieldKey,
+          fieldName: rf.fieldName,
+        });
       }
     }
 
@@ -647,27 +696,245 @@ export class ProjectsController {
       );
     }
 
+    // 5b. Validate custom fields schema against organization definitions
+    const definitions = await db.query.customFieldDefinitions.findMany({
+      where: and(
+        eq(customFieldDefinitions.organizationId, orgId),
+        eq(customFieldDefinitions.entityType, "project"),
+      ),
+    });
+
+    const dynamicSchema = createDynamicZodSchema(definitions);
+    const customFieldsValidation = dynamicSchema.safeParse(rawMergedFields);
+
+    if (!customFieldsValidation.success) {
+      return c.json(
+        {
+          error: "Custom Fields Validation Error",
+          message: "One or more custom fields have invalid data formats.",
+          details: customFieldsValidation.error.format(),
+        },
+        422,
+      );
+    }
+
     // 6. Execute the transition — update status, append previous status to history,
-    //    and merge any submitted field values.
+    //    and merge any validated submitted field values.
     const previousHistory: string[] = Array.isArray(project.statusHistory)
       ? project.statusHistory
       : [];
+    const previousStageFieldHistory: any[] = Array.isArray(project.stageFieldHistory)
+      ? project.stageFieldHistory
+      : [];
+
+    const stageSnapshot = {
+      stageId: project.status,
+      timestamp: new Date().toISOString(),
+      fields: { ...rawMergedFields },
+    };
+
+    const currentVersion = project.version ?? 1;
     const [updatedProject] = await db
       .update(projects)
       .set({
         status: toStatusId,
         statusHistory: [...previousHistory, project.status], // append the stage we're leaving
-        customFields: mergedFields,
+        stageFieldHistory: [...previousStageFieldHistory, stageSnapshot], // record stage field audit snapshot
+        customFields: customFieldsValidation.data,
+        version: sql`${projects.version} + 1`,
         updatedAt: new Date(),
       })
-      .where(eq(projects.id, id))
+      .where(
+        and(
+          eq(projects.id, id),
+          eq(projects.organizationId, orgId),
+          eq(projects.version, currentVersion),
+        ),
+      )
       .returning();
+
+    if (!updatedProject) {
+      return c.json(
+        {
+          error: "Concurrent update conflict",
+          message:
+            "This file was modified concurrently by another user or session. Please refresh and try again.",
+        },
+        409,
+      );
+    }
+
+    // 7. Insert relational status audit log (Option 3)
+    try {
+      const [lastLog] = await db
+        .select({ changedAt: projectStatusLogs.changedAt })
+        .from(projectStatusLogs)
+        .where(
+          and(eq(projectStatusLogs.projectId, id), eq(projectStatusLogs.organizationId, orgId)),
+        )
+        .orderBy(desc(projectStatusLogs.changedAt))
+        .limit(1);
+
+      const timeInPreviousStageSeconds = lastLog
+        ? Math.max(0, Math.floor((Date.now() - new Date(lastLog.changedAt).getTime()) / 1000))
+        : project.createdAt
+          ? Math.max(0, Math.floor((Date.now() - new Date(project.createdAt).getTime()) / 1000))
+          : 0;
+
+      await db.insert(projectStatusLogs).values({
+        id: uuidv4(),
+        organizationId: orgId,
+        projectId: id,
+        fromStatusId: project.status,
+        toStatusId,
+        changedById: user?.id ?? null,
+        changedAt: new Date(),
+        timeInPreviousStageSeconds,
+        stageSnapshot: { ...rawMergedFields },
+      });
+    } catch (logErr) {
+      log.error({ logErr, projectId: id }, "Failed to write project status log");
+    }
 
     log.info(
       { orgId, projectId: id, fromStatus: project.status, toStatus: toStatusId },
       "Project status advanced",
     );
 
-    return c.json(updatedProject);
+    const { scrubEntityData, getScrubberConfig } = await import("../../infra/lib/data-scrubber");
+    const scrubberConfig = await getScrubberConfig(c, "project");
+    const scrubbedProject = scrubEntityData(updatedProject, scrubberConfig, "project");
+
+    return c.json(scrubbedProject);
+  }
+
+  static async getStatusLogs(c: Context): Promise<any> {
+    const orgId = c.get("organizationId");
+    const id = c.req.param("id") as string;
+    if (!id) return c.json({ error: "Missing project ID" }, 400);
+
+    const { users } = await import("@starter/db");
+
+    const logs = await db
+      .select({
+        id: projectStatusLogs.id,
+        projectId: projectStatusLogs.projectId,
+        fromStatusId: projectStatusLogs.fromStatusId,
+        toStatusId: projectStatusLogs.toStatusId,
+        changedById: projectStatusLogs.changedById,
+        changedAt: projectStatusLogs.changedAt,
+        timeInPreviousStageSeconds: projectStatusLogs.timeInPreviousStageSeconds,
+        stageSnapshot: projectStatusLogs.stageSnapshot,
+        changedByName: users.name,
+        changedByEmail: users.email,
+      })
+      .from(projectStatusLogs)
+      .leftJoin(users, eq(projectStatusLogs.changedById, users.id))
+      .where(and(eq(projectStatusLogs.projectId, id), eq(projectStatusLogs.organizationId, orgId)))
+      .orderBy(desc(projectStatusLogs.changedAt));
+
+    return c.json({ logs });
+  }
+
+  static async getWorkflowVelocityAnalytics(c: Context): Promise<any> {
+    const orgId = c.get("organizationId");
+
+    // 1. Fetch all workflow statuses for this org
+    const statuses = await db
+      .select({
+        id: projectStatuses.id,
+        name: projectStatuses.name,
+        color: projectStatuses.color,
+        isTerminal: projectStatuses.isTerminal,
+        gridColumn: projectStatuses.gridColumn,
+        gridRow: projectStatuses.gridRow,
+      })
+      .from(projectStatuses)
+      .where(eq(projectStatuses.organizationId, orgId))
+      .orderBy(asc(projectStatuses.gridColumn), asc(projectStatuses.gridRow));
+
+    // 2. Fetch project counts per status
+    const projectCounts = await db
+      .select({
+        status: projects.status,
+        count: count(projects.id),
+      })
+      .from(projects)
+      .where(and(eq(projects.organizationId, orgId), ne(projects.lifecycleState, "archived")))
+      .groupBy(projects.status);
+
+    const countByStatus: Record<string, number> = {};
+    for (const row of projectCounts) {
+      if (row.status) countByStatus[row.status] = Number(row.count);
+    }
+
+    // 3. Aggregate transitions & time spent per stage from projectStatusLogs
+    const logAggregates = await db
+      .select({
+        fromStatusId: projectStatusLogs.fromStatusId,
+        transitionCount: count(projectStatusLogs.id),
+        avgSeconds: sql<number>`coalesce(avg(${projectStatusLogs.timeInPreviousStageSeconds}), 0)`,
+        maxSeconds: sql<number>`coalesce(max(${projectStatusLogs.timeInPreviousStageSeconds}), 0)`,
+        minSeconds: sql<number>`coalesce(min(${projectStatusLogs.timeInPreviousStageSeconds}), 0)`,
+      })
+      .from(projectStatusLogs)
+      .where(eq(projectStatusLogs.organizationId, orgId))
+      .groupBy(projectStatusLogs.fromStatusId);
+
+    const logMap: Record<string, any> = {};
+    for (const la of logAggregates) {
+      if (la.fromStatusId) {
+        logMap[la.fromStatusId] = la;
+      }
+    }
+
+    const formatDuration = (sec: number) => {
+      if (sec < 60) return `${Math.round(sec)}s`;
+      if (sec < 3600) return `${Math.round(sec / 60)}m`;
+      if (sec < 86400) return `${(sec / 3600).toFixed(1)}h`;
+      return `${(sec / 86400).toFixed(1)}d`;
+    };
+
+    let maxAvgDuration = 0;
+    let bottleneckStageId: string | null = null;
+
+    const stageMetrics = statuses.map((s) => {
+      const stats = logMap[s.id];
+      const avgDuration = stats ? Number(stats.avgSeconds) : 0;
+      const transitionCount = stats ? Number(stats.transitionCount) : 0;
+      const activeCount = countByStatus[s.id] || 0;
+
+      if (!s.isTerminal && avgDuration > maxAvgDuration && transitionCount > 0) {
+        maxAvgDuration = avgDuration;
+        bottleneckStageId = s.id;
+      }
+
+      return {
+        statusId: s.id,
+        statusName: s.name,
+        color: s.color,
+        isTerminal: s.isTerminal,
+        activeFilesCount: activeCount,
+        transitionCount,
+        avgDurationSeconds: Math.round(avgDuration),
+        formattedAvgDuration: formatDuration(avgDuration),
+        isBottleneck: false,
+      };
+    });
+
+    if (bottleneckStageId) {
+      const bStage = stageMetrics.find((m) => m.statusId === bottleneckStageId);
+      if (bStage) bStage.isBottleneck = true;
+    }
+
+    const totalActiveFiles = Object.values(countByStatus).reduce((a, b) => a + b, 0);
+    const totalTransitions = stageMetrics.reduce((a, b) => a + b.transitionCount, 0);
+
+    return c.json({
+      stageMetrics,
+      totalActiveFiles,
+      totalTransitions,
+      bottleneckStage: stageMetrics.find((m) => m.isBottleneck) || null,
+    });
   }
 }

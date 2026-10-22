@@ -49,7 +49,7 @@ erDiagram
    - `invoice_drafts` allows unlimited concurrent drafts per project.
    - `editHistory` logs JSONB audit entries (`userId`, `userName`, `userEmail`, `editedAt`, `action`).
 3. **Formula Codec Tags**:
-   - Formulas are stored in the database with immutable UUID references: `{{$row:UUID}}`, `{{$sec:UUID}}`, `{{$tpl:UUID}}`.
+   - Formulas are stored in the database with immutable UUID references: `{{$tok:UUID}}`, `{{$tok:UUID}}`, `{{$tok:UUID}}`.
    - External tokens (`FILE_*`, `GBL_*`, `EXP_*`) remain plain text UPPER_SNAKE_CASE.
 
 ---
@@ -59,3 +59,17 @@ erDiagram
 - **Category 2**: Custom Fields (`custom_field_definitions` + JSONB).
 - **Category 3**: Immutable Auto-Metadata (`createdAt`, `updatedAt`).
 - **Category 4**: Computed / Financial Fields (Strict PBAC permission-gated).
+
+---
+
+## 4. General Templates, Dynamic Columns & Serial Resequencing
+
+1. **Template Archetypes (`templateType`)**:
+   - `invoice_templates.templateType`: `"standard"` (default project-bound formula invoices) or `"general"` (dynamic multi-column spreadsheet tables).
+   - `invoice_templates.columnDefinitions`: JSONB array storing column metadata (`id`, `key`, `label`, `type`, `width`, `align`, `isTotaled`).
+2. **Row Multi-Column Data (`cellValues`)**:
+   - `template_rows.cellValues`: JSONB column storing arbitrary cell values matching `columnDefinitions`.
+   - Hydrated cleanly into `invoice_drafts.draftSections` via `DraftSeeder`.
+3. **Serial Token Resequencing Contract**:
+   - Row tokens in general templates strictly map to their topological index: `ROW_1`, `ROW_2`, ...
+   - Database uniqueness on `(templateId, tokenKey)` is protected during updates via a two-phase transaction mapping temporary keys (`__TMP_<ID>__`) before assigning canonical keys.

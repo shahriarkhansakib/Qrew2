@@ -157,3 +157,81 @@ export async function validateTemplateDag(
     tplIdToToken,
   );
 }
+
+export function validateDraftDag(
+  draft: any,
+  externalTokens: Set<string> = new Set(),
+): DagValidationResult {
+  const sections: any[] = draft.draftSections || [];
+  const constants: any = draft.draftConstants || {};
+
+  const idToToken: RowIdToTokenMap = {};
+  const secIdToToken: SecIdToTokenMap = {};
+  const tplIdToToken: TplIdToTokenMap = {};
+
+  for (const [key, val] of Object.entries(constants as Record<string, any>)) {
+    if (val?.id) {
+      tplIdToToken[val.id] = key;
+    }
+  }
+
+  for (const sec of sections) {
+    if (sec.id && sec.sectionToken) {
+      secIdToToken[sec.id] = `SEC_${sec.sectionToken}`;
+    }
+    for (const r of sec.rows || []) {
+      if (r.id && r.rowToken) {
+        idToToken[r.id] = r.rowToken;
+      }
+      for (const ch of r.charges || []) {
+        if (ch.id && ch.chargeToken) {
+          idToToken[ch.id] = ch.chargeToken;
+        }
+      }
+    }
+    for (const sc of sec.sectionCharges || sec.charges || []) {
+      if (sc.id && sc.chargeToken) {
+        idToToken[sc.id] = sc.chargeToken;
+      }
+    }
+  }
+
+  const evaluatorSections: EvaluatorSection[] = sections.map((sec: any) => ({
+    id: sec.id,
+    sectionToken: sec.sectionToken,
+    sortOrder: sec.sortOrder ?? 0,
+    rows: (sec.rows || []).map((row: any) => ({
+      id: row.id,
+      rowToken: row.rowToken,
+      label: row.label,
+      sectionId: sec.id,
+      valueType: row.valueType,
+      formula: row.formula ?? undefined,
+      initialValue: row.initialValue ?? undefined,
+      manualValue: row.manualValue ?? null,
+      sortOrder: row.sortOrder ?? 0,
+      charges: (row.charges || []).map((rc: any) => ({
+        id: rc.id,
+        chargeToken: rc.chargeToken,
+        label: rc.label,
+        formula: rc.formula ?? undefined,
+        sortOrder: rc.sortOrder ?? 0,
+      })),
+    })),
+    sectionCharges: (sec.sectionCharges || sec.charges || []).map((sc: any) => ({
+      id: sc.id,
+      chargeToken: sc.chargeToken,
+      label: sc.label,
+      formula: sc.formula ?? undefined,
+      sortOrder: sc.sortOrder ?? 0,
+    })),
+  }));
+
+  return DagValidatorService.validate(
+    evaluatorSections,
+    externalTokens,
+    idToToken,
+    secIdToToken,
+    tplIdToToken,
+  );
+}

@@ -12,7 +12,9 @@ import {
   X,
   XCircle,
 } from "lucide-react";
-import { useState } from "react";
+import { useMemo, useRef, useState } from "react";
+import { toast } from "sonner";
+import { cn } from "@/lib/utils";
 
 // --- Constants ---------------------------------------------------------------
 
@@ -389,26 +391,110 @@ function edgePath(
   return { d: `M ${startX},${startY} C ${cp1x},${cp1y} ${cp2x},${cp2y} ${endX},${endY}`, mx, my };
 }
 
-// --- Node Styling -------------------------------------------------------------
+// --- Node Styling & Categorization (5 Semantic Categories) --------------------
 
-function nodeStyle(s: Status) {
-  if (s.isInitial)
-    return { ring: "#6366f1", dot: "#6366f1", glow: "rgba(99,102,241,0.18)", label: "#818cf8" };
-  const isDynamicTerminal = !s.isInitial && s.transitions?.length === 0;
-  if (isDynamicTerminal) {
-    const neg = s.name.toLowerCase().match(/reject|cancel|fail|lost|declin|abort/);
-    if (neg)
-      return { ring: "#f43f5e", dot: "#f43f5e", glow: "rgba(244,63,94,0.18)", label: "#fb7185" };
-    return { ring: "#10b981", dot: "#10b981", glow: "rgba(16,185,129,0.18)", label: "#34d399" };
+export type NodeCategory =
+  | "default-initial"
+  | "other-initial"
+  | "default-terminal"
+  | "other-terminal"
+  | "intermediate"
+  | "unconnected";
+
+export function getNodeCategory(s: Status, inDegree: number, outDegree: number): NodeCategory {
+  const isDefaultCreated = s.isInitial || s.name.toLowerCase() === "created";
+  if (isDefaultCreated) return "default-initial";
+
+  const isDefaultCompleted =
+    (s.isSystem && s.name.toLowerCase() === "completed") || s.name.toLowerCase() === "completed";
+  if (isDefaultCompleted) return "default-terminal";
+
+  if (inDegree === 0 && outDegree > 0) return "other-initial";
+  if (outDegree === 0 && inDegree > 0) return "other-terminal";
+  if (inDegree > 0 && outDegree > 0) return "intermediate";
+
+  return "unconnected";
+}
+
+function nodeStyle(s: Status, inDegree = 0, outDegree = 0) {
+  const category = getNodeCategory(s, inDegree, outDegree);
+
+  switch (category) {
+    case "default-initial":
+      // Category 1: Default Created (Royal Indigo)
+      return {
+        ring: "#6366f1",
+        dot: "#6366f1",
+        glow: "rgba(99,102,241,0.25)",
+        label: "#818cf8",
+        category,
+      };
+
+    case "other-initial":
+      // Category 2: Other Starting Nodes (Vibrant Violet / Purple)
+      return {
+        ring: "#8b5cf6",
+        dot: "#8b5cf6",
+        glow: "rgba(139,92,246,0.25)",
+        label: "#a78bfa",
+        category,
+      };
+
+    case "default-terminal":
+      // Category 3: Default Completed (Signature Emerald)
+      return {
+        ring: "#10b981",
+        dot: "#10b981",
+        glow: "rgba(16,185,129,0.25)",
+        label: "#34d399",
+        category,
+      };
+
+    case "other-terminal": {
+      // Category 4: Other Terminal Nodes (Teal / Mint or Rose for Negative)
+      const isNeg = s.name.toLowerCase().match(/reject|cancel|fail|lost|declin|abort|close|void/);
+      if (isNeg) {
+        return {
+          ring: "#f43f5e",
+          dot: "#f43f5e",
+          glow: "rgba(244,63,94,0.25)",
+          label: "#fb7185",
+          category,
+        };
+      }
+      return {
+        ring: "#0d9488",
+        dot: "#14b8a6",
+        glow: "rgba(20,184,166,0.25)",
+        label: "#2dd4bf",
+        category,
+      };
+    }
+
+    case "intermediate": {
+      // Category 5: Intermediate Nodes (Sky Blue or User Custom)
+      const base = s.color && s.color !== "#94a3b8" ? s.color : "#3b82f6";
+      return { ring: base, dot: base, glow: `${base}30`, label: base, category };
+    }
+
+    default:
+      // Unconnected / Isolated Draft Stage (Neutral Slate)
+      return {
+        ring: "#64748b",
+        dot: "#94a3b8",
+        glow: "rgba(100,116,139,0.2)",
+        label: "#94a3b8",
+        category,
+      };
   }
-  const base = s.color && s.color !== "#94a3b8" ? s.color : "#64748b";
-  return { ring: base, dot: base, glow: `${base}30`, label: base };
 }
 
 // --- WorkflowNodeCircle -----------------------------------------------
 
 function WorkflowNodeCircle({
   node,
+  inDegree,
+  outDegree,
   onClick,
   onDelete,
   onBranch,
@@ -420,6 +506,8 @@ function WorkflowNodeCircle({
   onDragEnd,
 }: {
   node: LayoutNode;
+  inDegree: number;
+  outDegree: number;
   onClick: () => void;
   onDelete: () => void;
   onBranch: () => void;
@@ -431,31 +519,58 @@ function WorkflowNodeCircle({
   onDragEnd?: (e: React.PointerEvent) => void;
 }) {
   const s = node.status;
-  const style = nodeStyle(s);
+  const style = nodeStyle(s, inDegree, outDegree);
+  const cat = style.category;
+  const isDefaultCreated = s.isInitial || s.name.toLowerCase() === "created";
+  const isCompletedStage =
+    (s.isSystem && s.name.toLowerCase() === "completed") || s.name.toLowerCase() === "completed";
+  const isTerminalNode = cat === "default-terminal" || cat === "other-terminal";
+  const isNegTerminal =
+    isTerminalNode && s.name.toLowerCase().match(/reject|cancel|fail|lost|declin|abort|close|void/);
 
   let ringColor = style.ring;
   let ringWidth = "border-2";
-  let extraShadow = `0 0 0 4px ${style.glow}`;
+  let extraShadow = "none";
 
-  if (isConnectSource) {
+  const isSelectedSource = isConnectSource;
+  const isAwaitingTarget = connectMode && isConnectTarget;
+  const isAwaitingSource = connectMode && !isConnectSource && !isConnectTarget;
+
+  if (isSelectedSource) {
     ringColor = "#6366f1";
     ringWidth = "border-[3px]";
-    extraShadow = "0 0 0 6px rgba(99,102,241,0.3)";
-  } else if (isConnectTarget && connectMode) {
-    ringColor = "#f59e0b";
-    ringWidth = "border-[3px]";
-    extraShadow = "0 0 0 6px rgba(245,158,11,0.3)";
+    extraShadow = "0 0 0 8px rgba(99,102,241,0.45)";
+  } else if (isAwaitingTarget) {
+    if (isDefaultCreated) {
+      ringColor = "#64748b";
+      ringWidth = "border-2";
+      extraShadow = "none";
+    } else {
+      ringColor = "#10b981";
+      ringWidth = "border-[3px]";
+      extraShadow = "0 0 0 6px rgba(16,185,129,0.35)";
+    }
+  } else if (isAwaitingSource) {
+    if (isCompletedStage) {
+      ringColor = "#64748b";
+      ringWidth = "border-2";
+      extraShadow = "none";
+    } else {
+      ringColor = style.ring;
+      ringWidth = "border-2";
+      extraShadow = `0 0 0 5px ${style.glow}`;
+    }
   }
 
   // Short label to show inside the circle (up to 4 chars)
   const shortLabel = s.name.length <= 4 ? s.name : `${s.name.slice(0, 3)}…`;
 
-  const isDynamicTerminal = !s.isInitial && s.transitions?.length === 0;
-  const isNegTerminal =
-    isDynamicTerminal && s.name.toLowerCase().match(/reject|cancel|fail|lost|declin|abort|close/);
-
   return (
     <div
+      onClick={(e) => {
+        e.stopPropagation();
+        onClick();
+      }}
       onPointerDown={(e) => onDragStart?.(e, node.status.id, node.cx, node.cy)}
       onPointerMove={onDragMove}
       onPointerUp={onDragEnd}
@@ -468,7 +583,20 @@ function WorkflowNodeCircle({
         height: NODE_D,
         zIndex: 20,
       }}
-      className="group cursor-pointer select-none"
+      className={cn(
+        "group select-none",
+        connectMode
+          ? isSelectedSource
+            ? "cursor-pointer scale-110"
+            : isAwaitingTarget
+              ? isDefaultCreated
+                ? "cursor-not-allowed opacity-40"
+                : "cursor-pointer hover:scale-115 transition-transform"
+              : isCompletedStage
+                ? "cursor-not-allowed opacity-40"
+                : "cursor-pointer hover:scale-115 transition-transform"
+          : "cursor-pointer",
+      )}
     >
       <div
         className={`w-full h-full rounded-full bg-background flex items-center justify-center transition-all duration-200 group-hover:scale-110 relative ${ringWidth}`}
@@ -477,14 +605,14 @@ function WorkflowNodeCircle({
           boxShadow: extraShadow,
         }}
       >
-        {/* Inner content: icon for special nodes, abbreviated name otherwise */}
-        {isDynamicTerminal && !isNegTerminal && (
+        {/* Inner content: icon for terminal nodes, abbreviated name otherwise */}
+        {isTerminalNode && !isNegTerminal && (
           <CheckCircle2 className="w-4 h-4" style={{ color: style.dot }} />
         )}
-        {isDynamicTerminal && isNegTerminal && (
+        {isTerminalNode && isNegTerminal && (
           <XCircle className="w-4 h-4" style={{ color: style.dot }} />
         )}
-        {!isDynamicTerminal && (
+        {!isTerminalNode && (
           <span
             className="text-[9px] font-bold leading-none text-center pointer-events-none select-none"
             style={{ color: style.dot }}
@@ -493,10 +621,23 @@ function WorkflowNodeCircle({
           </span>
         )}
 
-        {/* Hover tooltip: full name */}
+        {/* Hover tooltip: full name + semantic category */}
         <div className="absolute bottom-full mb-2 left-1/2 -translate-x-1/2 opacity-0 group-hover:opacity-100 transition-opacity duration-150 pointer-events-none z-50">
-          <div className="bg-popover border shadow-lg rounded-md px-2.5 py-1.5 whitespace-nowrap">
-            <span className="text-xs font-bold text-foreground">{s.name}</span>
+          <div className="bg-popover border shadow-lg rounded-md px-2.5 py-1.5 whitespace-nowrap text-center">
+            <span className="text-xs font-bold text-foreground block">{s.name}</span>
+            <span className="text-[10px] text-muted-foreground block capitalize">
+              {cat === "default-initial"
+                ? "Primary Start Stage"
+                : cat === "other-initial"
+                  ? "Starting Stage"
+                  : cat === "default-terminal"
+                    ? "Completion Stage"
+                    : cat === "other-terminal"
+                      ? "Terminal Stage"
+                      : cat === "intermediate"
+                        ? "Intermediate Stage"
+                        : "Unconnected Stage"}
+            </span>
           </div>
           <div className="w-2 h-2 bg-popover border-b border-r rotate-45 mx-auto -mt-1 border-t-0 border-l-0" />
         </div>
@@ -526,7 +667,7 @@ function WorkflowNodeCircle({
             <Trash2 className="h-2.5 w-2.5" />
           </button>
         )}
-        {!connectMode && !isDynamicTerminal && (
+        {!connectMode && !isCompletedStage && (
           <button
             onClick={(e) => {
               e.stopPropagation();
@@ -552,8 +693,9 @@ function WorkflowNodeCircle({
           {s.name}
         </span>
         <div className="flex items-center justify-center gap-1 mt-0.5">
-          {s.isInitial && <Flag className="h-2.5 w-2.5 text-indigo-400" />}
-          {isDynamicTerminal && (
+          {cat === "default-initial" && <Flag className="h-2.5 w-2.5 text-indigo-400" />}
+          {cat === "other-initial" && <Flag className="h-2.5 w-2.5 text-violet-400" />}
+          {isTerminalNode && (
             <CheckCircle2 className="h-2.5 w-2.5 opacity-60" style={{ color: style.ring }} />
           )}
           {s.isSystem && <Shield className="h-2.5 w-2.5 text-violet-400 opacity-60" />}
@@ -586,7 +728,7 @@ export function WorkflowGraph({
   onAddBranch: (id: string) => void;
   onConnectNodes: (fromId: string, toId: string) => void;
   onDeleteEdge: (fromId: string, toId: string) => void;
-  onMoveNode?: (id: string, col: number, row: number) => void;
+  onMoveNode?: (id: string, col: number, row: number, prevCol?: number, prevRow?: number) => void;
   onSwapNodes?: (
     sourceId: string,
     targetId: string,
@@ -607,8 +749,33 @@ export function WorkflowGraph({
   } | null>(null);
   const [hoveredEdge, setHoveredEdge] = useState<string | null>(null);
   const [connectState, setConnectState] = useState<null | "source" | string>(null);
+  const dragMovedRef = useRef(false);
+  const isDraggingRef = useRef(false);
   const isConnectMode = connectState !== null;
   const connectSourceId = connectState !== null && connectState !== "source" ? connectState : null;
+
+  const inDegreeMap = useMemo(() => {
+    const map: Record<string, number> = {};
+    for (const s of statuses) {
+      map[s.id] = 0;
+    }
+    for (const s of statuses) {
+      for (const t of s.transitions ?? []) {
+        if (map[t.toStatusId] !== undefined) {
+          map[t.toStatusId]++;
+        }
+      }
+    }
+    return map;
+  }, [statuses]);
+
+  const outDegreeMap = useMemo(() => {
+    const map: Record<string, number> = {};
+    for (const s of statuses) {
+      map[s.id] = s.transitions?.length ?? 0;
+    }
+    return map;
+  }, [statuses]);
 
   const layoutNodes = computeLayout(statuses).map((n) => {
     if (dragState && dragState.id === n.status.id) {
@@ -666,12 +833,14 @@ export function WorkflowGraph({
     const { d, mx, my } = edgePath(fromNode, toNode, isBidirectional);
     return { fromNode, toNode, edgeId, d, mx, my };
   });
-
   const handlePointerDown = (e: React.PointerEvent, id: string, nodeCx: number, nodeCy: number) => {
     if (isConnectMode || disabled) return;
     e.stopPropagation();
-    e.preventDefault();
-    (e.target as HTMLElement).setPointerCapture(e.pointerId);
+    isDraggingRef.current = true;
+    dragMovedRef.current = false;
+    try {
+      (e.currentTarget as HTMLElement).setPointerCapture(e.pointerId);
+    } catch (_err) {}
     setDragState({
       id,
       pointerStartX: e.clientX,
@@ -684,19 +853,32 @@ export function WorkflowGraph({
   };
 
   const handlePointerMove = (e: React.PointerEvent) => {
-    if (!dragState) return;
+    if (!isDraggingRef.current || !dragState) return;
     const deltaX = (e.clientX - dragState.pointerStartX) / zoom;
     const deltaY = (e.clientY - dragState.pointerStartY) / zoom;
-    setDragState((prev) =>
-      prev
-        ? { ...prev, currentX: prev.nodeStartX + deltaX, currentY: prev.nodeStartY + deltaY }
-        : null,
-    );
+    if (Math.hypot(deltaX, deltaY) > 5) {
+      dragMovedRef.current = true;
+    }
+    if (dragMovedRef.current) {
+      setDragState((prev) =>
+        prev
+          ? { ...prev, currentX: prev.nodeStartX + deltaX, currentY: prev.nodeStartY + deltaY }
+          : null,
+      );
+    }
   };
 
   const handlePointerUp = (e: React.PointerEvent) => {
-    if (!dragState) return;
-    (e.target as HTMLElement).releasePointerCapture(e.pointerId);
+    if (!isDraggingRef.current) return;
+    isDraggingRef.current = false;
+    try {
+      (e.currentTarget as HTMLElement).releasePointerCapture(e.pointerId);
+    } catch (_err) {}
+
+    if (!dragState || !dragMovedRef.current) {
+      setDragState(null);
+      return;
+    }
 
     const allRows = layoutNodes.map((n) => n.row);
     const minRow = allRows.length > 0 ? Math.min(0, ...allRows) : 0;
@@ -712,31 +894,54 @@ export function WorkflowGraph({
       (n) => n.col === newCol && n.row === newRow && n.status.id !== dragState.id,
     );
 
+    const sourceLayoutNode = layoutNodes.find((n) => n.status.id === dragState.id);
+    const prevCol = sourceLayoutNode ? sourceLayoutNode.col : 0;
+    const prevRow = sourceLayoutNode ? sourceLayoutNode.row : 0;
+
     if (collidedNode && onSwapNodes) {
-      const sourceLayoutNode = layoutNodes.find((n) => n.status.id === dragState.id);
       onSwapNodes(
         dragState.id,
         collidedNode.status.id,
         collidedNode.col,
         collidedNode.row,
-        sourceLayoutNode ? sourceLayoutNode.col : 0,
-        sourceLayoutNode ? sourceLayoutNode.row : 0,
+        prevCol,
+        prevRow,
       );
     } else if (onMoveNode) {
-      onMoveNode(dragState.id, newCol, newRow);
+      if (newCol !== prevCol || newRow !== prevRow) {
+        onMoveNode(dragState.id, newCol, newRow, prevCol, prevRow);
+      }
     }
 
     setDragState(null);
   };
+
   const handleNodeClick = (node: LayoutNode) => {
+    if (dragMovedRef.current) {
+      dragMovedRef.current = false;
+      return;
+    }
+    const s = node.status;
+    const isCompletedStage =
+      (s.isSystem && s.name.toLowerCase() === "completed") || s.name.toLowerCase() === "completed";
+    const isDefaultCreated = s.isInitial || s.name.toLowerCase() === "created";
+
     if (connectState === "source") {
-      // Guard: terminal node cannot be a source
-      if (node.status.isTerminal) return;
+      // Completed stage cannot connect forward
+      if (isCompletedStage) {
+        toast.error(
+          `"${s.name}" is the final completion stage and cannot have outbound transitions.`,
+        );
+        return;
+      }
       setConnectState(node.status.id);
     } else if (connectSourceId !== null) {
-      // Guard: cannot connect TO the initial node
-      if (node.status.isInitial) return;
-      // Guard: no direct self-loop
+      // Guard: cannot connect TO the primary initial node
+      if (isDefaultCreated) {
+        toast.error("Cannot connect back to the primary starting stage.");
+        return;
+      }
+      // Guard: clicking self cancels selection
       if (connectSourceId === node.status.id) {
         setConnectState(null);
         return;
@@ -777,14 +982,22 @@ export function WorkflowGraph({
         </button>
       </div>
       {isConnectMode && (
-        <div className="absolute top-3 left-1/2 -translate-x-1/2 z-50 flex items-center gap-2 px-4 py-2 bg-indigo-600 text-white rounded-full text-sm font-medium shadow-lg">
+        <div className="absolute top-3 left-1/2 -translate-x-1/2 z-50 flex items-center gap-2 px-4 py-2 bg-indigo-600 text-white rounded-full text-sm font-medium shadow-lg animate-in fade-in slide-in-from-top-2">
           <Link2 className="h-4 w-4 shrink-0" />
-          {connectState === "source"
-            ? "Select the source node"
-            : "Now click the target node to connect"}
+          {connectState === "source" ? (
+            <span>
+              Click any non-terminal stage to select as <strong>Source</strong>
+            </span>
+          ) : (
+            <span>
+              Source: <strong>{nodeMap[connectSourceId!]?.status.name}</strong> → Click{" "}
+              <strong>Target</strong> stage to connect
+            </span>
+          )}
           <button
             onClick={() => setConnectState(null)}
-            className="ml-1 hover:text-indigo-200 transition-colors"
+            className="ml-2 hover:text-indigo-200 transition-colors p-0.5 rounded-full hover:bg-indigo-700"
+            title="Cancel connection mode"
           >
             <X className="h-4 w-4" />
           </button>
@@ -795,8 +1008,8 @@ export function WorkflowGraph({
         onClick={() => setConnectState(isConnectMode ? null : "source")}
         className={`absolute top-3 right-3 z-40 flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium rounded-full border transition-all ${
           isConnectMode
-            ? "bg-indigo-600 text-white border-indigo-700"
-            : "bg-background text-muted-foreground border-muted-foreground/30 hover:border-primary hover:text-primary"
+            ? "bg-indigo-600 text-white border-indigo-700 shadow-md ring-2 ring-indigo-400/50"
+            : "bg-background text-muted-foreground border-muted-foreground/30 hover:border-primary hover:text-primary shadow-xs"
         }`}
       >
         <Link2 className="h-3 w-3" />
@@ -928,6 +1141,60 @@ export function WorkflowGraph({
               </text>
             ))}
 
+            {/* Drag Ghost / Drop Target Indicator */}
+            {dragState &&
+              (() => {
+                const hoverCol = Math.max(0, Math.round((dragState.currentX - PAD - NODE_R) / 206));
+                const hoverRow = Math.round((dragState.currentY - y0) / 136);
+                const targetNode = layoutNodes.find(
+                  (n) => n.col === hoverCol && n.row === hoverRow && n.status.id !== dragState.id,
+                );
+                const draggingNode = layoutNodes.find((n) => n.status.id === dragState.id);
+                const isSameAsOriginal =
+                  draggingNode && draggingNode.col === hoverCol && draggingNode.row === hoverRow;
+
+                const cellCenterX = PAD + NODE_R + hoverCol * 206;
+                const cellCenterY = y0 + hoverRow * 136;
+                const cellX = cellCenterX - 100;
+                const cellY = cellCenterY - 65;
+
+                return (
+                  <g className="pointer-events-none transition-all duration-75">
+                    <rect
+                      x={cellX}
+                      y={cellY}
+                      width={200}
+                      height={130}
+                      rx={12}
+                      fill={
+                        targetNode
+                          ? "rgba(245, 158, 11, 0.12)"
+                          : isSameAsOriginal
+                            ? "rgba(100, 116, 139, 0.08)"
+                            : "rgba(99, 102, 241, 0.12)"
+                      }
+                      stroke={targetNode ? "#f59e0b" : isSameAsOriginal ? "#64748b" : "#6366f1"}
+                      strokeWidth={2}
+                      strokeDasharray={isSameAsOriginal ? "3 3" : "6 4"}
+                    />
+                    <text
+                      x={cellCenterX}
+                      y={cellCenterY + 54}
+                      fill={targetNode ? "#f59e0b" : isSameAsOriginal ? "#94a3b8" : "#818cf8"}
+                      fontSize="11"
+                      fontWeight="600"
+                      textAnchor="middle"
+                    >
+                      {targetNode
+                        ? `Swap with "${targetNode.status.name}"`
+                        : isSameAsOriginal
+                          ? "Current position"
+                          : `Drop at [Col ${hoverCol}, Row ${hoverRow}]`}
+                    </text>
+                  </g>
+                );
+              })()}
+
             {edgeData.map(({ edgeId, d }) => {
               const isHovered = hoveredEdge === edgeId;
               return (
@@ -979,22 +1246,20 @@ export function WorkflowGraph({
                   >
                     <Plus className="h-3 w-3" />
                   </button>
-                  {(!fromNode.status.isInitial || !toNode.status.isSystem) && (
-                    <button
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        onDeleteEdge(fromNode.status.id, toNode.status.id);
-                      }}
-                      className={`w-[22px] h-[22px] rounded-sm border-2 bg-background flex items-center justify-center transition-all duration-150 ${
-                        isHovered
-                          ? "opacity-100 border-red-400 text-red-500 shadow-md hover:bg-red-50 scale-110"
-                          : "opacity-0 border-slate-400 text-slate-400"
-                      }`}
-                      title={`Delete connection ${fromNode.status.name} to ${toNode.status.name}`}
-                    >
-                      <X className="h-3 w-3 stroke-[3]" />
-                    </button>
-                  )}
+                  <button
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      onDeleteEdge(fromNode.status.id, toNode.status.id);
+                    }}
+                    className={`w-[22px] h-[22px] rounded-sm border-2 bg-background flex items-center justify-center transition-all duration-150 ${
+                      isHovered
+                        ? "opacity-100 border-red-400 text-red-500 shadow-md hover:bg-red-50 scale-110"
+                        : "opacity-0 border-slate-400 text-slate-400"
+                    }`}
+                    title={`Delete connection ${fromNode.status.name} to ${toNode.status.name}`}
+                  >
+                    <X className="h-3 w-3 stroke-[3]" />
+                  </button>
                 </div>
               );
             })}
@@ -1003,6 +1268,8 @@ export function WorkflowGraph({
             <WorkflowNodeCircle
               key={node.status.id}
               node={node}
+              inDegree={inDegreeMap[node.status.id] ?? 0}
+              outDegree={outDegreeMap[node.status.id] ?? 0}
               onClick={() => handleNodeClick(node)}
               onDelete={() => onDeleteNode(node.status.id)}
               onBranch={() => onAddBranch(node.status.id)}
@@ -1017,20 +1284,26 @@ export function WorkflowGraph({
         </div>
       </div>
 
-      <div className="absolute bottom-3 left-4 flex items-center gap-4 text-[10px] text-muted-foreground opacity-70 pointer-events-none z-40">
-        <span className="flex items-center gap-1">
-          <span className="w-2.5 h-2.5 rounded-full border-2 border-indigo-500 inline-block" />
-          Initial stage
+      <div className="absolute bottom-3 left-4 flex flex-wrap items-center gap-4 text-[10px] text-muted-foreground opacity-80 pointer-events-none z-40">
+        <span className="flex items-center gap-1.5">
+          <span className="w-2.5 h-2.5 rounded-full border-2 border-[#6366f1] inline-block" />
+          Primary Start (Created)
         </span>
-        <span className="flex items-center gap-1">
-          <span className="w-2.5 h-2.5 rounded-full border-2 border-primary inline-block" />
-          Terminal stage
+        <span className="flex items-center gap-1.5">
+          <span className="w-2.5 h-2.5 rounded-full border-2 border-[#8b5cf6] inline-block" />
+          Other Start
         </span>
-        <span className="flex items-center gap-1">
-          <span className="inline-block w-3 h-3 rounded-sm border border-muted-foreground/50 text-center leading-3 text-[9px]">
-            +
-          </span>
-          Hover edge to insert
+        <span className="flex items-center gap-1.5">
+          <span className="w-2.5 h-2.5 rounded-full border-2 border-[#10b981] inline-block" />
+          Completed
+        </span>
+        <span className="flex items-center gap-1.5">
+          <span className="w-2.5 h-2.5 rounded-full border-2 border-[#0d9488] inline-block" />
+          Terminal
+        </span>
+        <span className="flex items-center gap-1.5">
+          <span className="w-2.5 h-2.5 rounded-full border-2 border-[#3b82f6] inline-block" />
+          Intermediate
         </span>
       </div>
     </div>

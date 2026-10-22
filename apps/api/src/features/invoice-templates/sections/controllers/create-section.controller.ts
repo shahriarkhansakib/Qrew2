@@ -3,6 +3,7 @@ import { and, eq } from "drizzle-orm";
 import { Context } from "hono";
 import { z } from "zod";
 import { TokenService } from "../../../tokens/token.service";
+import { touchTemplate } from "../../invoice-templates.controller";
 import { nextSectionToken } from "../services/section-index.service";
 
 const createSectionSchema = z.object({
@@ -58,5 +59,6 @@ export async function createSection(c: Context) {
     sortOrder: parsed.data.orderIndex,
   });
 
+  await touchTemplate(templateId);
   return c.json(newSection, 201);
 }

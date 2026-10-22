@@ -17,7 +17,7 @@
  *  INVOICE_TOTAL = SUM(SEC_X_TOTAL for all X + section charge values)
  *
  * Formula expressions use BARE token names (no {{}} delimiters).
- * Row references are stored as {{$row:UUID}} in DB and decoded before evaluation.
+ * Token references are stored as {{$tok:UUID}} in DB and decoded before evaluation.
  * Text interpolation ({{TOKEN}} / ${{TOKEN}}) is handled separately by
  * text-interpolator.service.ts.
  */
@@ -54,12 +54,22 @@ const math: MathJsInstance = create(all, {
 const ZERO = math.bignumber("0");
 const FIXED_SCALE = 6;
 
-export const MATH_FUNCTION_NAMES = new Set(["MIN", "MAX", "ROUND", "CLAMP", "ABS"]);
+export const MATH_FUNCTION_NAMES = new Set([
+  "MIN",
+  "MAX",
+  "ROUND",
+  "CLAMP",
+  "ABS",
+  "FLOOR",
+  "CEIL",
+]);
 
 const origMin = math.min;
 const origMax = math.max;
 const origRound = math.round;
 const origAbs = math.abs;
+const origFloor = math.floor;
+const origCeil = math.ceil;
 
 math.import(
   {
@@ -75,6 +85,10 @@ math.import(
       const dec = typeof decimals === "number" ? decimals : parseInt(String(decimals || 0), 10);
       return origRound(safeBN(val), dec);
     },
+    FLOOR: (val: any) => origFloor(safeBN(val)),
+    floor: (val: any) => origFloor(safeBN(val)),
+    CEIL: (val: any) => origCeil(safeBN(val)),
+    ceil: (val: any) => origCeil(safeBN(val)),
     ABS: (val: any) => origAbs(safeBN(val)),
     abs: (val: any) => origAbs(safeBN(val)),
     CLAMP: (val: any, minVal: any, maxVal: any) => {
@@ -306,6 +320,8 @@ export class AstEvaluatorService {
           baseValue = safeBN(row.manualValue ?? row.initialValue ?? null);
         }
         scope[token] = toFixed(baseValue);
+        // Expose base value on canonical rowToken before evaluating row charges (Rule 1)
+        scope[rowToken] = toFixed(baseValue);
         continue;
       }
 

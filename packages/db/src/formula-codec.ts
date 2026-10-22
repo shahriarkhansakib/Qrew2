@@ -15,7 +15,7 @@ export type TokenMap = Record<string, string>; // tokenName -> UUID
 export type IdToTokenMap = Record<string, string>; // UUID -> bareToken
 export type IdToEvalTokenMap = Record<string, string>; // UUID -> enginePrefixedToken
 
-// Legacy types for compatibility
+// Compatibility aliases for controller typing
 export type RowTokenToIdMap = Record<string, string>;
 export type RowIdToTokenMap = Record<string, string>;
 export type SecTokenToIdMap = Record<string, string>;
@@ -28,22 +28,9 @@ const TOK_CHARGES_REF_RE = /\{\{\$tok:([a-zA-Z0-9_-]+)\}\}_CHARGES/gi;
 const TOK_TOTAL_REF_RE = /\{\{\$tok:([a-zA-Z0-9_-]+)\}\}_TOTAL/gi;
 const TOK_REF_RE = /\{\{\$tok:([a-zA-Z0-9_-]+)\}\}/gi;
 
-// Legacy regexes for backward compatibility with existing tests/data
-const LEGACY_ROW_BASE_REF_RE = /\{\{\$row:([a-zA-Z0-9_-]+)\}\}_BASE/gi;
-const LEGACY_ROW_CHARGES_REF_RE = /\{\{\$row:([a-zA-Z0-9_-]+)\}\}_CHARGES/gi;
-const LEGACY_ROW_TOTAL_REF_RE = /\{\{\$row:([a-zA-Z0-9_-]+)\}\}_TOTAL/gi;
-const LEGACY_ROW_REF_RE = /\{\{\$row:([a-zA-Z0-9_-]+)\}\}/gi;
-
-const LEGACY_SEC_BASE_REF_RE = /\{\{\$sec:([a-zA-Z0-9_-]+)\}\}_BASE/gi;
-const LEGACY_SEC_CHARGES_REF_RE = /\{\{\$sec:([a-zA-Z0-9_-]+)\}\}_CHARGES/gi;
-const LEGACY_SEC_TOTAL_REF_RE = /\{\{\$sec:([a-zA-Z0-9_-]+)\}\}_TOTAL/gi;
-const LEGACY_SEC_REF_RE = /\{\{\$sec:([a-zA-Z0-9_-]+)\}\}/gi;
-
-const LEGACY_TPL_REF_RE = /\{\{\$tpl:([a-zA-Z0-9_-]+)\}\}/gi;
-
 /**
  * Encode: bare or prefixed tokens -> {{$tok:UUID}}
- * Encodes _BASE, _CHARGES, and legacy _TOTAL suffixes first.
+ * Encodes _BASE, _CHARGES, and _TOTAL suffixes into canonical {{$tok:UUID}}.
  */
 export function encodeFormula(
   formula: string | null | undefined,
@@ -69,7 +56,7 @@ export function encodeFormula(
     // Suffix variants for rows and sections
     result = result.replace(new RegExp(`\\b${token}_BASE\\b`, "g"), `{{$tok:${id}}}_BASE`);
     result = result.replace(new RegExp(`\\b${token}_CHARGES\\b`, "g"), `{{$tok:${id}}}_CHARGES`);
-    // Legacy _TOTAL maps to bare total
+    // _TOTAL maps to bare token
     result = result.replace(new RegExp(`\\b${token}_TOTAL\\b`, "g"), `{{$tok:${id}}}`);
     // Bare token
     result = result.replace(new RegExp(`\\b${token}\\b`, "g"), `{{$tok:${id}}}`);
@@ -85,11 +72,11 @@ export function encodeFormula(
     result = result.replace(new RegExp(`\\b(?<!(GBL_|ORG_))${token}\\b`, "g"), `GBL_${token}`);
   }
 
-  return result;
+  return normalizeFormulaSpacing(result);
 }
 
 /**
- * Decode: {{$tok:UUID}} (and legacy formats) -> bare display token
+ * Decode: {{$tok:UUID}} -> bare display token
  */
 export function decodeFormula(
   stored: string | null | undefined,
@@ -127,52 +114,12 @@ export function decodeFormula(
     return token ? token : `{{$tok:${id}}}`;
   });
 
-  // Legacy {{$row:...}}, {{$sec:...}}, {{$tpl:...}}
-  result = result.replace(LEGACY_ROW_BASE_REF_RE, (_, id) => {
-    const token = tokenMap[id];
-    return token ? `${token}_BASE` : `{{$row:${id}}}_BASE`;
-  });
-  result = result.replace(LEGACY_ROW_CHARGES_REF_RE, (_, id) => {
-    const token = tokenMap[id];
-    return token ? `${token}_CHARGES` : `{{$row:${id}}}_CHARGES`;
-  });
-  result = result.replace(LEGACY_ROW_TOTAL_REF_RE, (_, id) => {
-    const token = tokenMap[id];
-    return token ? token : `{{$row:${id}}}`;
-  });
-  result = result.replace(LEGACY_ROW_REF_RE, (_, id) => {
-    const token = tokenMap[id];
-    return token ? token : `{{$row:${id}}}`;
-  });
-
-  result = result.replace(LEGACY_SEC_BASE_REF_RE, (_, id) => {
-    const token = tokenMap[id];
-    return token ? `${token}_BASE` : `{{$sec:${id}}}_BASE`;
-  });
-  result = result.replace(LEGACY_SEC_CHARGES_REF_RE, (_, id) => {
-    const token = tokenMap[id];
-    return token ? `${token}_CHARGES` : `{{$sec:${id}}}_CHARGES`;
-  });
-  result = result.replace(LEGACY_SEC_TOTAL_REF_RE, (_, id) => {
-    const token = tokenMap[id];
-    return token ? token : `{{$sec:${id}}}`;
-  });
-  result = result.replace(LEGACY_SEC_REF_RE, (_, id) => {
-    const token = tokenMap[id];
-    return token ? token : `{{$sec:${id}}}`;
-  });
-
-  result = result.replace(LEGACY_TPL_REF_RE, (_, id) => {
-    const token = tokenMap[id];
-    return token ? token : `{{$tpl:${id}}}`;
-  });
-
   // Decode prefixes to bare tokens
   result = result.replace(/\bFILE_([A-Z0-9_]+)\b/g, "$1");
   result = result.replace(/\b(?:GBL_|ORG_)([A-Z0-9_]+)\b/g, "$1");
   result = result.replace(/\bEXP_(?!TOTAL\b)([A-Z0-9_]+)\b/g, "$1");
 
-  return result;
+  return normalizeFormulaSpacing(result);
 }
 
 /**
@@ -217,45 +164,78 @@ export function decodeFormulaForEval(
     return token ? token : `{{$tok:${id}}}`;
   });
 
-  // Legacy {{$row:...}}, {{$sec:...}}, {{$tpl:...}}
-  result = result.replace(LEGACY_ROW_BASE_REF_RE, (_, id) => {
-    const token = evalMap[id];
-    return token ? `${token}_BASE` : `{{$row:${id}}}_BASE`;
-  });
-  result = result.replace(LEGACY_ROW_CHARGES_REF_RE, (_, id) => {
-    const token = evalMap[id];
-    return token ? `${token}_CHARGES` : `{{$row:${id}}}_CHARGES`;
-  });
-  result = result.replace(LEGACY_ROW_TOTAL_REF_RE, (_, id) => {
-    const token = evalMap[id];
-    return token ? token : `{{$row:${id}}}`;
-  });
-  result = result.replace(LEGACY_ROW_REF_RE, (_, id) => {
-    const token = evalMap[id];
-    return token ? token : `{{$row:${id}}}`;
+  return normalizeFormulaSpacing(result);
+}
+
+/**
+ * Rigorously normalizes mathematical formula whitespace into canonical delimiter-owned spacing.
+ * Rules:
+ *  1. Binary operators (+, -, *, /, //, %) have strictly one space on either side.
+ *  2. Unary minus clings to its operand (-10, (-5), *-2).
+ *  3. Parentheses have zero internal padding: (A + B), never ( A + B ).
+ *  4. Function calls have zero space before '(': CLAMP(x, min, max), never CLAMP (x).
+ *  5. Function arguments are delimited by comma and single space: ", ".
+ *  6. Percentage syntactic sugar clings to numbers: "50%", "0.15%".
+ *  7. Encoded tokens ({{$tok:...}}) preserve their delimiters cleanly.
+ *  8. Redundant multiple spaces and edge whitespace are eliminated.
+ */
+export function normalizeFormulaSpacing(formula: string | null | undefined): string {
+  if (!formula || typeof formula !== "string") return "";
+
+  let result = formula.trim();
+  if (result.length === 0) return "";
+
+  // 1. Collapse multiple whitespace characters into single space
+  result = result.replace(/\s+/g, " ");
+
+  // 2. Shield encoded storage tags (e.g. {{$tok:uuid-with-hyphens}})
+  const tags: string[] = [];
+  result = result.replace(/\{\{.*?\}\}/g, (match) => {
+    tags.push(match);
+    return `__FORMULA_TAG_${tags.length - 1}__`;
   });
 
-  result = result.replace(LEGACY_SEC_BASE_REF_RE, (_, id) => {
-    const token = evalMap[id];
-    return token ? `${token}_BASE` : `{{$sec:${id}}}_BASE`;
-  });
-  result = result.replace(LEGACY_SEC_CHARGES_REF_RE, (_, id) => {
-    const token = evalMap[id];
-    return token ? `${token}_CHARGES` : `{{$sec:${id}}}_CHARGES`;
-  });
-  result = result.replace(LEGACY_SEC_TOTAL_REF_RE, (_, id) => {
-    const token = evalMap[id];
-    return token ? token : `{{$sec:${id}}}`;
-  });
-  result = result.replace(LEGACY_SEC_REF_RE, (_, id) => {
-    const token = evalMap[id];
-    return token ? token : `{{$sec:${id}}}`;
-  });
+  // 3. Shield percentage attached to pure numeric literals (e.g. "50%", "0.15%")
+  const percentages: string[] = [];
+  result = result.replace(
+    /(^|[^A-Za-z0-9_])(\d+(?:\.\d+)?)\s*%(?!\s*[A-Za-z0-9_(])/g,
+    (_, prefix, num) => {
+      percentages.push(`${num}%`);
+      return `${prefix}__PERCENTAGE_${percentages.length - 1}__`;
+    },
+  );
 
-  result = result.replace(LEGACY_TPL_REF_RE, (_, id) => {
-    const token = evalMap[id];
-    return token ? (token.startsWith("TPL_") ? token : `TPL_${token}`) : `{{$tpl:${id}}}`;
-  });
+  // 4. Protect and normalize modulo operator `//`
+  result = result.replace(/\s*\/\/\s*/g, " __MODULO__ ");
 
-  return result;
+  // 5. Binary operators: +, *, /, and modulo % (which was not shielded as percentage)
+  result = result.replace(/\s*([+*/%])\s*/g, " $1 ");
+
+  // 6. Binary minus vs unary minus:
+  result = result.replace(/([A-Za-z0-9_.)%\]])\s*-\s*/g, "$1 - ");
+  result = result.replace(/([+*/(,]|\b__MODULO__\b)\s*-\s*([A-Za-z0-9_])/g, "$1 -$2");
+  result = result.replace(/^-\s*([A-Za-z0-9_])/g, "-$1");
+
+  // Restore modulo operator
+  result = result.replace(/\s*__MODULO__\s*/g, " // ");
+
+  // Restore percentages
+  result = result.replace(/__PERCENTAGE_(\d+)__/g, (_, idx) => percentages[Number(idx)] || "");
+
+  // Restore storage tags
+  result = result.replace(/__FORMULA_TAG_(\d+)__/g, (_, idx) => tags[Number(idx)] || "");
+
+  // 7. Parentheses:
+  result = result.replace(/\(\s+/g, "(");
+  result = result.replace(/\s+\)/g, ")");
+  result = result.replace(/\b([A-Za-z_][A-Za-z0-9_]*)\s+\(/g, "$1(");
+  result = result.replace(/\)(?=[A-Za-z0-9_])/g, ") ");
+
+  // 8. Commas: zero space before, exactly one space after
+  result = result.replace(/\s*,\s*/g, ", ");
+
+  // 9. Clean up any accidental double spaces
+  result = result.replace(/\s{2,}/g, " ");
+
+  return result.trim();
 }

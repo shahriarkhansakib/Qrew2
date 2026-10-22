@@ -2,11 +2,11 @@
 
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { ChevronDown, ChevronUp, Edit2, Plus, Trash2 } from "lucide-react";
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { toast } from "sonner";
 import { ConfirmDeleteModal } from "@/components/shared/confirm-delete-modal";
 import { Button } from "@/components/ui/button";
-import { evaluateFormula, fmt, TokenMap } from "@/lib/formula-evaluator";
+import { decodeFormula, evaluateFormula, fmt, TokenMap } from "@/lib/formula-evaluator";
 import { cn } from "@/lib/utils";
 import { AddEditRowModal } from "./add-edit-row-modal";
 import { AddEditSectionChargeModal } from "./add-edit-section-charge-modal";
@@ -133,9 +133,13 @@ function SectionChargeLine({
   sectionId: string;
   zoomLevel?: number;
 }) {
-  const { selectedCell, setSelectedCell } = useBuilderContext();
+  const { selectedCell, setSelectedCell, templateConstants, headerFields, sections } =
+    useBuilderContext();
 
   const fullFormula = (charge.formula ?? "").trim();
+  const decodedFormula = fullFormula
+    ? decodeFormula(fullFormula, sections, templateConstants, headerFields)
+    : "";
   const computedVal = evaluateFormula(fullFormula, tokenMap);
   const isSelected = selectedCell?.chargeId === charge.id;
 
@@ -143,7 +147,7 @@ function SectionChargeLine({
     <TableRow
       token={charge.chargeToken}
       onEditToken={mode !== "fill" ? onEdit : undefined}
-      formula={fullFormula}
+      formula={decodedFormula || fullFormula}
       zoomLevel={zoomLevel}
       onClickUsd1={() => {
         if (mode !== "fill") {
@@ -216,6 +220,7 @@ export function TemplateSectionCard({
   sectionColor,
   tokenMap,
   zoomLevel = 0,
+  isSharedDnd = false,
 }: {
   templateId: string;
   draftId?: string;
@@ -227,9 +232,18 @@ export function TemplateSectionCard({
   sectionColor: SectionColor;
   tokenMap: TokenMap;
   zoomLevel?: number;
+  isSharedDnd?: boolean;
 }) {
   const queryClient = useQueryClient();
-  const { apiBasePath, invalidateKey, mode, selectedCell } = useBuilderContext();
+  const {
+    apiBasePath,
+    invalidateKey,
+    mode,
+    selectedCell,
+    sectionSeparation,
+    showSectionHeaders,
+    showSectionSubtotals,
+  } = useBuilderContext();
   const isFormulaMode = !!selectedCell;
   const _isDraftMode = mode === "draft";
   const [isEditModalOpen, setIsEditModalOpen] = useState(false);
@@ -242,6 +256,24 @@ export function TemplateSectionCard({
   const label = section.label ?? null;
   const sectionToken = section.sectionToken;
   const headerName = label || sectionToken;
+
+  // Calculate section subtotal from live evaluated tokenMap
+  const sectionTotal = useMemo(() => {
+    let sum = 0;
+    for (const row of section.rows || []) {
+      const rowTok = row.rowToken;
+      if (rowTok && tokenMap[rowTok] != null) {
+        sum += Number(tokenMap[rowTok]) || 0;
+      }
+    }
+    for (const sc of section.charges || section.sectionCharges || []) {
+      const scTok = sc.chargeToken;
+      if (scTok && tokenMap[scTok] != null) {
+        sum += Number(tokenMap[scTok]) || 0;
+      }
+    }
+    return sum;
+  }, [section, tokenMap]);
 
   const invalidate = () => {
     queryClient.invalidateQueries({ queryKey: invalidateKey });
@@ -312,73 +344,75 @@ export function TemplateSectionCard({
 
   return (
     // overflow-visible is required so the absolute-positioned row tokens (right:100%) can escape the card border
-    <div className="flex flex-col group/section overflow-visible">
-      {/* ── Section header — thin, muted, full-width, with section color left border */}
-      <div className="flex items-stretch border-b border-border bg-muted/20 group/sec">
-        <div
-          className="flex-1 px-3 py-0.5 flex items-center justify-between min-w-0"
-          style={{ borderLeft: `4px solid ${sectionColor.border}` }}
-        >
-          <div className="flex items-center gap-2">
-            {/* Section reorder arrows */}
-            {mode !== "fill" && (
-              <div className="flex flex-col shrink-0 opacity-0 group-hover/sec:opacity-100 transition-opacity">
-                <button
-                  disabled={isFirst || reorderMutation.isPending}
-                  onClick={() => reorderMutation.mutate("up")}
-                  className="hover:text-primary disabled:opacity-30 disabled:cursor-default leading-none"
+    <div className="flex flex-col group/section overflow-visible w-full min-w-fit">
+      {/* ── Section header — thin, muted, full-width, with section color left border (Configurable visibility) */}
+      {showSectionHeaders && (
+        <div className="flex items-stretch border-b border-border bg-muted/20 group/sec w-full min-w-fit">
+          <div
+            className="flex-1 px-3 py-0.5 flex items-center justify-between min-w-0"
+            style={{ borderLeft: `4px solid ${sectionColor.border}` }}
+          >
+            <div className="flex items-center gap-2">
+              {/* Section reorder arrows */}
+              {mode !== "fill" && (
+                <div className="flex flex-col shrink-0 opacity-0 group-hover/sec:opacity-100 transition-opacity">
+                  <button
+                    disabled={isFirst || reorderMutation.isPending}
+                    onClick={() => reorderMutation.mutate("up")}
+                    className="hover:text-primary disabled:opacity-30 disabled:cursor-default leading-none"
+                  >
+                    <ChevronUp className="h-3 w-3" />
+                  </button>
+                  <button
+                    disabled={isLast || reorderMutation.isPending}
+                    onClick={() => reorderMutation.mutate("down")}
+                    className="hover:text-primary disabled:opacity-30 disabled:cursor-default leading-none"
+                  >
+                    <ChevronDown className="h-3 w-3" />
+                  </button>
+                </div>
+              )}
+              <h3
+                className="font-semibold uppercase tracking-wider truncate"
+                style={{ color: sectionColor.border, fontSize: 14 + zoomLevel }}
+              >
+                {label || `Section ${sectionToken.split("_").pop()}`}
+              </h3>
+              {/* Token badge — hover only */}
+              <span
+                className="font-mono text-muted-foreground/40 bg-muted/50 px-1.5 rounded opacity-0 group-hover/sec:opacity-100 transition-opacity select-all"
+                style={{ fontSize: 10 + zoomLevel }}
+              >
+                {sectionToken}
+              </span>
+            </div>
+
+            {/* Edit / Delete — hover only */}
+            {mode !== "fill" && !isFormulaMode && (
+              <div className="flex items-center gap-1 opacity-0 group-hover/sec:opacity-100 transition-opacity">
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  className="h-6 w-6 text-muted-foreground hover:text-foreground"
+                  onClick={() => setIsEditModalOpen(true)}
+                  title="Edit section"
                 >
-                  <ChevronUp className="h-3 w-3" />
-                </button>
-                <button
-                  disabled={isLast || reorderMutation.isPending}
-                  onClick={() => reorderMutation.mutate("down")}
-                  className="hover:text-primary disabled:opacity-30 disabled:cursor-default leading-none"
+                  <Edit2 className="h-3 w-3" />
+                </Button>
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  className="h-6 w-6 text-muted-foreground hover:text-destructive"
+                  onClick={() => setIsSectionDeleteModalOpen(true)}
+                  title="Delete section"
                 >
-                  <ChevronDown className="h-3 w-3" />
-                </button>
+                  <Trash2 className="h-3 w-3" />
+                </Button>
               </div>
             )}
-            <h3
-              className="font-semibold uppercase tracking-wider truncate"
-              style={{ color: sectionColor.border, fontSize: 14 + zoomLevel }}
-            >
-              {label || `Section ${sectionToken.split("_").pop()}`}
-            </h3>
-            {/* Token badge — hover only */}
-            <span
-              className="font-mono text-muted-foreground/40 bg-muted/50 px-1.5 rounded opacity-0 group-hover/sec:opacity-100 transition-opacity select-all"
-              style={{ fontSize: 10 + zoomLevel }}
-            >
-              {sectionToken}
-            </span>
           </div>
-
-          {/* Edit / Delete — hover only */}
-          {mode !== "fill" && !isFormulaMode && (
-            <div className="flex items-center gap-1 opacity-0 group-hover/sec:opacity-100 transition-opacity">
-              <Button
-                variant="ghost"
-                size="icon"
-                className="h-6 w-6 text-muted-foreground hover:text-foreground"
-                onClick={() => setIsEditModalOpen(true)}
-                title="Edit section"
-              >
-                <Edit2 className="h-3 w-3" />
-              </Button>
-              <Button
-                variant="ghost"
-                size="icon"
-                className="h-6 w-6 text-muted-foreground hover:text-destructive"
-                onClick={() => setIsSectionDeleteModalOpen(true)}
-                title="Delete section"
-              >
-                <Trash2 className="h-3 w-3" />
-              </Button>
-            </div>
-          )}
         </div>
-      </div>
+      )}
 
       {/* ── Rows ── */}
       <TemplateRowList
@@ -392,6 +426,7 @@ export function TemplateSectionCard({
         tokenMap={tokenMap}
         allSections={allSections}
         zoomLevel={zoomLevel}
+        isSharedDnd={isSharedDnd}
       />
 
       {/* ── Section charges — visually distinct (section color, bolder) ── */}
@@ -418,7 +453,7 @@ export function TemplateSectionCard({
       )}
 
       {/* ── Footer — Add row / Add section charge ── */}
-      {mode !== "fill" && (
+      {mode !== "fill" && mode !== "preview" && (
         <div className="flex items-stretch border-b border-border bg-muted/5 hover:bg-muted/10 transition-colors">
           {/* Add row button */}
           <div className="flex-1 border-r border-border p-0.5">
@@ -443,6 +478,28 @@ export function TemplateSectionCard({
             </Button>
           </div>
         </div>
+      )}
+
+      {/* ── Section Subtotal (Configurable) ── */}
+      {showSectionSubtotals && (
+        <div className="flex items-stretch border-b border-border bg-muted/15 font-bold h-9 w-full min-w-fit">
+          <div className="w-10 shrink-0 border-r border-border" />
+          <div className="flex-1 px-3 flex items-center justify-end text-muted-foreground uppercase text-xs tracking-wider border-r border-border min-w-0">
+            Subtotal {label ? `— ${label}` : `Section ${sectionToken}`}
+          </div>
+          <div className="w-20 shrink-0 border-r border-border" />
+          <div className="w-20 shrink-0 flex items-center justify-end px-2 tabular-nums text-foreground font-semibold">
+            {fmt(sectionTotal)}
+          </div>
+        </div>
+      )}
+
+      {/* ── Section Separation (Between Sections) ── */}
+      {!isLast && sectionSeparation === "double" && (
+        <div className="border-b-4 border-double border-border" />
+      )}
+      {!isLast && sectionSeparation === "step" && (
+        <div className="my-3 border-b border-border/60" />
       )}
 
       {/* ── Modals ── */}

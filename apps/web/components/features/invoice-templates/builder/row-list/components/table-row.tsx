@@ -2,6 +2,7 @@ import { AlertTriangle, Edit2 } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { cn } from "@/lib/utils";
 import { useBuilderContext } from "../../builder-context";
 import { SyntaxOverlay } from "../../formula-bar-syntax";
@@ -17,11 +18,14 @@ export function ClickableCell({
   children: React.ReactNode;
   className?: string;
 }) {
-  if (!onClick) {
+  const { mode } = useBuilderContext();
+  const isPdfMode = mode === "preview";
+
+  if (!onClick || isPdfMode) {
     return (
       <div
         className={cn("w-full h-full flex items-center justify-end", className)}
-        title="Not editable"
+        title={isPdfMode ? undefined : !onClick ? "Not editable" : undefined}
       >
         {children}
       </div>
@@ -137,6 +141,7 @@ export function TableRow({
   notices,
   zoomLevel = 0,
   onEditToken,
+  onClickLabel,
 }: {
   token?: string;
   sl?: React.ReactNode;
@@ -156,6 +161,7 @@ export function TableRow({
   notices?: any[];
   zoomLevel?: number;
   onEditToken?: () => void;
+  onClickLabel?: () => void;
 }) {
   const {
     selectedCell,
@@ -164,11 +170,14 @@ export function TableRow({
     invalidTokens,
     hiddenTokens,
     getTokenDisabledReason,
+    mode,
   } = useBuilderContext();
   const isFormulaMode = !!selectedCell;
   const isInvalid = token ? invalidTokens.has(token) : false;
   const isHidden = token ? hiddenTokens.has(token) : false;
-  const isDisabled = isFormulaMode && (isInvalid || isHidden);
+  const isFillMode = mode === "fill";
+  const isPdfMode = mode === "preview";
+  const isDisabled = isFillMode ? false : isFormulaMode && (isInvalid || isHidden);
   const disabledReason =
     token && isDisabled
       ? getTokenDisabledReason(token) ||
@@ -177,6 +186,7 @@ export function TableRow({
 
   const handleTokenClick = (e: React.MouseEvent, clickedToken: string) => {
     e.stopPropagation();
+    if (isFillMode || isPdfMode) return;
     if (isFormulaMode) {
       if (isInvalid || isHidden) {
         toast.error(`Cannot insert: ${disabledReason || `"${clickedToken}" is not allowed.`}`);
@@ -193,23 +203,26 @@ export function TableRow({
   return (
     <div
       className={cn(
-        "relative flex items-stretch border-b border-border group/row hover:z-[60]",
+        "relative flex items-stretch border-b border-border group/row hover:z-[60] w-full min-w-fit",
         "hover:bg-muted/5 transition-colors bg-background",
         notices && notices.length > 0 && "bg-accent/[0.03] hover:bg-accent/[0.06]",
         className,
       )}
       style={style}
     >
-      {token && (
+      {token && !isPdfMode && (
         <div
           className={cn(
-            "absolute right-full top-0 bottom-0 w-36 min-w-[9rem] hover:w-auto flex items-center justify-end pr-3 select-none transition-colors insertable-token",
-            "z-10 hover:z-50 hover:pl-4 rounded-l-md group/token",
+            "absolute right-full top-0 bottom-0 w-20 min-w-[5rem] flex items-center justify-end pr-2 select-none transition-all duration-150 insertable-token",
+            "z-10 hover:z-50 rounded-l-md group/token",
+            "hover:w-max hover:max-w-md hover:bg-background/95 hover:backdrop-blur-sm hover:shadow-md hover:border hover:border-primary/20 hover:px-2.5",
             isDisabled
               ? "opacity-35 cursor-not-allowed bg-muted/10 hover:bg-muted/10"
-              : isFormulaMode
-                ? "cursor-pointer hover:bg-primary/5 hover:border-primary/20"
-                : "cursor-pointer hover:bg-muted hover:shadow-sm",
+              : isFillMode
+                ? "cursor-default"
+                : isFormulaMode
+                  ? "cursor-pointer hover:bg-primary/5 hover:border-primary/20"
+                  : "cursor-pointer hover:bg-muted hover:shadow-sm",
           )}
           onClick={(e) => handleTokenClick(e, token)}
           title={
@@ -217,21 +230,60 @@ export function TableRow({
               ? disabledReason?.startsWith("Disabled:")
                 ? disabledReason
                 : `Disabled: ${disabledReason}`
-              : isFormulaMode
-                ? "Insert into formula"
-                : "Copy token"
+              : isFillMode
+                ? undefined
+                : isFormulaMode
+                  ? "Insert into formula"
+                  : "Copy token"
           }
         >
           <div className="flex items-center gap-1.5">
-            {isInvalid && (
-              <span
-                className="text-accent-foreground flex items-center text-[10px] font-sans font-medium shrink-0"
-                title={disabledReason || "Creates circular dependency"}
-              >
-                <AlertTriangle className="w-3.5 h-3.5 mr-0.5 shrink-0" />
-              </span>
+            {(isInvalid || (notices && notices.length > 0)) && (
+              <Popover>
+                <PopoverTrigger asChild>
+                  <button
+                    type="button"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                    }}
+                    className="p-0.5 rounded hover:bg-muted text-amber-500 hover:text-amber-400 cursor-pointer shrink-0 transition-colors pointer-events-auto"
+                    title="View warnings and errors"
+                  >
+                    <AlertTriangle className="w-3.5 h-3.5 shrink-0" />
+                  </button>
+                </PopoverTrigger>
+                <PopoverContent
+                  side="top"
+                  align="start"
+                  className="w-72 p-3 border-amber-500/30 shadow-xl z-[100]"
+                  onClick={(e) => e.stopPropagation()}
+                >
+                  <div className="flex items-start gap-2">
+                    <AlertTriangle className="w-4 h-4 text-amber-500 shrink-0 mt-0.5" />
+                    <div>
+                      <p className="text-xs font-semibold text-amber-500 mb-1">
+                        {isInvalid ? "Circular Dependency / Token Issue" : "Validation Warnings"}
+                      </p>
+                      {disabledReason && (
+                        <p className="text-xs text-muted-foreground leading-relaxed">
+                          {disabledReason}
+                        </p>
+                      )}
+                      {notices && notices.length > 0 && (
+                        <ul className="space-y-1 mt-1">
+                          {notices.map((n: any, i: number) => (
+                            <li key={i} className="text-xs text-muted-foreground leading-relaxed">
+                              {n.message || n.error || "Formula or evaluation issue"}
+                            </li>
+                          ))}
+                        </ul>
+                      )}
+                    </div>
+                  </div>
+                </PopoverContent>
+              </Popover>
             )}
-            {onEditToken && !isFormulaMode && (
+            {onEditToken && !isFormulaMode && !isFillMode && (
               <Button
                 variant="ghost"
                 size="icon"
@@ -247,7 +299,7 @@ export function TableRow({
             )}
             <span
               className={cn(
-                "font-mono font-semibold truncate leading-none",
+                "font-mono font-semibold truncate group-hover/token:whitespace-nowrap leading-none",
                 isInvalid ? "text-muted-foreground/70 line-through" : getTokenColor(token),
               )}
               style={{ fontSize: 12 + zoomLevel }}
@@ -258,40 +310,56 @@ export function TableRow({
         </div>
       )}
 
-      <div className="absolute left-full top-0 bottom-0 flex items-center pl-3 gap-2 z-20">
-        {formula && (
-          <RowFormulaBadge
-            formula={formula}
-            zoomLevel={zoomLevel}
-            onClickFormula={onClickFormula}
-            getTokenColor={getTokenColor}
-          />
-        )}
-      </div>
+      {!isPdfMode && (
+        <div className="absolute left-full top-0 bottom-0 flex items-center pl-3 gap-2 z-20">
+          {formula && (
+            <RowFormulaBadge
+              formula={formula}
+              zoomLevel={zoomLevel}
+              onClickFormula={onClickFormula}
+              getTokenColor={getTokenColor}
+            />
+          )}
+        </div>
+      )}
 
       <div
         className={cn(
           "w-10 shrink-0 flex items-center justify-center border-r border-border font-bold transition-colors select-none",
-          token
-            ? isFormulaMode
-              ? "cursor-pointer text-primary hover:bg-primary/10"
-              : "cursor-pointer text-muted-foreground hover:text-foreground hover:bg-muted/10"
-            : "text-muted-foreground",
+          isPdfMode
+            ? "text-muted-foreground"
+            : token
+              ? isFormulaMode
+                ? "cursor-pointer text-primary hover:bg-primary/10"
+                : "cursor-pointer text-muted-foreground hover:text-foreground hover:bg-muted/10"
+              : "text-muted-foreground",
         )}
-        onClick={(e) => token && handleTokenClick(e, token)}
-        title={token ? (isFormulaMode ? "Insert into formula" : "Copy token") : undefined}
+        onClick={(e) => !isPdfMode && token && handleTokenClick(e, token)}
+        title={
+          !isPdfMode && token ? (isFormulaMode ? "Insert into formula" : "Copy token") : undefined
+        }
         style={{ fontSize: 14 + zoomLevel }}
       >
         {sl}
       </div>
 
       <div
-        className="flex-1 px-3 py-1.5 flex items-center justify-between gap-2 border-r border-border min-w-0 overflow-hidden font-medium relative"
+        className={cn(
+          "flex-1 px-3 py-1.5 flex items-center justify-between gap-2 border-r border-border min-w-0 overflow-hidden font-medium relative",
+          onClickLabel && !isFormulaMode && !isPdfMode && "cursor-text",
+        )}
         style={{ fontSize: 14 + zoomLevel }}
+        onClick={(e) => {
+          if (isFormulaMode || isPdfMode) return;
+          const target = e.target as HTMLElement;
+          if (target.closest("button, a, input, select, textarea, [data-no-cell-click='true']"))
+            return;
+          onClickLabel?.();
+        }}
       >
-        <div className="flex items-center gap-2 min-w-0 truncate">{labelContent}</div>
+        <div className="flex-1 flex items-center gap-2 min-w-0 truncate">{labelContent}</div>
 
-        {actions && !isFormulaMode && (
+        {actions && !isFormulaMode && !isPdfMode && (
           <div className="hidden md:flex absolute right-0 top-0 bottom-0 items-center opacity-0 group-hover/row:opacity-100 transition-opacity z-10 bg-gradient-to-l from-background via-background/90 to-transparent pl-12 pr-2">
             <div className="relative flex items-center gap-0.5 bg-background rounded-md shadow-sm border border-border/50 px-0.5 py-0.5">
               {actions}
@@ -299,7 +367,7 @@ export function TableRow({
           </div>
         )}
 
-        {mobileActions && !isFormulaMode && (
+        {mobileActions && !isFormulaMode && !isPdfMode && (
           <div className="md:hidden shrink-0 flex items-center ml-1 relative z-10">
             {mobileActions}
           </div>
@@ -310,15 +378,19 @@ export function TableRow({
         className={cn(
           "w-20 shrink-0 flex items-center justify-end border-r border-border",
           "font-bold text-foreground tabular-nums",
-          onClickUsd1 ? "p-1" : "px-2 py-1",
+          onClickUsd1 && !isPdfMode ? "p-1" : "px-2 py-1",
         )}
         style={{ fontSize: 16 + zoomLevel }}
       >
-        <ClickableCell onClick={onClickUsd1} isSelected={isUsd1Selected} className="px-2">
+        <ClickableCell
+          onClick={isPdfMode ? undefined : onClickUsd1}
+          isSelected={!isPdfMode && isUsd1Selected}
+          className="px-2"
+        >
           {usd1 ??
-            (onClickUsd1 ? (
+            (onClickUsd1 && !isPdfMode ? (
               <span className="text-muted-foreground/30 text-sm select-none">—</span>
-            ) : (
+            ) : isPdfMode ? null : (
               <span className="text-muted-foreground/30 text-[10px] uppercase tracking-wider select-none">
                 Not editable
               </span>
@@ -330,15 +402,19 @@ export function TableRow({
         className={cn(
           "w-20 shrink-0 flex items-center justify-end",
           "font-bold text-foreground tabular-nums",
-          onClickUsd2 ? "p-1" : "px-2 py-1",
+          onClickUsd2 && !isPdfMode ? "p-1" : "px-2 py-1",
         )}
         style={{ fontSize: 16 + zoomLevel }}
       >
-        <ClickableCell onClick={onClickUsd2} isSelected={isUsd2Selected} className="px-2">
+        <ClickableCell
+          onClick={isPdfMode ? undefined : onClickUsd2}
+          isSelected={!isPdfMode && isUsd2Selected}
+          className="px-2"
+        >
           {usd2 ??
-            (onClickUsd2 ? (
+            (onClickUsd2 && !isPdfMode ? (
               <span className="text-muted-foreground/30 text-sm select-none">—</span>
-            ) : (
+            ) : isPdfMode ? null : (
               <span className="text-muted-foreground/30 text-[10px] uppercase tracking-wider select-none">
                 Not editable
               </span>

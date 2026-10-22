@@ -12,8 +12,10 @@ import {
 import { eq, inArray } from "drizzle-orm";
 import { Context } from "hono";
 import { z } from "zod";
+import { TokenService } from "../../tokens/token.service";
 import { AstEvaluatorService } from "./ast-evaluator.service";
 import { DagValidatorService } from "./dag-validator.service";
+import { getProjectedDocumentNumber } from "./document-number";
 import { parseToBN, resolveScope } from "./token-resolver.service";
 import type {
   EvaluatorRow,
@@ -125,8 +127,9 @@ export class EngineController {
             const raw = val?.value ?? val; // handle both object and primitive
             const bn = parseToBN(raw);
             const fixed = bn.toFixed(6);
-            scope[key] = fixed;
-            scope[`TPL_${key}`] = fixed;
+            const bareKey = key.replace(/^TPL_/, "");
+            scope[`TPL_${bareKey}`] = fixed;
+            scope[bareKey] = fixed;
           }
         }
 
@@ -255,7 +258,7 @@ export class EngineController {
                 .orderBy(tokens.sortOrder)
             : [];
 
-        // Build idToToken map: rowId -> rowToken (for decoding {{$row:uuid}} refs)
+        // Build idToToken map: rowId -> rowToken (for decoding {{$tok:uuid}} refs)
         for (const row of dbRows) {
           idToToken[row.id] = row.rowToken;
         }
@@ -303,7 +306,7 @@ export class EngineController {
               label: r.label,
               sectionId: r.sectionId,
               valueType: r.valueType, // 'normal' | 'formula'
-              formula: r.formula ?? null, // stored as {{$row:uuid}}, decoded in evaluator
+              formula: r.formula ?? null, // stored as {{$tok:uuid}}, decoded in evaluator
               initialValue: r.initialValue ?? null,
               manualValue: null, // no staff override on fresh template load
               charges,
@@ -339,13 +342,41 @@ export class EngineController {
       // 3. DAG validation (runs on V2 EvaluatorSection[])
       // ─────────────────────────────────────────────────────────────────────
       const externalTokens = new Set(Object.keys(scope));
-      // We skip rebuilding idToToken if it was already built in the DB path.
-      // But for draft path, we don't have secIdToToken or tplIdToToken because formulas are plaintext!
-      const idToTokenForDag: RowIdToTokenMap = Object.keys(idToToken).length > 0 ? idToToken : {};
-      if (Object.keys(idToTokenForDag).length === 0) {
-        for (const sec of evaluatorSections) {
-          for (const row of sec.rows) {
+
+      // Load all template tokens (header fields, constants, configs) if templateId is provided
+      if (templateId) {
+        try {
+          const { idToEvalToken, idToToken: tplIdToTokenMap } =
+            await TokenService.getTemplateTokenMaps(templateId, organizationId, db);
+          for (const [id, tok] of Object.entries(idToEvalToken)) {
+            if (!idToToken[id]) idToToken[id] = tok;
+          }
+          for (const [id, tok] of Object.entries(tplIdToTokenMap)) {
+            if (!idToToken[id]) idToToken[id] = tok;
+          }
+        } catch (e) {
+          console.error("[preview] Failed to load template token maps", e);
+        }
+      }
+
+      const idToTokenForDag: RowIdToTokenMap = { ...idToToken };
+      for (const sec of evaluatorSections) {
+        if (sec.id && sec.sectionToken && !secIdToToken[sec.id]) {
+          secIdToToken[sec.id] = `SEC_${sec.sectionToken}`;
+        }
+        for (const row of sec.rows ?? []) {
+          if (row.id && row.rowToken) {
             idToTokenForDag[row.id] = row.rowToken;
+          }
+          for (const ch of row.charges ?? []) {
+            if (ch.id && ch.chargeToken) {
+              idToTokenForDag[ch.id] = ch.chargeToken;
+            }
+          }
+        }
+        for (const sc of sec.sectionCharges ?? []) {
+          if (sc.id && sc.chargeToken) {
+            idToTokenForDag[sc.id] = sc.chargeToken;
           }
         }
       }
@@ -433,6 +464,17 @@ export class EngineController {
         data: {
           sections: evaluatedSections,
           grandTotal,
+          projectedDocumentNumber: await (async () => {
+            try {
+              return await getProjectedDocumentNumber({
+                organizationId,
+                sourceTemplateId: templateId,
+                tx: db,
+              });
+            } catch {
+              return "INV-0001";
+            }
+          })(),
           headerFieldDefs,
           resolvedScope: {
             schemaVersion: "2.0",

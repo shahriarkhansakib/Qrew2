@@ -30,3 +30,5 @@ This is an Enterprise B2B SaaS serving as a central operating system for organiz
    - Invoice Templates API: `apps/api/src/features/invoice-templates/agent.md`
    - Invoices & Calculation Engine: `apps/api/src/features/invoices/engine/agent.md`
 
+   - Invoice Drafts: `apps/api/src/features/invoices/drafts/agent.md`
+   - Invoices Lifecycle: `apps/api/src/features/invoices/agent.md`

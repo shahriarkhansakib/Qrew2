@@ -5,6 +5,7 @@ import {
   invoiceTemplates,
   templateRowCharges,
   templateRows,
+  templateSections,
   tokens,
 } from "@starter/db";
 import { and, asc, eq } from "drizzle-orm";
@@ -12,8 +13,10 @@ import { Context } from "hono";
 import { z } from "zod";
 import { validateTemplateDag } from "../../../invoices/engine/engine-utils";
 import { TokenService } from "../../../tokens/token.service";
+import { touchTemplate } from "../../invoice-templates.controller";
 import { getTemplateFormulaContext } from "../../services/template-formula-context.service";
 import { validateFormulaChars } from "../../validation/formula-validator";
+import { resequenceTemplateRowTokens } from "../services/resequence-rows.service";
 
 const updateRowSchema = z.object({
   label: z.string().optional(),
@@ -30,6 +33,8 @@ const updateRowSchema = z.object({
   valueType: z.enum(["normal", "formula"]).optional(),
   formula: z.string().optional().nullable(),
   initialValue: z.number().optional().nullable(),
+  cellValues: z.record(z.string(), z.any()).optional(),
+  sectionId: z.string().min(1).optional(),
 });
 
 export async function updateRow(c: Context): Promise<any> {
@@ -120,6 +125,27 @@ export async function updateRow(c: Context): Promise<any> {
     if (parsed.data.initialValue != null) rowPatch.formula = null;
   }
 
+  if (parsed.data.cellValues !== undefined) {
+    rowPatch.cellValues = parsed.data.cellValues;
+  }
+
+  if (parsed.data.sectionId && parsed.data.sectionId !== existingRow.sectionId) {
+    const secCheck = await db
+      .select({ id: templateSections.id })
+      .from(templateSections)
+      .where(
+        and(
+          eq(templateSections.id, parsed.data.sectionId),
+          eq(templateSections.templateId, existingRow.templateId),
+        ),
+      )
+      .limit(1);
+    if (secCheck.length === 0) {
+      return c.json({ error: "Target section not found in this template" }, 404);
+    }
+    rowPatch.sectionId = parsed.data.sectionId;
+  }
+
   if (Object.keys(tokenPatch).length === 0 && Object.keys(rowPatch).length === 0) {
     return c.json({ error: "No values to set" }, 400);
   }
@@ -141,6 +167,12 @@ export async function updateRow(c: Context): Promise<any> {
         }
       }
 
+      await touchTemplate(existingRow.templateId, tx);
+
+      if (parsed.data.sectionId !== undefined || parsed.data.orderIndex !== undefined) {
+        await resequenceTemplateRowTokens(existingRow.templateId, tx);
+      }
+
       const [finalRow] = await tx
         .select({
           id: templateRows.id,
@@ -149,6 +181,7 @@ export async function updateRow(c: Context): Promise<any> {
           valueType: templateRows.valueType,
           formula: templateRows.formula,
           initialValue: templateRows.initialValue,
+          cellValues: templateRows.cellValues,
           rowToken: tokens.tokenKey,
           label: tokens.label,
           description: tokens.description,

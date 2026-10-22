@@ -66,6 +66,43 @@ invoicesRouter.delete(
   DraftsController.deleteDraft,
 );
 
+invoicesRouter.post(
+  "/drafts/:id/save-as-template",
+  requireOrgPermission(["template:create", "finance:manage_invoices", "workspace:manage_settings"]),
+  DraftsController.saveAsTemplate,
+);
+
+invoicesRouter.get(
+  "/drafts/:id/template-sync-status",
+  requireOrgPermission([
+    "invoice:view",
+    "invoice:fill_values",
+    "finance:view_invoices",
+    "finance:manage_invoices",
+  ]),
+  DraftsController.getTemplateSyncStatus,
+);
+
+invoicesRouter.post(
+  "/drafts/:id/sync-template",
+  requireOrgPermission([
+    "invoice:fill_values",
+    "invoice:author_formulas",
+    "finance:manage_invoices",
+  ]),
+  DraftsController.syncWithTemplate,
+);
+
+invoicesRouter.post(
+  "/drafts/:id/reset-initial",
+  requireOrgPermission([
+    "invoice:fill_values",
+    "invoice:author_formulas",
+    "finance:manage_invoices",
+  ]),
+  DraftsController.resetToTemplateInitial,
+);
+
 // --- DRAFT OPTIONAL SERVICE ROWS ---
 invoicesRouter.get(
   "/drafts/:id/optional-rows",
@@ -83,6 +120,68 @@ invoicesRouter.delete(
   "/drafts/:id/optional-rows/:rowId",
   requireOrgPermission(["invoice:manage_optional_rows", "finance:manage_invoices"]),
   DraftBuilderController.removeOptionalRow,
+);
+
+// --- DRAFT HEADER FIELDS ---
+invoicesRouter.get(
+  "/drafts/:id/header-fields",
+  requireOrgPermission([
+    "invoice:view",
+    "invoice:fill_values",
+    "finance:view_invoices",
+    "finance:manage_invoices",
+  ]),
+  DraftBuilderController.listHeaderFields,
+);
+
+invoicesRouter.post(
+  "/drafts/:id/header-fields",
+  requireOrgPermission([
+    "invoice:manage_optional_rows",
+    "invoice:edit_line_labels",
+    "finance:manage_invoices",
+  ]),
+  DraftBuilderController.createHeaderField,
+);
+
+invoicesRouter.patch(
+  "/drafts/:id/header-fields/:fieldId",
+  requireOrgPermission([
+    "invoice:manage_optional_rows",
+    "invoice:edit_line_labels",
+    "finance:manage_invoices",
+  ]),
+  DraftBuilderController.updateHeaderField,
+);
+
+invoicesRouter.delete(
+  "/drafts/:id/header-fields/:fieldId",
+  requireOrgPermission([
+    "invoice:manage_optional_rows",
+    "invoice:edit_line_labels",
+    "finance:manage_invoices",
+  ]),
+  DraftBuilderController.deleteHeaderField,
+);
+
+invoicesRouter.put(
+  "/drafts/:id/header-fields/reorder",
+  requireOrgPermission([
+    "invoice:manage_optional_rows",
+    "invoice:edit_line_labels",
+    "finance:manage_invoices",
+  ]),
+  DraftBuilderController.reorderHeaderFields,
+);
+
+invoicesRouter.patch(
+  "/drafts/:id/header-values",
+  requireOrgPermission([
+    "invoice:fill_values",
+    "invoice:author_formulas",
+    "finance:manage_invoices",
+  ]),
+  DraftBuilderController.updateHeaderValues,
 );
 
 // --- DRAFT BUILDER ---

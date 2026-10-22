@@ -31,7 +31,15 @@ import { type DagValidationResult, type EngineError, type EvaluatorSection } fro
 // TOKEN EXTRACTION
 // ─────────────────────────────────────────────────────────────────────────────
 
-export const MATH_FUNCTION_NAMES = new Set(["MIN", "MAX", "ROUND", "CLAMP", "ABS"]);
+export const MATH_FUNCTION_NAMES = new Set([
+  "MIN",
+  "MAX",
+  "ROUND",
+  "CLAMP",
+  "ABS",
+  "FLOOR",
+  "CEIL",
+]);
 
 /**
  * Extracts all bare token identifiers from a formula string.

@@ -60,7 +60,7 @@ describe("Formula Codec Unit Tests (Frontend-Bare <-> Backend-Prefixed)", () => 
 
   it("decodes database storage format back to bare tokens for frontend display", () => {
     const stored =
-      "{{$row:row-uuid-1}}_BASE * GBL_VAT_RATE + FILE_CUSTOM1 * 2 + {{$tpl:tpl-uuid-1}} + {{$sec:sec-uuid-1}}_CHARGES";
+      "{{$tok:row-uuid-1}}_BASE * GBL_VAT_RATE + FILE_CUSTOM1 * 2 + {{$tok:tpl-uuid-1}} + {{$tok:sec-uuid-1}}_CHARGES";
     const decoded = decodeFormula(
       stored,
       rowIdToToken,
@@ -75,7 +75,7 @@ describe("Formula Codec Unit Tests (Frontend-Bare <-> Backend-Prefixed)", () => 
 
   it("decodes for engine evaluation retaining prefixes for external tokens", () => {
     const stored =
-      "{{$row:row-uuid-1}}_BASE * GBL_VAT_RATE + FILE_CUSTOM1 * 2 + {{$tpl:tpl-uuid-1}} + {{$sec:sec-uuid-1}}_TOTAL";
+      "{{$tok:row-uuid-1}}_BASE * GBL_VAT_RATE + FILE_CUSTOM1 * 2 + {{$tok:tpl-uuid-1}} + {{$tok:sec-uuid-1}}";
     const evalFormula = decodeFormulaForEval(stored, rowIdToToken, secIdToToken, tplIdToToken);
 
     // Engine expects GBL_* and FILE_* prefixes intact, row/sec tokens decoded, tpl decoded to TPL_*

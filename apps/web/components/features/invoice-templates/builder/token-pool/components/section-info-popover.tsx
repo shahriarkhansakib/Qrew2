@@ -38,6 +38,12 @@ export const FILE_DETAILS_INFO: SectionInfoData = {
   prefixClass: "text-sky-400 bg-sky-500/10",
 };
 
+export const SHEET_DETAILS_INFO: SectionInfoData = {
+  description: "Fields defined for sheet header metadata and calculation variables.",
+  prefix: "SHEET_",
+  prefixClass: "text-sky-400 bg-sky-500/10",
+};
+
 export const EXPENSE_CATEGORIES_INFO: SectionInfoData = {
   title: "Expense Category Tokens",
   description: "Dynamic expense sums recorded for this project across all categories.",
@@ -48,7 +54,7 @@ export const EXPENSE_CATEGORIES_INFO: SectionInfoData = {
       name: "EXP_TOTAL",
       role: "Total Expenses",
       description: "Sum of all recorded expenses across every category for this project.",
-      badgeClass: "text-rose-500 bg-rose-500/15 font-bold",
+      badgeClass: "text-rose-400 bg-rose-500/10 font-semibold",
     },
     {
       name: "<CATEGORY>",
@@ -116,13 +122,13 @@ export const ROW_TOKENS_INFO: SectionInfoData = {
       name: "<ROW_TOKEN>_<CHARGE>",
       role: "Line Charge",
       description: "Single charge line (calculated as Base × Rate%).",
-      badgeClass: "text-accent-foreground/80 bg-accent/10",
+      badgeClass: "text-amber-400/80 bg-amber-500/10",
     },
     {
       name: "<ROW_TOKEN>_CHARGES",
       role: "Charges Sum",
       description: "Total of all charges added to this row.",
-      badgeClass: "text-accent-foreground bg-accent/10 font-medium",
+      badgeClass: "text-amber-400 bg-amber-500/10 font-medium",
     },
   ],
   rules: [

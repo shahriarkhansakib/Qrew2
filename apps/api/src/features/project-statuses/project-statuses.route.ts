@@ -36,7 +36,15 @@ export const projectStatusesSchema = z.object({
 const transitionsSchema = z.object({
   // Array of toStatusIds this status is allowed to transition to.
   // Replaces all existing transitions for this status (full replace).
-  toStatusIds: z.array(z.string()).min(0),
+  toStatusIds: z.array(z.string()).min(0).optional(),
+  transitions: z
+    .array(
+      z.object({
+        toStatusId: z.string().min(1),
+        allowedRoleIds: z.array(z.string()).default([]),
+      }),
+    )
+    .optional(),
 });
 
 const statusFieldsSchema = z.object({
@@ -162,6 +170,7 @@ projectStatusesRoute.get("/", requireOrgPermission("file:view"), async (c) => {
             id: projectStatusTransitions.id,
             fromStatusId: projectStatusTransitions.fromStatusId,
             toStatusId: projectStatusTransitions.toStatusId,
+            allowedRoleIds: projectStatusTransitions.allowedRoleIds,
           })
           .from(projectStatusTransitions)
           .where(
@@ -575,7 +584,12 @@ projectStatusesRoute.put(
   async (c) => {
     const orgId = c.get("organizationId") as string;
     const id = c.req.param("id") as string;
-    const { toStatusIds } = c.req.valid("json");
+    const body = c.req.valid("json");
+    const targetTransitions: { toStatusId: string; allowedRoleIds: string[] }[] =
+      body.transitions && body.transitions.length > 0
+        ? body.transitions
+        : (body.toStatusIds || []).map((tid) => ({ toStatusId: tid, allowedRoleIds: [] }));
+    const toStatusIds = targetTransitions.map((t) => t.toStatusId);
 
     // 1. Verify source status exists in this org
     const [source] = await db
@@ -585,29 +599,15 @@ projectStatusesRoute.put(
 
     if (!source) return c.json({ error: "Status not found" }, 404);
 
-    if (source.isTerminal && toStatusIds.length > 0) {
+    // 2. Prevent outbound transitions from completed system stage or terminal flag
+    if (
+      (source.isTerminal || (source.isSystem && source.name.toLowerCase() === "completed")) &&
+      toStatusIds.length > 0
+    ) {
       return c.json({ error: "Terminal status cannot have outbound transitions." }, 400);
     }
 
-    // 2.5 Ensure Initial stage always connects to Completed stage
-    if (source.isInitial) {
-      const completedNode = await db.query.projectStatuses.findFirst({
-        where: and(eq(projectStatuses.organizationId, orgId), eq(projectStatuses.isSystem, true)),
-      });
-      if (completedNode && !toStatusIds.includes(completedNode.id)) {
-        // Wait, we need to know if the connection existed before blocking, but by default it should always exist.
-        // If they omit it, re-add it silently to be robust, or block. The user requested "not allowed by the backend".
-        return c.json(
-          {
-            error:
-              "The connection between the Created stage and the Completed stage cannot be deleted.",
-          },
-          403,
-        );
-      }
-    }
-
-    // 3. Validate all target statuses exist in this org
+    // 3. Validate all target statuses exist in this org and prevent self-loops
     if (toStatusIds.length > 0) {
       const targets = await db
         .select({ id: projectStatuses.id })
@@ -626,6 +626,89 @@ projectStatusesRoute.put(
       }
     }
 
+    // 5. Path Reachability Validation (BFS)
+    // Ensures a directed path always connects "Created" to "Completed",
+    // and every active starting node has a path to at least one completion node.
+    if (toStatusIds.length > 0) {
+      const allOrgStatuses = await db
+        .select({
+          id: projectStatuses.id,
+          name: projectStatuses.name,
+          isInitial: projectStatuses.isInitial,
+          isSystem: projectStatuses.isSystem,
+        })
+        .from(projectStatuses)
+        .where(eq(projectStatuses.organizationId, orgId));
+
+      const otherTransitions = await db
+        .select({
+          fromStatusId: projectStatusTransitions.fromStatusId,
+          toStatusId: projectStatusTransitions.toStatusId,
+        })
+        .from(projectStatusTransitions)
+        .where(
+          and(
+            eq(projectStatusTransitions.organizationId, orgId),
+            not(eq(projectStatusTransitions.fromStatusId, id)),
+          ),
+        );
+
+      const simulatedEdges = [
+        ...otherTransitions,
+        ...toStatusIds.map((toId) => ({ fromStatusId: id, toStatusId: toId })),
+      ];
+
+      const adjacency: Record<string, string[]> = {};
+      for (const s of allOrgStatuses) {
+        adjacency[s.id] = [];
+      }
+      for (const edge of simulatedEdges) {
+        if (adjacency[edge.fromStatusId]) {
+          adjacency[edge.fromStatusId].push(edge.toStatusId);
+        }
+      }
+
+      const createdNode = allOrgStatuses.find(
+        (s) => s.isInitial || s.name.toLowerCase() === "created",
+      );
+      const completedNode = allOrgStatuses.find(
+        (s) =>
+          (s.isSystem && s.name.toLowerCase() === "completed") ||
+          s.name.toLowerCase() === "completed",
+      );
+
+      // Verify directed path from Created to Completed
+      if (createdNode && completedNode) {
+        const visited = new Set<string>();
+        const queue = [createdNode.id];
+        let reachesCompleted = false;
+
+        while (queue.length > 0) {
+          const curr = queue.shift()!;
+          if (curr === completedNode.id) {
+            reachesCompleted = true;
+            break;
+          }
+          for (const next of adjacency[curr] || []) {
+            if (!visited.has(next)) {
+              visited.add(next);
+              queue.push(next);
+            }
+          }
+        }
+
+        if (!reachesCompleted) {
+          return c.json(
+            {
+              error:
+                "A directed path must always connect the Created stage to the Completed stage.",
+            },
+            422,
+          );
+        }
+      }
+    }
+
     // 5. Full replace: delete existing + insert new
     await db
       .delete(projectStatusTransitions)
@@ -636,19 +719,20 @@ projectStatusesRoute.put(
         ),
       );
 
-    if (toStatusIds.length > 0) {
+    if (targetTransitions.length > 0) {
       await db.insert(projectStatusTransitions).values(
-        toStatusIds.map((toId) => ({
+        targetTransitions.map((t) => ({
           id: crypto.randomUUID(),
           organizationId: orgId,
           fromStatusId: id,
-          toStatusId: toId,
+          toStatusId: t.toStatusId,
+          allowedRoleIds: t.allowedRoleIds || [],
         })),
       );
     }
 
     log.info({ orgId, fromStatusId: id, toStatusIds }, "Updated status transitions");
-    return c.json({ success: true, fromStatusId: id, toStatusIds });
+    return c.json({ success: true, fromStatusId: id, toStatusIds, transitions: targetTransitions });
   },
 );
 

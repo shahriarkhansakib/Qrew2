@@ -12,6 +12,7 @@ import {
   Loader2,
   MoreHorizontal,
   Pencil,
+  Plus,
   Receipt,
   Send,
 } from "lucide-react";
@@ -19,6 +20,7 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useState } from "react";
 import { toast } from "sonner";
+import { Can } from "@/components/features/auth/can";
 import { ClientDetailsModal } from "@/components/features/clients/client-details-modal";
 import { GenerateInvoiceModal } from "@/components/features/invoices/generate-invoice-modal";
 import { ProjectDetailsModal } from "@/components/features/projects/project-details-modal";
@@ -221,11 +223,24 @@ export default function InvoicesPage() {
   return (
     <div className="flex flex-col gap-6">
       {/* Header */}
-      <div>
-        <h1 className="text-2xl font-bold tracking-tight">Invoices</h1>
-        <p className="text-muted-foreground text-sm mt-0.5">
-          Manage the full invoice lifecycle — from draft to payment.
-        </p>
+      <div className="flex items-center justify-between">
+        <div>
+          <h1 className="text-2xl font-bold tracking-tight">Invoices</h1>
+          <p className="text-muted-foreground text-sm mt-0.5">
+            Manage the full invoice lifecycle — from draft to payment.
+          </p>
+        </div>
+        <Can I={["invoice:create_draft", "finance:manage_invoices"]}>
+          <Button
+            onClick={() => {
+              setSelectedProjectId(null);
+              setIsGenerateModalOpen(true);
+            }}
+          >
+            <Plus className="mr-2 h-4 w-4" />
+            Generate Invoice
+          </Button>
+        </Can>
       </div>
 
       <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
@@ -778,11 +793,14 @@ export default function InvoicesPage() {
         </AlertDialogContent>
       </AlertDialog>
 
-      {isGenerateModalOpen && selectedProjectId && (
+      {isGenerateModalOpen && (
         <GenerateInvoiceModal
           isOpen={isGenerateModalOpen}
-          onClose={() => setIsGenerateModalOpen(false)}
-          projectId={selectedProjectId}
+          onClose={() => {
+            setIsGenerateModalOpen(false);
+            setSelectedProjectId(null);
+          }}
+          projectId={selectedProjectId || undefined}
         />
       )}
 

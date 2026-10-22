@@ -3,6 +3,7 @@ import { and, eq } from "drizzle-orm";
 import { Context } from "hono";
 import { z } from "zod";
 import { TokenService } from "../../../tokens/token.service";
+import { touchTemplate } from "../../invoice-templates.controller";
 
 const updateConstantSchema = z.object({
   key: z
@@ -69,5 +70,6 @@ export async function updateConstant(c: Context) {
 
   if (!updated) return c.json({ error: "Not found" }, 404);
 
+  await touchTemplate(updated.templateId);
   return c.json(updated);
 }

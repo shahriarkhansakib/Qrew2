@@ -3,6 +3,7 @@ import { and, eq } from "drizzle-orm";
 import { Context } from "hono";
 import { z } from "zod";
 import { TokenService } from "../../../tokens/token.service";
+import { touchTemplate } from "../../invoice-templates.controller";
 
 const updateSectionSchema = z.object({
   label: z.string().optional().nullable(),
@@ -102,5 +103,6 @@ export async function updateSection(c: Context) {
     };
   });
 
+  await touchTemplate(sectionRow[0].section.templateId);
   return c.json(mergedSection);
 }
