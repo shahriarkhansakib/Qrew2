@@ -7,160 +7,87 @@
 
 ## 1. Core Architecture & Component Hierarchy
 
-The Template Builder (`/org-admin/invoice-templates/[id]`) is the design-time interface for configuring invoice calculation schemas.
+The Template Builder (`/org-admin/invoice-templates/[id]`) is the design-time interface for configuring invoice calculation schemas. It branches between standard project-bound formula templates and customizable general sheet templates.
 
 ```
 components/features/invoice-templates/
 ├── builder/
-│   ├── builder-context.tsx             # Central state: selectedCell, tokenMap, cell mutations
-│   ├── template-builder-workspace.tsx  # Layout orchestrator: sticky formula bar, table header, sections
-│   ├── template-formula-bar.tsx        # Sticky formula bar, keystroke gating, autocomplete, syntax overlay
-│   ├── template-row-list.tsx           # Two-column USD layout, SingleRow, RowChargeLine, MobileRowActions
-│   ├── template-section-card.tsx       # Section wrapper, section charges, SectionChargeLine
-│   ├── template-token-pool.tsx         # Sidebar displaying available tokens and live evaluated values
-│   ├── draft-value-filler.tsx          # Staff fill-time mode
-│   └── invoice-table-preview.tsx       # Preview panel
+│   ├── builder-context.tsx             # Central state: selectedCell, tokenMap, modes, columns
+│   ├── template-builder-workspace.tsx  # Standard 4-column layout orchestrator
+│   ├── sheet-builder/                  # General multi-column spreadsheet builder
+│   │   ├── sheet-builder-workspace.tsx # Dynamic columns, table headers, grand totals
+│   │   ├── sheet-table-header.tsx      # Interactive column resize handles, inline + pills
+│   │   ├── sheet-table-row.tsx         # Multi-column dynamic data cells, inline editing
+│   │   ├── sheet-section-card.tsx      # Section wrapper, centered + Add Row
+│   │   ├── sheet-grand-total.tsx       # Live vertical grand-totals across sections
+│   │   └── types.ts                    # TemplateColumnDefinition, column styling helpers
+│   ├── formula-bar/                    # Sticky formula bar, token capsules, AST functions
+│   ├── row-list/                       # Standard template table body & row actions
+│   ├── token-pool/                     # Right studio: Token Pool & Additional Line Items
+│   ├── template-settings-modal.tsx     # Unified presentation, indexing, and column config
+│   └── add-header-field-modal.tsx      # Token-first file & sheet details metadata modal
 ```
 
 ---
 
-## 2. Table Layout Conventions (`template-row-list.tsx`)
+## 2. Table Layout Conventions
 
-### Two-Column USD Layout
-- **USD1 (Left Column)**:
-  - Base values for rows (`row.valueType === 'formula'` or `'normal'`).
-  - Charge values for row charge lines.
-  - Clickable to activate the sticky formula bar for editing.
-- **USD2 (Right Column)**:
-  - Read-only group total (`rowBase + sum(rowCharges)`).
-  - Displayed on single rows without charges, or on the final charge row of a row group.
-- **Uneditable Cell Guidance**: Empty uneditable cells must display `"NOT EDITABLE"`; populated uneditable cells must carry `title="Not editable"`.
+### A. Standard Templates (`template-builder-workspace.tsx`, `template-row-list.tsx`)
+- **Two-Column USD Layout**:
+  - **USD1 (Left Column)**: Base values for rows (`normal` or `formula`) and row charges. Clickable to activate formula bar.
+  - **USD2 (Right Column)**: Read-only group total (`rowBase + sum(rowCharges)`).
+- **Serial Resequencing**: Rows are canonically named `ROW_1`, `ROW_2`, `ROW_3`, ...
+- **Token Badge Overlap**: Leftward expandable formula badges on hover (`absolute right-0 top-1`).
 
-### Mobile Row Actions (`MobileRowActions`)
-- Desktop actions hover outside the table border (`absolute left-full`).
-- Mobile/small screens utilize `MobileRowActions`: a three-dot dropdown trigger (`MoreHorizontal`) embedded inline at the right side of the flexible `Label` column, preserving fixed column widths and preventing touch-screen clipping.
-
----
-
-## 3. Formula Bar Directives (`template-formula-bar.tsx`)
-
-### A. Layout & Placement
-- The formula bar is rendered sticky at the top of the table builder (`sticky top-0 z-30`).
-- Consists of:
-  1. **Quick Operator Bar** (`+`, `-`, `*`, `/`, `(`, `)`, `%`, `//`) rendered directly above the formula row, plus a collapsible "Functions" drawer exposing AST math helpers (`CLAMP`, `MIN`, `MAX`, `ROUND`, `FLOOR`, `CEIL`, `ABS`).
-  2. **fx Breadcrumb**: Shows the currently selected cell hierarchy (e.g. `Section > Row > Base`).
-  3. **Monospace Input with Overlay**: Monospace transparent input placed over an aligned `SyntaxOverlay`.
-
-### B. Keystroke Gating & Typing Rules
-- **No Equals Sign (`=`)**: The formula bar starts directly with tokens, numbers, or parentheses.
-- **Allowed Keystrokes**:
-  - Operators: `+`, `-`, `*`, `/`, `%`, `//`, `(`, `)`.
-  - Digits & Decimals: `0-9`, `.`.
-  - Tokens & Functions: Letters and underscores matching active token prefixes or supported AST functions (`CLAMP`, `MIN`, `MAX`, `ROUND`, `FLOOR`, `CEIL`, `ABS`).
-  - Function Invocations: Typing `(` directly following a recognized function name is permitted without requiring an operator (e.g. `CLAMP(`).
-  - All letters are automatically capitalized (`UPPER_SNAKE_CASE`).
-- **Strict Spacing Rules**:
-  - Literal spaces CANNOT be manually typed or deleted.
-  - Pressing `<Space>` converts to `_` if it forms a valid token prefix; otherwise, the keystroke is rejected.
-  - Spaces exist strictly on both sides of binary operators (` + `, ` - `, ` * `, ` / `, ` // `) and nowhere else.
-  - Backspace / Delete directly on a space character is blocked.
-  - **Smart Backspace**: Deleting right after an operator block deletes the entire block (e.g., ` + `) atomically.
-- **Parentheses Balance Guard**: Typing `)` is blocked if closing count would exceed currently opened `(` count.
-
-### C. Syntax Overlay & Depth Color Coding
-- Because standard HTML `<input>` elements cannot style individual characters, the formula bar uses a dual-layer approach:
-  - Top: `<input className="text-transparent caret-violet-400 font-mono ...">`.
-  - Bottom: `<SyntaxOverlay>` with identical typography and scroll synchronization (`overlayRef.current.scrollLeft = inputRef.current.scrollLeft`).
-- Parentheses pairs are colorized based on nesting depth across 5 distinct colors (`text-pink-500`, `text-blue-500`, `text-emerald-500`, `text-amber-500`, `text-cyan-500`).
-
-### D. Autocomplete & Fuzzy Search
-- **Fuzzy Match (Underscore Tolerance)**: Searching ignores underscores (e.g., typing `lightcharges` or `lightc` matches `LIGHT_CHARGES`).
-- **Selective Highlighting (`renderHighlightedToken`)**: Suggestion items in the dropdown highlight only the alphanumeric characters matching the search query; structural underscores in the token name are left un-highlighted.
-- **Self-Reference Filter**: The autocomplete suggestions exclude the active row's token and its `<token>_TOTAL` variant to prevent accidental circular references.
-
-### E. Save-Time Validations (`handleSave`)
-Before saving on Enter, button click, or outside blur, `handleSave` strictly enforces:
-1. **No Trailing Operators**: Cannot end with `+`, `-`, `*`, `/`, `%`, or `//`.
-2. **Balanced Parentheses**: Total open `(` must equal total closed `)`.
-3. **Complete Tokens**: Every word token must match an existing token in the template (blocks partial names like `LIGHT` if the token is `LIGHT_CHARGES`).
-4. **Operator Separation**: Two tokens or numbers cannot appear consecutively without an operator separating them.
-*On violation, the save is blocked, a Sonner toast displays the error, and the input is refocused.*
+### B. General Templates (`sheet-builder/sheet-builder-workspace.tsx`)
+- **Dynamic Columns (`columns: TemplateColumnDefinition[]`)**:
+  - Arbitrary user-defined columns: text, number, currency, date, single-select.
+  - Column drag-to-resize divider handles with live pixel width updates.
+  - Inline `+` insertion pills between column headers.
+  - Context menu on column header: Edit Column, Insert Left, Insert Right, Delete Column.
+- **Vertical Grand Totals (`SheetGrandTotal`)**: Automatically computes evaluated column sums across all sections for columns marked `isTotaled: true`.
+- **Sheet Details Metadata (`FileDetailsHeaderBox` with `isSheetMode: true`)**: Custom metadata (Department, Period, Prepared By, Notes) with inline editing and drag-to-reorder.
 
 ---
 
-## 4. Syntactic Sugar Mappings
+## 3. Explicit Studio Sidebar Modes: Overlay vs. Static
 
-| Feature | User Input | Evaluated / Storage Format |
-|---|---|---|
-| Percentage | `50%` or `.5%` | `(50/100)` or `(0.5/100)` |
-| Modulo / Remainder | `//` | `%` |
-| Row Reference | `ROW_TOKEN` | Internal DB UUID `{{$tok:UUID}}` via codec |
-
----
-
-## 5. Prebuilt Optional Services Catalog (`TemplateOptionalRowsModal`)
-
-- **Location**: Master Template Builder header (`/org-admin/invoice-templates/:id`).
-- **Trigger**: "Optional Services" button in the template header bar.
-- **Functionality**:
-  - Architects define reusable optional line items (`TemplateOptionalRow`) associated with the template.
-  - Form fields: Token name (`CRANE_RENTAL`), display label (`Crane Rental / Operational Lift`), default rate/value (`numeric(20, 6)`), description/sub-description.
-  - Saved to `invoice_templates.optional_rows` JSONB column.
-  - Invoices generated or drafted from this template can browse, select, customize label/rate, and attach these services to any destination section.
+- Builders provide two user-selectable display modes:
+  1. **Overlay Mode (`"overlay"`)**:
+     - The table occupies 100% of the builder page width (`w-full flex-1 min-w-0`).
+     - The Studio sidebar floats over the right side with shadow elevation (`absolute inset-y-0 right-0 z-40 shadow-2xl bg-background/98 backdrop-blur-md`).
+     - Clicking the translucent backdrop closes the panel.
+  2. **Static Mode (`"static"`)**:
+     - The table and sidebar sit side-by-side in flex layout (`relative shrink-0 shadow-none`).
+     - The table compresses smoothly without overlap, keeping both panels simultaneously interactive with zero backdrop.
+- User preference is persisted in `localStorage` under `starter_studio_sidebar_display_mode`.
+- Toggles are accessible both in the top bar (beside the Studio button) and inside the Studio sidebar tab strip.
 
 ---
 
-## 6. Token Capsule Formula Editor Architecture (`formula-bar/`)
+## 4. Additional Line Items Catalog & Table-Embedded Actions
 
-- **Component Hierarchy**:
-  - `formula-bar/index.tsx`: Main formula input container, quick operator buttons, AST function drawer, and popover management.
-  - `formula-bar/formula-capsule.tsx`: Individual token capsule badge rendered inline within the input flow.
-- **Aesthetic Principles**:
-  - **Minimalist & Modern**: Token capsules have zero icons, zero borders, zero boundaries, and zero padding (`px-0 py-0`). They do not use cartoonish tags or heavy cards.
-  - **Dense Key Display**: Capsules display the concise uppercase token key (e.g., `PORT_DUES_BASE`), expanding to the user-friendly label on hover.
-  - **Category Colors**: Styled using `getTokenColor(token)` across distinct harmonic semantic tints.
-- **Quick Swap Pill Menu**:
-  - Clicking any active token capsule opens an inline Quick Swap popover showing available sibling variants (`[ Base ]`, `[ Charges ]`, `[ Total ]`).
-  - Selecting a variant immediately swaps the token in the formula string without requiring deletion or re-typing.
-- **Smart Backspace**:
-  - When the cursor is positioned directly after a token or with a token selected, pressing Backspace strips the token back to the preceding underscore (e.g. converting `_TOTAL` to the base token), or removes the token atomically if at the base word.
-- **Autocomplete Dropdown Value Layout**:
-  - Dropdown container width is set to `w-88 sm:w-96 max-w-[calc(100vw-2rem)]`.
-  - Evaluated numeric values are rendered directly adjacent to the token name inside a badge (`font-mono text-[11px] font-semibold tabular-nums px-1 py-0.2 rounded shrink-0 bg-muted/40`).
-  - Styled with the token's category color.
-  - Token names use `truncate shrink min-w-0` to ensure that the value badge is strictly `shrink-0` and never truncated or clipped.
+- **Dynamic Columns in General Mode**: The Additional Line Items catalog mirrors the template's configured `columnDefinitions` with horizontal scrolling (`overflow-x-auto min-w-full`).
+- **Embedded Table Body Action**: The `+ Add Line Item` action is embedded directly inside the catalog table body:
+  - If empty: rendered on the first row directly beneath column headers.
+  - If populated: rendered immediately below the last line item row.
+- **Auto-Open on Save**: Moving or copying a row from the table to Additional Line Items automatically opens the Studio sidebar and focuses the `line-items` tab (`openAdditionalLineItemsPanel()`).
+- **Formula Bar Integration**: Clicking the rate cell in catalog items opens the formula bar with `isCatalogItem: true` and automatically switches the active sidebar tab to `tokens` for easy insertion.
 
 ---
 
-## 7. Token Pool UX & Insertion Invariants (`token-pool/`, `template-builder-workspace.tsx`)
+## 5. Token Capsule Formula Editor (`formula-bar/`)
 
-- **Standardized Dropdown Accordions**:
-  - Both `sections-tree.tsx` and `expense-categories-section.tsx` follow an identical interaction pattern:
-    1. Clicking the header row toggles accordion expansion.
-    2. An expansion chevron (`ChevronRight`) is positioned directly beside the main token chip on the left and rotates 90° when expanded.
-    3. Clicking the token chip itself independently selects the token for formula insertion without toggling the accordion.
-    4. Evaluated total values are right-aligned.
-- **Top File Details Table Field Insertion**:
-  - Selectable fields in `FileDetailsHeaderBox` that insert tokens on click MUST include `.insertable-token` and bind `onMouseDown={(e) => { if (isFormulaMode && isSelectable) e.preventDefault(); }}`.
-  - This prevents `blur` events from triggering the formula bar's outside-click auto-save/deselect behavior before the click event can dispatch `insert-token`.
+- **Token Capsules (`formula-capsule.tsx`)**: Zero padding, borderless capsules with concise keys, expanding to labels on hover.
+- **Quick Swap Pill Menu**: 1-click variant switching (`[ Base ]`, `[ Charges ]`, `[ Total ]`) without retyping.
+- **Hierarchical Smart Backspace**: Deleting backward through a token strips segment-by-segment back to the previous underscore (`_`).
+- **AST Functions Tray**: Collapsible tray exposing `CLAMP`, `MIN`, `MAX`, `ROUND`, `FLOOR`, `CEIL`, `ABS`. Function calls allow `(` immediately after the function name without requiring binary operator spaces.
+- **Autocomplete Value Highlighting**: Live evaluated values render directly adjacent to token suggestions with `shrink-0`, ensuring long token names truncate cleanly without ever hiding values.
 
 ---
 
-## 8. Additional Line Items Studio & Bidirectional Grab-and-Drag Architecture (`token-pool/`, `additional-line-items-pool.tsx`)
+## 6. Direct Invoice Generation & Navigation PBAC
 
-- **Adobe Illustrator-Type Panel Tab Strip**:
-  - Docked in the right sidebar header (`TemplateTokenPool`).
-  - Seamlessly toggles between `[ Token Pool ]` and `[ Additional Line Items (N) ]` with an active tab highlight, count badge, and clean borders.
-- **Table-Body Matching Visual Rhythm**:
-  - 4-column layout mimicking the main invoice table:
-    1. Grip Handle (`GripVertical`) for grab-and-drag.
-    2. Label & Token pill (`font-mono text-primary font-semibold`) with optional sub-description.
-    3. USD / Rate column showing formatted rate or `fx` badge for formula-driven items.
-    4. Action buttons: `+` Quick-add to table and `Trash` delete from catalog.
-- **Bidirectional Drag-and-Drop (DND)**:
-  - Drag from Additional Line Items pool into table sections (`additional-line-items` -> `rows-${sectionId}`) automatically handles unique token allocation (`TOKEN_2`, `TOKEN_3`) to avoid DAG collisions.
-  - Drag from table section into Additional Line Items pool (`rows-${sectionId}` -> `additional-line-items`) saves the row structure/formula/value to the catalog and removes it from the table.
-  - 1-click alternative: "Move to Line Items" button and context menu item in `RowActions` and `MobileRowActions`.
-- **Shared DND Architecture**:
-  - Prevents nested `DragDropContext` errors by wrapping workspace and sidebar in a unified top-level context while child components set `isSharedDnd: true`.
-
+- **Top Bar Generation**: `/org-admin/invoice-templates/[id]` top navigation includes a prominent **`[ Generate Invoice ]`** button beside *Preview Template*.
+- **Template Catalog Row Actions**: Every template in `/org-admin/invoice-templates` includes a 1-click **`[ Generate Invoice ]`** button.
+- **Draft Workspace Routing**: When opening `/dashboard/invoices/drafts/[id]`, the page detects if the source template is `general` or has custom columns, automatically mounting `SheetBuilderWorkspace` and hydrating all `cellValues`.

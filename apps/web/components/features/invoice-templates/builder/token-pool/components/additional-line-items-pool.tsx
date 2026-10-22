@@ -135,7 +135,6 @@ export function AdditionalLineItemsPool({
     getTokenColor,
     selectedCell,
     setSelectedCell,
-    setSidebarTab,
     mode,
     templateType,
     columnDefinitions,
@@ -310,10 +309,10 @@ export function AdditionalLineItemsPool({
                     className={cn(
                       "px-2 flex items-center border-r border-border min-w-0 truncate",
                       col.dataType === "number"
-                        ? "justify-end w-24 shrink-0"
+                        ? cn("justify-end shrink-0", col.width || "w-24")
                         : col.dataType === "date"
                           ? "w-28 shrink-0"
-                          : "flex-1 min-w-[140px]",
+                          : cn("min-w-0", col.width || "flex-1 min-w-[140px]"),
                     )}
                   >
                     {col.label}
@@ -336,8 +335,7 @@ export function AdditionalLineItemsPool({
                   ref={provided.innerRef}
                   {...provided.droppableProps}
                   className={cn(
-                    "border border-border rounded-b-md bg-card/30 flex flex-col transition-all divide-y divide-border/40",
-                    filteredItems.length === 0 ? "min-h-[140px] flex-1" : "min-h-0 shrink-0",
+                    "border border-border rounded-b-md bg-card/30 flex flex-col transition-all divide-y divide-border/40 min-h-0 shrink-0",
                     snapshot.isDraggingOver &&
                       "bg-primary/5 ring-2 ring-primary/50 border-primary/40",
                   )}
@@ -355,314 +353,374 @@ export function AdditionalLineItemsPool({
                       <span>Loading catalog...</span>
                     </div>
                   ) : filteredItems.length === 0 ? (
-                    <div className="p-6 flex flex-col items-center justify-center gap-2 text-center text-xs text-muted-foreground/70 flex-1">
-                      <div className="p-2.5 rounded-full bg-muted/40 border border-border/40 text-muted-foreground/50">
-                        <Layers className="w-5 h-5" />
+                    searchQuery ? (
+                      <div className="py-6 text-center text-xs text-muted-foreground">
+                        No line items matching &ldquo;{searchQuery}&rdquo;
                       </div>
-                      <span className="font-medium text-foreground/80">
-                        No additional line items yet
-                      </span>
-                      <p className="text-[11px] max-w-[220px]">
-                        {isFillMode
-                          ? "No additional line items available in this template."
-                          : 'Drag any row from the table here to save it, or click "+ Add Line Item" below.'}
-                      </p>
-                    </div>
+                    ) : !isFillMode ? (
+                      /* When no line item is currently available, Add Line Item is on the first row of the line item panel table */
+                      <div
+                        role="button"
+                        tabIndex={0}
+                        onClick={() => {
+                          setEditingItem(null);
+                          setIsAddModalOpen(true);
+                        }}
+                        className="w-full flex items-center justify-center gap-2 py-3 px-3 text-xs font-semibold text-muted-foreground hover:text-primary hover:bg-primary/5 transition-all cursor-pointer group select-none"
+                        title="Add line item"
+                      >
+                        <Plus className="h-4 w-4 text-muted-foreground group-hover:text-primary transition-colors" />
+                        <span>Add Line Item</span>
+                      </div>
+                    ) : (
+                      <div className="py-6 text-center text-xs text-muted-foreground">
+                        No additional line items available
+                      </div>
+                    )
                   ) : (
-                    filteredItems.map((item, index) => {
-                      const count = instanceCounts[item.rowToken] || 0;
-                      return (
-                        <Draggable key={item.id} draggableId={`catalog-${item.id}`} index={index}>
-                          {(dragProvided, dragSnapshot) => (
-                            <div
-                              ref={dragProvided.innerRef}
-                              {...dragProvided.draggableProps}
-                              className={cn(
-                                "flex items-stretch bg-background/50 hover:bg-muted/30 transition-colors group relative min-h-[36px]",
-                                dragSnapshot.isDragging &&
-                                  "bg-card shadow-2xl ring-2 ring-primary rounded-md z-50 opacity-95",
-                              )}
-                              style={{
-                                ...dragProvided.draggableProps.style,
-                              }}
-                            >
-                              {/* 1. Drag Grip Handle / Index (mirrors TableRow sl column) */}
+                    <>
+                      {filteredItems.map((item, index) => {
+                        const count = instanceCounts[item.rowToken] || 0;
+                        return (
+                          <Draggable key={item.id} draggableId={`catalog-${item.id}`} index={index}>
+                            {(dragProvided, dragSnapshot) => (
                               <div
-                                {...dragProvided.dragHandleProps}
-                                className="w-8 shrink-0 flex items-center justify-center border-r border-border/40 text-muted-foreground/40 hover:text-foreground cursor-grab active:cursor-grabbing group/sl relative min-h-[32px] transition-colors bg-muted/5 group-hover:bg-muted/20"
-                                title="Grab and drag to table section"
-                              >
-                                <span className="text-[11px] font-semibold text-muted-foreground/60 group-hover/sl:opacity-0 transition-opacity select-none">
-                                  {index + 1}
-                                </span>
-                                <div className="absolute inset-0 flex items-center justify-center opacity-0 group-hover/sl:opacity-100 transition-opacity">
-                                  <GripVertical className="w-3.5 h-3.5 text-muted-foreground" />
-                                </div>
-                              </div>
-
-                              {/* 2. Token Column (Clean monospace text matching TableRow) */}
-                              <div className="w-28 shrink-0 px-2 flex items-center gap-1.5 border-r border-border/40 min-w-0">
-                                <span
-                                  className={cn(
-                                    "font-mono text-xs font-semibold truncate leading-none",
-                                    getTokenColor ? getTokenColor(item.rowToken) : "text-primary",
-                                  )}
-                                  title={item.rowToken}
-                                >
-                                  {item.rowToken}
-                                </span>
-                                {count > 0 && (
-                                  <span
-                                    className="inline-flex items-center justify-center px-1 py-0.2 rounded-full text-[9px] font-mono font-bold bg-primary/15 text-primary border border-primary/25 shrink-0"
-                                    title={`${count} active instance${count === 1 ? "" : "s"} in table`}
-                                  >
-                                    {count}
-                                  </span>
+                                ref={dragProvided.innerRef}
+                                {...dragProvided.draggableProps}
+                                className={cn(
+                                  "flex items-stretch bg-background/50 hover:bg-muted/30 transition-colors group relative min-h-[36px]",
+                                  dragSnapshot.isDragging &&
+                                    "bg-card shadow-2xl ring-2 ring-primary rounded-md z-50 opacity-95",
                                 )}
-                              </div>
-
-                              {/* 3. Custom General Columns vs Standard Label/USD */}
-                              {displayColumns ? (
-                                displayColumns.map((col, cIdx) => {
-                                  const isTextCol =
-                                    col.dataType === "text" ||
-                                    col.key === "col_desc" ||
-                                    (!displayColumns.some((c) => c.dataType === "text") &&
-                                      cIdx === 0);
-                                  const cellVal = item.cellValues?.[col.key];
-
-                                  if (isTextCol) {
-                                    return (
-                                      <div
-                                        key={col.key}
-                                        className={cn(
-                                          "px-2.5 py-1.5 flex items-center border-r border-border/40 min-w-0 relative group/labelcell",
-                                          col.width || "flex-1 min-w-[140px]",
-                                        )}
-                                      >
-                                        <InlineCatalogLabel
-                                          value={cellVal ?? item.label}
-                                          subDescription={item.subDescription}
-                                          isReadOnly={isFillMode}
-                                          onSave={(newLabel, newDesc) =>
-                                            updateMutation.mutate({
-                                              idOrToken: item.id || item.rowToken,
-                                              payload: {
-                                                label: newLabel,
-                                                subDescription: newDesc,
-                                                cellValues: {
-                                                  ...(item.cellValues || {}),
-                                                  [col.key]: newLabel,
-                                                },
-                                              },
-                                            })
-                                          }
-                                        />
-                                      </div>
-                                    );
-                                  }
-
-                                  if (col.dataType === "number") {
-                                    const numVal =
-                                      cellVal !== undefined ? cellVal : item.initialValue;
-                                    const isFormula =
-                                      item.valueType === "formula" || Boolean(item.formula);
-                                    const currentInput = isFormula
-                                      ? item.formula || ""
-                                      : cellVal !== undefined
-                                        ? String(cellVal)
-                                        : item.initialValue != null && item.initialValue !== ""
-                                          ? String(item.initialValue)
-                                          : "";
-
-                                    return (
-                                      <div
-                                        key={col.key}
-                                        role={isFillMode ? undefined : "button"}
-                                        tabIndex={isFillMode ? undefined : 0}
-                                        onClick={(e) => {
-                                          if (isFillMode) return;
-                                          e.stopPropagation();
-                                          setSelectedCell({
-                                            templateId: templateId || "",
-                                            draftId: draftId || "",
-                                            sectionId: "",
-                                            rowId: item.id || item.rowToken,
-                                            row: item,
-                                            isCatalogItem: true,
-                                            columnKey: col.key,
-                                            breadcrumb: `${item.label || item.rowToken} > ${col.label}`,
-                                            valueType: isFormula ? "formula" : "normal",
-                                            currentInput,
-                                            token: item.rowToken,
-                                          });
-                                          setSidebarTab("tokens");
-                                        }}
-                                        className={cn(
-                                          "px-2 flex items-center justify-end font-mono text-xs font-bold text-foreground tabular-nums select-none border-r border-border/40 shrink-0",
-                                          col.width || "w-24",
-                                          !isFillMode &&
-                                            "cursor-pointer rounded-xs transition-all duration-100 hover:ring-1 hover:ring-primary/40 hover:bg-primary/5",
-                                          selectedCell?.isCatalogItem &&
-                                            selectedCell?.rowId === (item.id || item.rowToken) &&
-                                            selectedCell?.columnKey === col.key &&
-                                            "ring-2 ring-primary/60 bg-primary/10",
-                                        )}
-                                        title={
-                                          isFillMode ? undefined : "Click to edit formula / value"
-                                        }
-                                      >
-                                        {isFormula ? (
-                                          <span
-                                            className="text-[10px] font-semibold text-sky-400 bg-sky-500/10 border border-sky-500/20 px-1.5 py-0.5 rounded truncate max-w-[70px]"
-                                            title={item.formula || ""}
-                                          >
-                                            fx {item.formula || "formula"}
-                                          </span>
-                                        ) : numVal != null &&
-                                          numVal !== "" &&
-                                          !isNaN(Number(numVal)) ? (
-                                          <span>{fmt(Number(numVal))}</span>
-                                        ) : (
-                                          <span className="text-muted-foreground/30 font-normal">
-                                            —
-                                          </span>
-                                        )}
-                                      </div>
-                                    );
-                                  }
-
-                                  return (
-                                    <div
-                                      key={col.key}
-                                      className={cn(
-                                        "px-2 flex items-center border-r border-border/40 text-xs text-foreground/80 truncate shrink-0",
-                                        col.dataType === "date"
-                                          ? "w-28 text-muted-foreground"
-                                          : col.width || "flex-1 min-w-[100px]",
-                                      )}
-                                    >
-                                      {cellVal || "—"}
-                                    </div>
-                                  );
-                                })
-                              ) : (
-                                <>
-                                  {/* Standard Mode: Label Column */}
-                                  <div className="flex-1 px-2.5 py-1.5 flex items-center border-r border-border/40 min-w-0 relative group/labelcell">
-                                    <InlineCatalogLabel
-                                      value={item.label}
-                                      subDescription={item.subDescription}
-                                      isReadOnly={isFillMode}
-                                      onSave={(newLabel, newDesc) =>
-                                        updateMutation.mutate({
-                                          idOrToken: item.id || item.rowToken,
-                                          payload: { label: newLabel, subDescription: newDesc },
-                                        })
-                                      }
-                                    />
+                                style={{
+                                  ...dragProvided.draggableProps.style,
+                                }}
+                              >
+                                {/* 1. Drag Grip Handle / Index (mirrors TableRow sl column) */}
+                                <div
+                                  {...dragProvided.dragHandleProps}
+                                  className="w-8 shrink-0 flex items-center justify-center border-r border-border/40 text-muted-foreground/40 hover:text-foreground cursor-grab active:cursor-grabbing group/sl relative min-h-[32px] transition-colors bg-muted/5 group-hover:bg-muted/20"
+                                  title="Grab and drag to table section"
+                                >
+                                  <span className="text-[11px] font-semibold text-muted-foreground/60 group-hover/sl:opacity-0 transition-opacity select-none">
+                                    {index + 1}
+                                  </span>
+                                  <div className="absolute inset-0 flex items-center justify-center opacity-0 group-hover/sl:opacity-100 transition-opacity">
+                                    <GripVertical className="w-3.5 h-3.5 text-muted-foreground" />
                                   </div>
+                                </div>
 
-                                  {/* Standard Mode: USD / Rate cell */}
-                                  <div
-                                    role={isFillMode ? undefined : "button"}
-                                    tabIndex={isFillMode ? undefined : 0}
-                                    onClick={(e) => {
-                                      if (isFillMode) return;
-                                      e.stopPropagation();
+                                {/* 2. Token Column (Clean monospace text matching TableRow) */}
+                                <div className="w-28 shrink-0 px-2 flex items-center gap-1.5 border-r border-border/40 min-w-0">
+                                  <span
+                                    className={cn(
+                                      "font-mono text-xs font-semibold truncate leading-none",
+                                      getTokenColor ? getTokenColor(item.rowToken) : "text-primary",
+                                    )}
+                                    title={item.rowToken}
+                                  >
+                                    {item.rowToken}
+                                  </span>
+                                  {count > 0 && (
+                                    <span
+                                      className="inline-flex items-center justify-center px-1 py-0.2 rounded-full text-[9px] font-mono font-bold bg-primary/15 text-primary border border-primary/25 shrink-0"
+                                      title={`${count} active instance${count === 1 ? "" : "s"} in table`}
+                                    >
+                                      {count}
+                                    </span>
+                                  )}
+                                </div>
+
+                                {/* 3. Custom General Columns vs Standard Label/USD */}
+                                {displayColumns ? (
+                                  displayColumns.map((col, cIdx) => {
+                                    const isTextCol =
+                                      col.dataType === "text" ||
+                                      col.key === "col_desc" ||
+                                      (!displayColumns.some((c) => c.dataType === "text") &&
+                                        cIdx === 0);
+                                    const cellVal = item.cellValues?.[col.key];
+
+                                    if (isTextCol) {
+                                      return (
+                                        <div
+                                          key={col.key}
+                                          className={cn(
+                                            "px-2.5 py-1.5 flex items-center border-r border-border/40 min-w-0 relative group/labelcell",
+                                            col.width || "flex-1 min-w-[140px]",
+                                          )}
+                                        >
+                                          <InlineCatalogLabel
+                                            value={cellVal ?? item.label}
+                                            subDescription={item.subDescription}
+                                            isReadOnly={isFillMode}
+                                            onSave={(newLabel, newDesc) =>
+                                              updateMutation.mutate({
+                                                idOrToken: item.id || item.rowToken,
+                                                payload: {
+                                                  label: newLabel,
+                                                  subDescription: newDesc,
+                                                  cellValues: {
+                                                    ...(item.cellValues || {}),
+                                                    [col.key]: newLabel,
+                                                  },
+                                                },
+                                              })
+                                            }
+                                          />
+
+                                          {/* Hover Action Buttons pinned to right edge of Text Column */}
+                                          {!isFillMode && (
+                                            <div className="absolute right-0 top-0 bottom-0 flex items-center pr-1 pl-4 opacity-0 group-hover/labelcell:opacity-100 group-hover:opacity-100 transition-opacity z-10 bg-gradient-to-l from-background via-background/95 to-transparent">
+                                              <div className="flex items-center gap-0.5 bg-background rounded border border-border/60 shadow-xs p-0.5">
+                                                <Button
+                                                  variant="ghost"
+                                                  size="icon"
+                                                  className="h-5 w-5 text-muted-foreground hover:text-foreground hover:bg-muted transition-colors"
+                                                  onClick={(e) => {
+                                                    e.stopPropagation();
+                                                    setEditingItem(item);
+                                                    setIsAddModalOpen(true);
+                                                  }}
+                                                  title="Edit token"
+                                                >
+                                                  <Edit2 className="w-3 h-3" />
+                                                </Button>
+                                                <Button
+                                                  variant="ghost"
+                                                  size="icon"
+                                                  className="h-5 w-5 text-muted-foreground hover:text-destructive hover:bg-destructive/10 transition-colors"
+                                                  onClick={(e) => {
+                                                    e.stopPropagation();
+                                                    setItemToDelete(item);
+                                                  }}
+                                                  title="Delete from catalog"
+                                                >
+                                                  <Trash2 className="w-3 h-3" />
+                                                </Button>
+                                              </div>
+                                            </div>
+                                          )}
+                                        </div>
+                                      );
+                                    }
+
+                                    if (col.dataType === "number") {
+                                      const numVal =
+                                        cellVal !== undefined ? cellVal : item.initialValue;
                                       const isFormula =
                                         item.valueType === "formula" || Boolean(item.formula);
                                       const currentInput = isFormula
                                         ? item.formula || ""
-                                        : item.initialValue != null && item.initialValue !== ""
-                                          ? String(item.initialValue)
-                                          : "";
+                                        : cellVal !== undefined
+                                          ? String(cellVal)
+                                          : item.initialValue != null && item.initialValue !== ""
+                                            ? String(item.initialValue)
+                                            : "";
 
-                                      setSelectedCell({
-                                        templateId: templateId || "",
-                                        draftId: draftId || "",
-                                        sectionId: "",
-                                        rowId: item.id || item.rowToken,
-                                        row: item,
-                                        isCatalogItem: true,
-                                        breadcrumb: item.label || item.rowToken,
-                                        valueType: isFormula ? "formula" : "normal",
-                                        currentInput,
-                                        token: item.rowToken,
-                                      });
-
-                                      setSidebarTab("tokens");
-                                    }}
-                                    className={cn(
-                                      "w-20 shrink-0 flex items-center justify-end px-2 font-mono text-xs font-bold text-foreground tabular-nums select-none",
-                                      !isFillMode &&
-                                        "cursor-pointer rounded-xs transition-all duration-100 hover:ring-1 hover:ring-primary/40 hover:bg-primary/5",
-                                      isFillMode && "cursor-default",
-                                      selectedCell?.isCatalogItem &&
-                                        selectedCell?.rowId === (item.id || item.rowToken) &&
-                                        "ring-2 ring-primary/60 bg-primary/10",
-                                    )}
-                                    title={
-                                      isFillMode
-                                        ? undefined
-                                        : "Click to edit formula / rate (opens formula bar)"
+                                      return (
+                                        <div
+                                          key={col.key}
+                                          role={isFillMode ? undefined : "button"}
+                                          tabIndex={isFillMode ? undefined : 0}
+                                          onClick={(e) => {
+                                            if (isFillMode) return;
+                                            e.stopPropagation();
+                                            setSelectedCell({
+                                              templateId: templateId || "",
+                                              draftId: draftId || "",
+                                              sectionId: "",
+                                              rowId: item.id || item.rowToken,
+                                              row: item,
+                                              isCatalogItem: true,
+                                              columnKey: col.key,
+                                              breadcrumb: `${item.label || item.rowToken} > ${col.label}`,
+                                              valueType: isFormula ? "formula" : "normal",
+                                              currentInput,
+                                              token: item.rowToken,
+                                            });
+                                          }}
+                                          className={cn(
+                                            "px-2 flex items-center justify-end font-mono text-xs font-bold text-foreground tabular-nums select-none border-r border-border/40 shrink-0",
+                                            col.width || "w-24",
+                                            !isFillMode &&
+                                              "cursor-pointer rounded-xs transition-all duration-100 hover:ring-1 hover:ring-primary/40 hover:bg-primary/5",
+                                            selectedCell?.isCatalogItem &&
+                                              selectedCell?.rowId === (item.id || item.rowToken) &&
+                                              selectedCell?.columnKey === col.key &&
+                                              "ring-2 ring-primary/60 bg-primary/10",
+                                          )}
+                                          title={
+                                            isFillMode ? undefined : "Click to edit formula / value"
+                                          }
+                                        >
+                                          {isFormula ? (
+                                            <span
+                                              className="text-[10px] font-semibold text-sky-400 bg-sky-500/10 border border-sky-500/20 px-1.5 py-0.5 rounded truncate max-w-[70px]"
+                                              title={item.formula || ""}
+                                            >
+                                              fx {item.formula || "formula"}
+                                            </span>
+                                          ) : numVal != null &&
+                                            numVal !== "" &&
+                                            !isNaN(Number(numVal)) ? (
+                                            <span>{fmt(Number(numVal))}</span>
+                                          ) : (
+                                            <span className="text-muted-foreground/30 font-normal">
+                                              —
+                                            </span>
+                                          )}
+                                        </div>
+                                      );
                                     }
-                                  >
-                                    {item.valueType === "formula" || item.formula ? (
-                                      <span
-                                        className="text-[10px] font-semibold text-sky-400 bg-sky-500/10 border border-sky-500/20 px-1.5 py-0.5 rounded truncate max-w-[70px]"
-                                        title={item.formula || ""}
-                                      >
-                                        fx {item.formula || "formula"}
-                                      </span>
-                                    ) : item.initialValue != null && item.initialValue !== "" ? (
-                                      <span>{fmt(Number(item.initialValue))}</span>
-                                    ) : (
-                                      <span className="text-muted-foreground/30 font-normal">
-                                        —
-                                      </span>
-                                    )}
-                                  </div>
-                                </>
-                              )}
 
-                              {/* Hover Action Buttons: strictly Edit and Delete (Only in Edit/Builder Mode, pinned right) */}
-                              {!isFillMode && (
-                                <div className="absolute right-0 top-0 bottom-0 flex items-center pr-1 pl-6 opacity-0 group-hover:opacity-100 transition-opacity z-10 bg-gradient-to-l from-background via-background/95 to-transparent">
-                                  <div className="flex items-center gap-0.5 bg-background rounded border border-border/60 shadow-xs p-0.5">
-                                    <Button
-                                      variant="ghost"
-                                      size="icon"
-                                      className="h-5 w-5 text-muted-foreground hover:text-foreground hover:bg-muted transition-colors"
+                                    return (
+                                      <div
+                                        key={col.key}
+                                        className={cn(
+                                          "px-2 flex items-center border-r border-border/40 text-xs text-foreground/80 truncate shrink-0",
+                                          col.dataType === "date"
+                                            ? "w-28 text-muted-foreground"
+                                            : col.width || "flex-1 min-w-[100px]",
+                                        )}
+                                      >
+                                        {cellVal || "—"}
+                                      </div>
+                                    );
+                                  })
+                                ) : (
+                                  <>
+                                    {/* Standard Mode: Label Column */}
+                                    <div className="flex-1 px-2.5 py-1.5 flex items-center border-r border-border/40 min-w-0 relative group/labelcell">
+                                      <InlineCatalogLabel
+                                        value={item.label}
+                                        subDescription={item.subDescription}
+                                        isReadOnly={isFillMode}
+                                        onSave={(newLabel, newDesc) =>
+                                          updateMutation.mutate({
+                                            idOrToken: item.id || item.rowToken,
+                                            payload: { label: newLabel, subDescription: newDesc },
+                                          })
+                                        }
+                                      />
+
+                                      {/* Hover Action Buttons pinned to right edge of Label Column */}
+                                      {!isFillMode && (
+                                        <div className="absolute right-0 top-0 bottom-0 flex items-center pr-1 pl-4 opacity-0 group-hover/labelcell:opacity-100 group-hover:opacity-100 transition-opacity z-10 bg-gradient-to-l from-background via-background/95 to-transparent">
+                                          <div className="flex items-center gap-0.5 bg-background rounded border border-border/60 shadow-xs p-0.5">
+                                            <Button
+                                              variant="ghost"
+                                              size="icon"
+                                              className="h-5 w-5 text-muted-foreground hover:text-foreground hover:bg-muted transition-colors"
+                                              onClick={(e) => {
+                                                e.stopPropagation();
+                                                setEditingItem(item);
+                                                setIsAddModalOpen(true);
+                                              }}
+                                              title="Edit token"
+                                            >
+                                              <Edit2 className="w-3 h-3" />
+                                            </Button>
+                                            <Button
+                                              variant="ghost"
+                                              size="icon"
+                                              className="h-5 w-5 text-muted-foreground hover:text-destructive hover:bg-destructive/10 transition-colors"
+                                              onClick={(e) => {
+                                                e.stopPropagation();
+                                                setItemToDelete(item);
+                                              }}
+                                              title="Delete from catalog"
+                                            >
+                                              <Trash2 className="w-3 h-3" />
+                                            </Button>
+                                          </div>
+                                        </div>
+                                      )}
+                                    </div>
+
+                                    {/* Standard Mode: USD / Rate cell (Completely Unobstructed per Rule 23) */}
+                                    <div
+                                      role={isFillMode ? undefined : "button"}
+                                      tabIndex={isFillMode ? undefined : 0}
                                       onClick={(e) => {
+                                        if (isFillMode) return;
                                         e.stopPropagation();
-                                        setEditingItem(item);
-                                        setIsAddModalOpen(true);
+                                        const isFormula =
+                                          item.valueType === "formula" || Boolean(item.formula);
+                                        const currentInput = isFormula
+                                          ? item.formula || ""
+                                          : item.initialValue != null && item.initialValue !== ""
+                                            ? String(item.initialValue)
+                                            : "";
+
+                                        setSelectedCell({
+                                          templateId: templateId || "",
+                                          draftId: draftId || "",
+                                          sectionId: "",
+                                          rowId: item.id || item.rowToken,
+                                          row: item,
+                                          isCatalogItem: true,
+                                          breadcrumb: item.label || item.rowToken,
+                                          valueType: isFormula ? "formula" : "normal",
+                                          currentInput,
+                                          token: item.rowToken,
+                                        });
                                       }}
-                                      title="Edit token"
+                                      className={cn(
+                                        "w-20 shrink-0 flex items-center justify-end px-2 font-mono text-xs font-bold text-foreground tabular-nums select-none",
+                                        !isFillMode &&
+                                          "cursor-pointer rounded-xs transition-all duration-100 hover:ring-1 hover:ring-primary/40 hover:bg-primary/5",
+                                        isFillMode && "cursor-default",
+                                        selectedCell?.isCatalogItem &&
+                                          selectedCell?.rowId === (item.id || item.rowToken) &&
+                                          "ring-2 ring-primary/60 bg-primary/10",
+                                      )}
+                                      title={
+                                        isFillMode
+                                          ? undefined
+                                          : "Click to edit formula / rate (opens formula bar)"
+                                      }
                                     >
-                                      <Edit2 className="w-3 h-3" />
-                                    </Button>
-                                    <Button
-                                      variant="ghost"
-                                      size="icon"
-                                      className="h-5 w-5 text-muted-foreground hover:text-destructive hover:bg-destructive/10 transition-colors"
-                                      onClick={(e) => {
-                                        e.stopPropagation();
-                                        setItemToDelete(item);
-                                      }}
-                                      title="Delete from catalog"
-                                    >
-                                      <Trash2 className="w-3 h-3" />
-                                    </Button>
-                                  </div>
-                                </div>
-                              )}
-                            </div>
-                          )}
-                        </Draggable>
-                      );
-                    })
+                                      {item.valueType === "formula" || item.formula ? (
+                                        <span
+                                          className="text-[10px] font-semibold text-sky-400 bg-sky-500/10 border border-sky-500/20 px-1.5 py-0.5 rounded truncate max-w-[70px]"
+                                          title={item.formula || ""}
+                                        >
+                                          fx {item.formula || "formula"}
+                                        </span>
+                                      ) : item.initialValue != null && item.initialValue !== "" ? (
+                                        <span>{fmt(Number(item.initialValue))}</span>
+                                      ) : (
+                                        <span className="text-muted-foreground/30 font-normal">
+                                          —
+                                        </span>
+                                      )}
+                                    </div>
+                                  </>
+                                )}
+                              </div>
+                            )}
+                          </Draggable>
+                        );
+                      })}
+
+                      {/* Inline Add Line Item Row (placed right below the last line item) */}
+                      {!isFillMode && filteredItems.length > 0 && (
+                        <div
+                          role="button"
+                          tabIndex={0}
+                          onClick={() => {
+                            setEditingItem(null);
+                            setIsAddModalOpen(true);
+                          }}
+                          className="w-full flex items-center justify-center gap-2 py-2.5 px-3 text-xs font-semibold text-muted-foreground hover:text-primary hover:bg-primary/5 transition-all cursor-pointer group select-none border-t border-dashed border-border/60"
+                          title="Add line item"
+                        >
+                          <Plus className="h-3.5 w-3.5 text-muted-foreground group-hover:text-primary transition-colors" />
+                          <span>Add Line Item</span>
+                        </div>
+                      )}
+                    </>
                   )}
                   {provided.placeholder}
                 </div>
@@ -670,23 +728,6 @@ export function AdditionalLineItemsPool({
             </Droppable>
           </div>
         </div>
-
-        {/* ── Sticky Clamped + Add Line Item Button (Only in Edit/Builder Mode) ── */}
-        {!isFillMode && (
-          <div className="sticky bottom-0 z-20 mt-2 pt-2 pb-1 bg-gradient-to-t from-background via-background/95 to-transparent shrink-0">
-            <Button
-              variant="ghost"
-              size="sm"
-              className="w-full h-8 text-xs text-muted-foreground hover:text-foreground border border-dashed border-border/80 hover:border-primary/50 bg-background/80 shadow-xs backdrop-blur-xs transition-all"
-              onClick={() => {
-                setEditingItem(null);
-                setIsAddModalOpen(true);
-              }}
-            >
-              <Plus className="h-3.5 w-3.5 mr-1.5" /> Add Line Item
-            </Button>
-          </div>
-        )}
       </div>
 
       {/* ── Unified Add / Edit Line Item Modal ── */}

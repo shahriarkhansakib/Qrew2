@@ -122,7 +122,7 @@ export function SheetTableHeader({
 
   return (
     <>
-      <div className="flex items-stretch border border-b-0 border-border bg-muted/40 h-10 select-none relative">
+      <div className="flex items-stretch border border-b-0 border-border bg-muted/40 h-10 select-none relative w-full min-w-fit">
         {/* Left Grip Handle Spacer */}
         <div className="w-8 shrink-0 border-r border-border flex items-center justify-center bg-muted/20 relative group/insert-0">
           {/* Hover + button before first column */}

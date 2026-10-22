@@ -142,6 +142,7 @@ export class DraftSeeder {
         valueType: templateRows.valueType,
         formula: templateRows.formula,
         initialValue: templateRows.initialValue,
+        cellValues: templateRows.cellValues,
         rowToken: tokens.tokenKey,
         label: tokens.label,
         description: tokens.description,
@@ -240,6 +241,7 @@ export class DraftSeeder {
             valueType: tr.valueType,
             formula: remapFormula(tr.formula), // remap row formula
             initialValue: tr.initialValue,
+            cellValues: tr.cellValues || {},
             sortOrder: tr.sortOrder,
             charges,
           };

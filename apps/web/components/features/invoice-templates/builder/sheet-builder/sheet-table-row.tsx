@@ -16,7 +16,8 @@ interface SheetTableRowProps {
   rowIndex: number;
   globalSl: number;
   columns: TemplateColumnDefinition[];
-  templateId: string;
+  templateId?: string;
+  draftId?: string;
   sectionId: string;
   allSections?: any[];
   onDelete: () => void;
@@ -33,6 +34,7 @@ export function SheetTableRow({
   globalSl,
   columns,
   templateId,
+  draftId: _draftId,
   sectionId,
   allSections = [],
   onDelete,
@@ -53,6 +55,7 @@ export function SheetTableRow({
     hiddenTokens,
     getTokenDisabledReason,
     headerFields,
+    apiBasePath,
   } = useBuilderContext();
 
   const isFormulaMode = !!selectedCell;
@@ -126,15 +129,14 @@ export function SheetTableRow({
       }
 
       try {
-        const res = await fetch(
-          `${apiUrl}/api/invoice-templates/${templateId}/sections/${sectionId}/rows/${row.id}`,
-          {
-            method: "PATCH",
-            headers: { "Content-Type": "application/json" },
-            credentials: "include",
-            body: JSON.stringify(payload),
-          },
-        );
+        const basePath =
+          apiBasePath || (templateId ? `${apiUrl}/api/invoice-templates/${templateId}` : "");
+        const res = await fetch(`${basePath}/sections/${sectionId}/rows/${row.id}`, {
+          method: "PATCH",
+          headers: { "Content-Type": "application/json" },
+          credentials: "include",
+          body: JSON.stringify(payload),
+        });
 
         if (!res.ok) {
           throw new Error("Failed to save row changes");
@@ -151,12 +153,12 @@ export function SheetTableRow({
   );
 
   return (
-    <div className="relative flex items-stretch border-b border-border bg-background hover:bg-muted/10 transition-colors group/row">
+    <div className="relative flex items-stretch border-b border-border bg-background hover:bg-muted/10 transition-colors group/row w-full min-w-fit">
       {/* ── Token badge (absolute to the left of the table row, matching standard templates) ── */}
       {token && !isPdfMode && (
         <div
           className={cn(
-            "absolute right-full top-0 bottom-0 w-36 min-w-[9rem] flex items-center justify-end pr-3 select-none transition-all duration-150 insertable-token",
+            "absolute right-full top-0 bottom-0 w-20 min-w-[5rem] flex items-center justify-end pr-2 select-none transition-all duration-150 insertable-token",
             "z-10 hover:z-50 rounded-l-md group/token",
             "hover:w-max hover:max-w-md hover:bg-background/95 hover:backdrop-blur-sm hover:shadow-md hover:border hover:border-primary/20 hover:px-2.5",
             isDisabled

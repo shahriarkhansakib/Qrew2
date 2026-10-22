@@ -344,10 +344,10 @@ export function TemplateSectionCard({
 
   return (
     // overflow-visible is required so the absolute-positioned row tokens (right:100%) can escape the card border
-    <div className="flex flex-col group/section overflow-visible">
+    <div className="flex flex-col group/section overflow-visible w-full min-w-fit">
       {/* ── Section header — thin, muted, full-width, with section color left border (Configurable visibility) */}
       {showSectionHeaders && (
-        <div className="flex items-stretch border-b border-border bg-muted/20 group/sec">
+        <div className="flex items-stretch border-b border-border bg-muted/20 group/sec w-full min-w-fit">
           <div
             className="flex-1 px-3 py-0.5 flex items-center justify-between min-w-0"
             style={{ borderLeft: `4px solid ${sectionColor.border}` }}
@@ -482,7 +482,7 @@ export function TemplateSectionCard({
 
       {/* ── Section Subtotal (Configurable) ── */}
       {showSectionSubtotals && (
-        <div className="flex items-stretch border-b border-border bg-muted/15 font-bold h-9">
+        <div className="flex items-stretch border-b border-border bg-muted/15 font-bold h-9 w-full min-w-fit">
           <div className="w-10 shrink-0 border-r border-border" />
           <div className="flex-1 px-3 flex items-center justify-end text-muted-foreground uppercase text-xs tracking-wider border-r border-border min-w-0">
             Subtotal {label ? `— ${label}` : `Section ${sectionToken}`}

@@ -91,6 +91,17 @@ export function useSaveCellMutation() {
                 : null,
         };
 
+        if (cell.columnKey && cell.row) {
+          payload.cellValues = {
+            ...(cell.row.cellValues || {}),
+            [cell.columnKey]: isFormula
+              ? processedFormula
+              : evaluatedManualValue != null
+                ? evaluatedManualValue
+                : trimmed,
+          };
+        }
+
         if (cell.templateId) {
           await invoiceApi.updateTemplateOptionalRow(
             cell.templateId,

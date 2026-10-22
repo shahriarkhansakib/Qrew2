@@ -38,6 +38,12 @@ export const FILE_DETAILS_INFO: SectionInfoData = {
   prefixClass: "text-sky-400 bg-sky-500/10",
 };
 
+export const SHEET_DETAILS_INFO: SectionInfoData = {
+  description: "Fields defined for sheet header metadata and calculation variables.",
+  prefix: "SHEET_",
+  prefixClass: "text-sky-400 bg-sky-500/10",
+};
+
 export const EXPENSE_CATEGORIES_INFO: SectionInfoData = {
   title: "Expense Category Tokens",
   description: "Dynamic expense sums recorded for this project across all categories.",

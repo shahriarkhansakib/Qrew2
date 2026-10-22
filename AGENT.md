@@ -64,3 +64,13 @@ This is a Monorepo workspace (Turborepo + pnpm) separated into two primary appli
 *   **Container Wiping:** To wipe the local database, use the strict Docker volume command: `docker compose down -v --remove-orphans && docker compose up -d && sleep 3 && pnpm db:push`.
 *   **IPv6 Resolution:** When connecting Next.js/Hono to local Docker containers, strictly use `127.0.0.1` instead of `localhost` in `.env` files to prevent Node v17+ IPv6 resolution errors.
 *   **Memory Management:** Always call `URL.revokeObjectURL()` in a `useEffect` cleanup function when staging local file uploads to prevent browser memory leaks.
+
+---
+
+## 8. Invoicing Formula Engine, General Templates & PBAC Conventions
+*   **Formula Engine Isolation:** MathJS BigNumber (20 decimal precision) is strictly isolated on the backend (`@starter/api`) with 0 KB impact on `@starter/web`.
+*   **Serial Resequencing:** General template rows strictly follow canonical topological serial tokens (`ROW_1`, `ROW_2`, ...). Resequencing occurs automatically via a two-phase transaction mapping temporary keys to eliminate database collisions.
+*   **General vs. Standard Templates:** Standard templates feature fixed 4-column formula calculation (`SL | Description | USD1 | USD2`). General templates feature dynamic multi-column definitions (`TemplateColumnDefinition`), custom row `cellValues`, vertical auto-sums (`isTotaled`), and dynamic grand totals.
+*   **Studio Sidebar Modes:** Builders provide explicit user-switchable `overlay` (floating with backdrop blur) and `static` (docked side-by-side) sidebar modes.
+*   **Navigation & PBAC:** Invoicing navigation evaluates multi-permission arrays (`["invoice:view", "finance:view_invoices", "finance:manage_invoices"]`) across both User Dashboard and Tenant Admin sidebars, with direct invoice generation supported across template lists, builders, and draft sessions.
+*   **Detailed Contracts:** Consult `.agents/AGENTS.md` and `.agents/decisions/` for complete ADRs and architectural invariants.

@@ -194,7 +194,7 @@ export function TemplateRowList({
           ref={provided.innerRef}
           {...provided.droppableProps}
           className={cn(
-            "flex flex-col bg-background overflow-visible transition-all duration-150",
+            "flex flex-col bg-background overflow-visible transition-all duration-150 w-full min-w-fit",
             sortedRows.length === 0 &&
               "min-h-[58px] border-b border-dashed border-border/60 flex items-center justify-center p-2",
             snapshot.isDraggingOver && "bg-primary/5 ring-2 ring-primary/40 ring-inset",
@@ -220,7 +220,7 @@ export function TemplateRowList({
                 <div
                   ref={provided.innerRef}
                   {...provided.draggableProps}
-                  className="overflow-visible"
+                  className="overflow-visible w-full min-w-fit"
                 >
                   <SingleRow
                     row={row}

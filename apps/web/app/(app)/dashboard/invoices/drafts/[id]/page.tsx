@@ -11,6 +11,7 @@ import {
   Check,
   CheckCircle,
   Clock,
+  Columns2,
   ExternalLink,
   Eye,
   EyeOff,
@@ -34,6 +35,7 @@ import { Can } from "@/components/features/auth/can";
 // --- TEMPLATE BUILDER IMPORTS ---
 import { BuilderProvider } from "@/components/features/invoice-templates/builder/builder-context";
 import { SectionViewOptionsPopover } from "@/components/features/invoice-templates/builder/section-view-options";
+import { SheetBuilderWorkspace } from "@/components/features/invoice-templates/builder/sheet-builder/sheet-builder-workspace";
 import { TemplateBuilderWorkspace } from "@/components/features/invoice-templates/builder/template-builder-workspace";
 import { TemplateTokenPool } from "@/components/features/invoice-templates/builder/token-pool";
 import { AddOptionalServiceModal } from "@/components/features/invoices/drafts/add-optional-service-modal";
@@ -73,7 +75,25 @@ export default function DraftBuilderPage() {
   const [tokenPoolOpen, setTokenPoolOpen] = useState(true);
   const [sidebarTab, setSidebarTab] = useState<"tokens" | "line-items">("tokens");
   const [builderScale, setBuilderScale] = useState<number>(1);
-  const [poolWidth, setPoolWidth] = useState(320);
+  const [poolWidth, setPoolWidth] = useState(440);
+
+  const [sidebarDisplayMode, setSidebarDisplayMode] = useState<"overlay" | "static">(() => {
+    if (typeof window !== "undefined") {
+      const saved = localStorage.getItem("starter_studio_sidebar_display_mode");
+      if (saved === "overlay" || saved === "static") return saved;
+    }
+    return "static";
+  });
+
+  const toggleSidebarDisplayMode = () => {
+    setSidebarDisplayMode((prev) => {
+      const next = prev === "overlay" ? "static" : "overlay";
+      if (typeof window !== "undefined") {
+        localStorage.setItem("starter_studio_sidebar_display_mode", next);
+      }
+      return next;
+    });
+  };
 
   const splitPaneRef = useRef<HTMLDivElement>(null);
   const [containerWidth, setContainerWidth] = useState(0);
@@ -90,8 +110,7 @@ export default function DraftBuilderPage() {
     return () => observer.disconnect();
   }, []);
 
-  const isRatioConstrained = containerWidth > 0 && (containerWidth - poolWidth) / poolWidth < 4;
-  const isOverlayMode = isRatioConstrained;
+  const isOverlayMode = sidebarDisplayMode === "overlay";
 
   const lastStudioOpenBeforePreviewRef = useRef<boolean>(true);
 
@@ -338,6 +357,15 @@ export default function DraftBuilderPage() {
     }
   };
 
+  const templateType = draft?.sourceTemplate?.templateType || template?.templateType || "standard";
+  const isGeneral =
+    templateType === "general" ||
+    templateType === "sheet" ||
+    (draft?.sourceTemplate?.columnDefinitions?.length ?? 0) > 0 ||
+    (template?.columnDefinitions?.length ?? 0) > 0;
+  const columnDefinitions =
+    draft?.sourceTemplate?.columnDefinitions || template?.columnDefinitions || [];
+
   return (
     <BuilderProvider
       mode={draftMode === "builder" ? "draft" : draftMode === "preview" ? "preview" : "fill"}
@@ -348,8 +376,13 @@ export default function DraftBuilderPage() {
       validationErrors={preview?.validationErrors ?? []}
       tokenPoolOpen={tokenPoolOpen}
       setTokenPoolOpen={setTokenPoolOpen}
+      sidebarDisplayMode={sidebarDisplayMode}
+      setSidebarDisplayMode={setSidebarDisplayMode}
+      onToggleSidebarDisplayMode={toggleSidebarDisplayMode}
+      templateType={templateType}
+      columnDefinitions={columnDefinitions}
     >
-      <div className="flex flex-col h-[calc(100vh-65px)] -m-4 md:-m-6 lg:-m-8 bg-background overflow-hidden">
+      <div className="flex flex-col h-[calc(100vh-65px)] -m-4 lg:-m-6 bg-background overflow-hidden max-w-full">
         {/* ── Top bar ─────────────────────────────────────────────── */}
         <div className="sticky top-0 z-10 border-b border-border bg-background/95 backdrop-blur px-4 h-14 flex items-center justify-between shrink-0 relative print:hidden">
           {/* ── LEFT ZONE: Document Identity & Metadata ── */}
@@ -741,25 +774,27 @@ export default function DraftBuilderPage() {
             <SectionViewOptionsPopover />
 
             {/* Cluster 4: Studio Button on the FAR RIGHT */}
-            <Button
-              variant={tokenPoolOpen ? "secondary" : "outline"}
-              size="sm"
-              onClick={() => setTokenPoolOpen((open) => !open)}
-              disabled={draftMode === "preview"}
-              className={cn(
-                "gap-1.5 text-xs h-8 shrink-0 ml-0.5",
-                tokenPoolOpen && "bg-primary/10 border-primary text-primary font-semibold",
-                draftMode === "preview" && "opacity-40 cursor-not-allowed",
-              )}
-              title={tokenPoolOpen ? "Close Studio Sidebar" : "Open Studio Sidebar"}
-            >
-              {tokenPoolOpen ? (
-                <PanelRightClose className="h-4 w-4" />
-              ) : (
-                <PanelRightOpen className="h-4 w-4" />
-              )}
-              <span className="hidden sm:inline">Studio</span>
-            </Button>
+            <div className="flex items-center gap-1 shrink-0 ml-0.5">
+              <Button
+                variant={tokenPoolOpen ? "secondary" : "outline"}
+                size="sm"
+                onClick={() => setTokenPoolOpen((open) => !open)}
+                disabled={draftMode === "preview"}
+                className={cn(
+                  "gap-1.5 text-xs h-8",
+                  tokenPoolOpen && "bg-primary/10 border-primary text-primary font-semibold",
+                  draftMode === "preview" && "opacity-40 cursor-not-allowed",
+                )}
+                title={tokenPoolOpen ? "Close Studio Sidebar" : "Open Studio Sidebar"}
+              >
+                {tokenPoolOpen ? (
+                  <PanelRightClose className="h-4 w-4" />
+                ) : (
+                  <PanelRightOpen className="h-4 w-4" />
+                )}
+                <span className="hidden sm:inline">Studio</span>
+              </Button>
+            </div>
           </div>
         </div>
         {/* -- Body -------------------------------------------------- */}
@@ -969,7 +1004,7 @@ export default function DraftBuilderPage() {
               {/* Main Builder Area */}
               <div
                 className={cn(
-                  "flex flex-col h-full bg-muted/20 overflow-y-auto transition-all duration-200 flex-1 min-w-0 w-full",
+                  "flex flex-col h-full bg-muted/20 overflow-y-auto overflow-x-auto transition-all duration-200 flex-1 min-w-0",
                   tokenPoolOpen && !isOverlayMode && "md:border-r md:border-border",
                 )}
                 style={
@@ -979,18 +1014,33 @@ export default function DraftBuilderPage() {
                   } as React.CSSProperties
                 }
               >
-                <TemplateBuilderWorkspace
-                  templateId={draft.sourceTemplateId}
-                  draftId={draftId}
-                  zoomLevel={0}
-                  project={draft?.project}
-                  draftHeaderValues={draft?.draftHeaderValues}
-                  isSharedDnd={true}
-                  resolvedTokens={preview?.resolvedScope?.tokens}
-                  projectedDocumentNumber={
-                    preview?.projectedDocumentNumber || draft?.projectedDocumentNumber
-                  }
-                />
+                {isGeneral ? (
+                  <SheetBuilderWorkspace
+                    templateId={draft.sourceTemplateId}
+                    draftId={draftId}
+                    columns={columnDefinitions}
+                    zoomLevel={0}
+                    project={draft?.project}
+                    draftHeaderValues={draft?.draftHeaderValues}
+                    projectedDocumentNumber={
+                      preview?.projectedDocumentNumber || draft?.projectedDocumentNumber
+                    }
+                    isSharedDnd={true}
+                  />
+                ) : (
+                  <TemplateBuilderWorkspace
+                    templateId={draft.sourceTemplateId}
+                    draftId={draftId}
+                    zoomLevel={0}
+                    project={draft?.project}
+                    draftHeaderValues={draft?.draftHeaderValues}
+                    isSharedDnd={true}
+                    resolvedTokens={preview?.resolvedScope?.tokens}
+                    projectedDocumentNumber={
+                      preview?.projectedDocumentNumber || draft?.projectedDocumentNumber
+                    }
+                  />
+                )}
               </div>
 
               {/* Sliding Token Pool Panel */}
@@ -1019,8 +1069,8 @@ export default function DraftBuilderPage() {
 
                         const handleMouseMove = (moveEvent: MouseEvent) => {
                           const delta = startX - moveEvent.clientX;
-                          const maxW = containerWidth > 0 ? containerWidth * 0.85 : 700;
-                          const newWidth = Math.min(Math.max(startWidth + delta, 280), maxW);
+                          const maxW = containerWidth > 0 ? containerWidth * 0.85 : 800;
+                          const newWidth = Math.min(Math.max(startWidth + delta, 300), maxW);
                           setPoolWidth(newWidth);
                         };
 
@@ -1034,13 +1084,15 @@ export default function DraftBuilderPage() {
                       }}
                     />
                   )}
-                  <div style={{ width: poolWidth }} className="h-full overflow-hidden">
+                  <div className="w-full h-full overflow-hidden">
                     <TemplateTokenPool
                       templateId={draft.sourceTemplateId}
                       draftId={draftId}
                       activeTab={sidebarTab}
                       onTabChange={setSidebarTab}
                       onClose={() => setTokenPoolOpen(false)}
+                      sidebarDisplayMode={sidebarDisplayMode}
+                      onToggleSidebarDisplayMode={toggleSidebarDisplayMode}
                     />
                   </div>
                 </div>

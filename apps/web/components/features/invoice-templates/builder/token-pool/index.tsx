@@ -1,7 +1,16 @@
 "use client";
 
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { AlertTriangle, Edit2, Hash, Info, Layers, PanelRightClose, Trash2 } from "lucide-react";
+import {
+  AlertTriangle,
+  Columns2,
+  Edit2,
+  Hash,
+  Info,
+  Layers,
+  PanelRightClose,
+  Trash2,
+} from "lucide-react";
 import { useState } from "react";
 import { toast } from "sonner";
 import { invoiceApi } from "@/components/features/invoices/shared/invoice-api";
@@ -25,6 +34,7 @@ import { useBuilderContext } from "../builder-context";
 import { AdditionalLineItemsPool } from "./components/additional-line-items-pool";
 import { ExpenseCategoriesSection } from "./components/expense-categories-section";
 import { FileDetailsSection } from "./components/file-details-section";
+import { FILE_DETAILS_INFO, SHEET_DETAILS_INFO } from "./components/section-info-popover";
 import { GlobalConstantsSection } from "./components/global-constants-section";
 import { SectionsTree } from "./components/sections-tree";
 import { TemplateConstantsSection } from "./components/template-constants-section";
@@ -502,6 +512,8 @@ export function TemplateTokenPool({
   onTabChange: propOnTabChange,
   onAddRowToSection,
   onClose,
+  sidebarDisplayMode: propSidebarDisplayMode,
+  onToggleSidebarDisplayMode: propOnToggleSidebarDisplayMode,
 }: {
   templateId?: string;
   draftId?: string;
@@ -509,6 +521,8 @@ export function TemplateTokenPool({
   onTabChange?: (tab: "tokens" | "line-items") => void;
   onAddRowToSection?: (item: any, sectionId?: string) => void;
   onClose?: () => void;
+  sidebarDisplayMode?: "overlay" | "static";
+  onToggleSidebarDisplayMode?: () => void;
 }) {
   const isDraftMode = !!draftId;
   const apiBasePath = isDraftMode
@@ -523,10 +537,20 @@ export function TemplateTokenPool({
     ? ["draft-sections", draftId]
     : ["template-sections", templateId];
 
-  const { selectedCell, setClipboardToken, sidebarTab, setSidebarTab, mode, templateType } =
-    useBuilderContext();
+  const {
+    selectedCell,
+    setClipboardToken,
+    sidebarTab,
+    setSidebarTab,
+    mode,
+    templateType,
+    sidebarDisplayMode: ctxDisplayMode,
+    toggleSidebarDisplayMode: ctxToggleMode,
+  } = useBuilderContext();
   const currentTab = propActiveTab ?? sidebarTab;
   const handleTabChange = propOnTabChange ?? setSidebarTab;
+  const activeDisplayMode = propSidebarDisplayMode ?? ctxDisplayMode ?? "static";
+  const handleToggleDisplayMode = propOnToggleSidebarDisplayMode ?? ctxToggleMode;
 
   const { data: catalog = [] } = useQuery({
     queryKey: templateId
@@ -662,6 +686,9 @@ export function TemplateTokenPool({
   );
 
   const getFileToken = (field: any) => {
+    if (field.tokenKey) {
+      return field.tokenKey.toUpperCase().replace(/^FILE_/, "");
+    }
     if (field.fieldType === "file_field" && field.fileFieldKey) {
       return field.fileFieldKey.toUpperCase().replace(/^FILE_/, "");
     }
@@ -691,26 +718,34 @@ export function TemplateTokenPool({
         className="flex flex-col h-full overflow-hidden token-pool-container bg-background"
         onMouseDown={(e) => {
           const target = e.target as HTMLElement;
-          if (target.closest("input") || target.closest("textarea") || target.closest("select")) {
+          if (
+            target.closest("input") ||
+            target.closest("textarea") ||
+            target.closest("select") ||
+            target.closest("button") ||
+            target.closest("[role='button']")
+          ) {
             return;
           }
-          e.preventDefault();
+          if (target.closest(".insertable-token") || target.closest(".token-chip")) {
+            e.preventDefault();
+          }
         }}
       >
         {/* ── Adobe Illustrator-Style Tab Strip ── */}
-        <div className="flex items-center justify-between border-b border-border bg-muted/40 px-2 pt-1.5 select-none shrink-0">
-          <div className="flex items-center gap-1 -mb-[1px]">
+        <div className="flex items-center justify-between border-b border-border bg-muted/40 px-2 pt-1.5 select-none shrink-0 min-w-0">
+          <div className="flex items-center gap-1 -mb-[1px] min-w-0 overflow-hidden">
             <button
               type="button"
               onClick={() => handleTabChange("tokens")}
               className={cn(
-                "flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold rounded-t-md transition-all cursor-pointer border border-b-0",
+                "flex items-center gap-1 px-2.5 py-1.5 text-xs font-semibold rounded-t-md transition-all cursor-pointer border border-b-0 shrink-0",
                 currentTab === "tokens"
                   ? "bg-background text-foreground border-border border-t-2 border-t-primary shadow-xs z-10"
                   : "bg-transparent text-muted-foreground hover:text-foreground hover:bg-muted/50 border-transparent",
               )}
             >
-              <Hash className="w-3.5 h-3.5 text-primary" />
+              <Hash className="w-3.5 h-3.5 text-primary shrink-0" />
               <span>Token Pool</span>
             </button>
 
@@ -718,28 +753,60 @@ export function TemplateTokenPool({
               type="button"
               onClick={() => handleTabChange("line-items")}
               className={cn(
-                "flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold rounded-t-md transition-all cursor-pointer border border-b-0",
+                "flex items-center gap-1 px-2.5 py-1.5 text-xs font-semibold rounded-t-md transition-all cursor-pointer border border-b-0 min-w-0 truncate",
                 currentTab === "line-items"
                   ? "bg-background text-foreground border-border border-t-2 border-t-primary shadow-xs z-10"
                   : "bg-transparent text-muted-foreground hover:text-foreground hover:bg-muted/50 border-transparent",
               )}
+              title="Additional Line Items"
             >
-              <Layers className="w-3.5 h-3.5 text-primary" />
-              <span>Additional Line Items</span>
+              <Layers className="w-3.5 h-3.5 text-primary shrink-0" />
+              <span className="truncate">Line Items</span>
               {catalogCount > 0 && (
-                <span className="text-[10px] font-mono px-1.5 py-0.2 rounded-full bg-primary/10 text-primary font-bold">
+                <span className="text-[10px] font-mono px-1.5 py-0.2 rounded-full bg-primary/10 text-primary font-bold shrink-0">
                   {catalogCount}
                 </span>
               )}
             </button>
           </div>
 
-          <div className="flex items-center gap-1 pb-1">
+          <div className="flex items-center gap-1 pb-1 shrink-0 ml-1">
+            {handleToggleDisplayMode && (
+              <button
+                type="button"
+                onClick={handleToggleDisplayMode}
+                className={cn(
+                  "flex items-center gap-1 px-1.5 py-0.5 rounded text-xs transition-colors cursor-pointer border shrink-0",
+                  activeDisplayMode === "overlay"
+                    ? "bg-sky-500/10 text-sky-400 border-sky-500/25 hover:bg-sky-500/20"
+                    : "bg-muted/40 text-muted-foreground hover:text-foreground hover:bg-muted/70 border-border/60",
+                )}
+                title={
+                  activeDisplayMode === "overlay"
+                    ? "Mode: Overlay (Sidebar floats over table). Click to switch to Static (Docked side-by-side)."
+                    : "Mode: Static (Docked side-by-side). Click to switch to Overlay (Floating over table)."
+                }
+                aria-label="Toggle Studio display mode"
+              >
+                {activeDisplayMode === "overlay" ? (
+                  <>
+                    <Layers className="w-3.5 h-3.5 shrink-0" />
+                    <span className="text-[10px] font-semibold tracking-wide">Overlay</span>
+                  </>
+                ) : (
+                  <>
+                    <Columns2 className="w-3.5 h-3.5 shrink-0" />
+                    <span className="text-[10px] font-semibold tracking-wide">Docked</span>
+                  </>
+                )}
+              </button>
+            )}
+
             {currentTab === "tokens" && (
               <button
                 type="button"
                 onClick={() => setShowLegend(true)}
-                className={`p-1 rounded-full transition-colors cursor-pointer ${showLegend ? "bg-primary/10 text-primary" : "text-muted-foreground/40 hover:text-foreground hover:bg-muted/40"}`}
+                className={`p-1 rounded-full transition-colors cursor-pointer shrink-0 ${showLegend ? "bg-primary/10 text-primary" : "text-muted-foreground/40 hover:text-foreground hover:bg-muted/40"}`}
                 title="Token color guide"
                 aria-label="Token color guide"
               >
@@ -751,7 +818,7 @@ export function TemplateTokenPool({
               <button
                 type="button"
                 onClick={onClose}
-                className="p-1 rounded-md text-muted-foreground hover:text-foreground hover:bg-muted/60 transition-colors ml-0.5 cursor-pointer"
+                className="p-1 rounded-md text-muted-foreground hover:text-foreground hover:bg-muted/60 transition-colors ml-0.5 cursor-pointer shrink-0"
                 title="Collapse Studio sidebar"
                 aria-label="Collapse Studio sidebar"
               >
@@ -1333,15 +1400,23 @@ export function TemplateTokenPool({
               setConstantToDelete={setConstantToDelete}
               setShowLegend={setShowLegend}
             />
-            {templateType !== "sheet" && templateType !== "general" && (
-              <FileDetailsSection
-                allFileFields={allFileFields}
-                getFileToken={getFileToken}
-                tokenZoomLevel={tokenZoomLevel}
-                handleTokenClick={handleTokenClick}
-                setShowLegend={setShowLegend}
-              />
-            )}
+            <FileDetailsSection
+              allFileFields={allFileFields}
+              getFileToken={getFileToken}
+              tokenZoomLevel={tokenZoomLevel}
+              handleTokenClick={handleTokenClick}
+              setShowLegend={setShowLegend}
+              title={
+                templateType === "sheet" || templateType === "general"
+                  ? "Sheet Details"
+                  : "File Details"
+              }
+              info={
+                templateType === "sheet" || templateType === "general"
+                  ? SHEET_DETAILS_INFO
+                  : FILE_DETAILS_INFO
+              }
+            />
             <ExpenseCategoriesSection
               categories={expenseCategories || []}
               tokenZoomLevel={tokenZoomLevel}

@@ -133,6 +133,11 @@ export function TemplateFormulaBar() {
     if (overlayRef.current && inputRef.current) {
       overlayRef.current.scrollLeft = inputRef.current.scrollLeft;
     }
+    if (selectedCell) {
+      setTimeout(() => {
+        inputRef.current?.focus();
+      }, 50);
+    }
   }, [selectedCell, resetHistory]);
 
   useEffect(() => {
@@ -638,7 +643,7 @@ export function TemplateFormulaBar() {
           )}
           style={{ minHeight: 36 }}
         >
-          <div className="w-12 sm:w-48 md:w-52 shrink-0 flex items-center gap-2 px-2 sm:px-3 border-r border-border bg-muted/30">
+          <div className="w-12 sm:w-auto sm:max-w-[160px] md:max-w-[190px] shrink-0 flex items-center gap-2 px-2 sm:px-3 border-r border-border bg-muted/30">
             <span
               className="text-sm font-bold select-none shrink-0"
               style={{ color: isActive ? "#a78bfa" : undefined }}

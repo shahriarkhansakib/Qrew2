@@ -834,3 +834,26 @@ stateDiagram-v2
    - Manual numeric values and prebuilt service attachment remain enabled.
 
 
+
+---
+
+## 14. Multi-Permission PBAC Navigation, Direct Invoice Generation, & General Template Drafts
+
+### 14.1 Multi-Permission Navigation & Dual Placement
+- Navigation items evaluate permission arrays via `canAny(...)`:
+  - `permission: ["invoice:view", "finance:view_invoices", "finance:manage_invoices"]`.
+- The "Invoices" page is registered and accessible in both:
+  1. The User Dashboard sidebar (`/dashboard`).
+  2. The Tenant Admin sidebar (`/org-admin`), eliminating unnecessary back-and-forth navigation.
+
+### 14.2 Direct Invoice Generation Flow
+- Invoices can be generated directly from:
+  1. Top-bar **`[ Generate Invoice ]`** in the template builder (`/org-admin/invoice-templates/[id]`).
+  2. Row action **`[ Generate Invoice ]`** in the template catalog (`/org-admin/invoice-templates`).
+  3. Header **`[ + Generate Invoice ]`** on the main invoices page (`/dashboard/invoices`).
+- `GenerateInvoiceModal` supports both pre-scoped project contexts and global creation by rendering an active Project Selector dropdown (`/api/workspaces/projects?status=active`).
+
+### 14.3 General Template Draft Workspace Routing
+- When loading a draft at `/dashboard/invoices/drafts/[id]`, the page detects if `sourceTemplate.templateType === "general"` or if custom `columnDefinitions` exist.
+- If general: the page dynamically mounts `SheetBuilderWorkspace`, hydrating all custom row `cellValues`, vertical auto-sums, and dynamic grand totals.
+- If standard: the page mounts `TemplateBuilderWorkspace` with standard 4-column layout and two-column USD calculation.

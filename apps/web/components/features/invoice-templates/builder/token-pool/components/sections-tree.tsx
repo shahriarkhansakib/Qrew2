@@ -25,7 +25,7 @@ function SectionItem({
 }) {
   const { selectedCell, invalidTokens, hiddenTokens, getTokenDisabledReason, templateType } =
     useBuilderContext();
-  const isSheet = templateType === "sheet";
+  const isSheet = templateType === "sheet" || templateType === "general";
   const isFormulaMode = !!selectedCell;
   const [activeTab, setActiveTab] = useState<"rows" | "section">("rows");
   const sectionToken: string = section.sectionToken;
@@ -149,7 +149,7 @@ function SectionItem({
               />
             </div>
 
-            {sectionCharges.length > 0 && (
+            {sectionCharges.length > 0 && !isSheet && (
               <div className="bg-muted/5 border border-border/20 rounded-md p-1.5 space-y-0.5">
                 <div className="text-[10px] uppercase font-bold text-muted-foreground/50 px-1 mb-0.5 tracking-wider">
                   Individual Section Charges

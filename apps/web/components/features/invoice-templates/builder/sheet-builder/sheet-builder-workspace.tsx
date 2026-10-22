@@ -29,11 +29,15 @@ import { SheetTableHeader } from "./sheet-table-header";
 import { TemplateColumnDefinition } from "./types";
 
 interface SheetBuilderWorkspaceProps {
-  templateId: string;
+  templateId?: string;
+  draftId?: string;
   zoomLevel?: number;
   columns: TemplateColumnDefinition[];
   onConfigureColumns?: () => void;
   isSharedDnd?: boolean;
+  project?: any;
+  draftHeaderValues?: Record<string, any>;
+  projectedDocumentNumber?: string | null;
 }
 
 function AddSectionDivider({ onClick }: { onClick: () => void }) {
@@ -62,10 +66,14 @@ const EMPTY_HEADER_FIELDS: any[] = [];
 
 export function SheetBuilderWorkspace({
   templateId,
+  draftId,
   zoomLevel = 0,
   columns,
   onConfigureColumns,
   isSharedDnd = false,
+  project,
+  draftHeaderValues,
+  projectedDocumentNumber,
 }: SheetBuilderWorkspaceProps) {
   const queryClient = useQueryClient();
   const [insertAtIndex, setInsertAtIndex] = useState<number | null>(null);
@@ -73,31 +81,90 @@ export function SheetBuilderWorkspace({
   const [editingHeaderField, setEditingHeaderField] = useState<any>(null);
   const [fieldToDelete, setFieldToDelete] = useState<string | null>(null);
 
-  const { setTokenMap, setSections, setHeaderFields, mode } = useBuilderContext();
+  const { setTokenMap, setSections, setHeaderFields, mode, apiBasePath, invalidateKey } =
+    useBuilderContext();
+
+  const effectiveBasePath =
+    apiBasePath ||
+    (draftId
+      ? `${apiUrl}/api/invoices/drafts/${draftId}`
+      : `${apiUrl}/api/invoice-templates/${templateId}`);
+
+  const sectionsQueryKey =
+    invalidateKey && invalidateKey.length > 0
+      ? invalidateKey
+      : draftId
+        ? ["draft-sections", draftId]
+        : ["template-sections", templateId];
 
   const { data: sections, isLoading } = useQuery({
-    queryKey: ["template-sections", templateId],
+    queryKey: sectionsQueryKey,
     queryFn: async () => {
-      const res = await fetch(`${apiUrl}/api/invoice-templates/${templateId}/sections`, {
+      const res = await fetch(`${effectiveBasePath}/sections`, {
         credentials: "include",
       });
       if (!res.ok) throw new Error("Failed to fetch sections");
       return res.json();
     },
-    enabled: Boolean(templateId),
+    enabled: Boolean(templateId || draftId),
   });
 
-  const headerFieldsQueryKey = ["template-header-fields", templateId];
+  const headerFieldsQueryKey = draftId
+    ? ["draft-header-fields", draftId]
+    : ["template-header-fields", templateId];
+
+  const headerFieldsUrl = draftId
+    ? `${apiUrl}/api/invoices/drafts/${draftId}/header-fields`
+    : `${apiUrl}/api/invoice-templates/${templateId}/header-fields`;
+
   const { data: templateHeaderFields, refetch: refetchHeaderFields } = useQuery({
     queryKey: headerFieldsQueryKey,
     queryFn: async () => {
-      const res = await fetch(`${apiUrl}/api/invoice-templates/${templateId}/header-fields`, {
+      const res = await fetch(headerFieldsUrl, {
         credentials: "include",
       });
       if (!res.ok) return [];
       return res.json();
     },
-    enabled: Boolean(templateId),
+    enabled: Boolean(templateId || draftId),
+  });
+
+  const constantsQueryKey = draftId
+    ? ["draft-constants", draftId]
+    : ["template-constants", templateId];
+
+  const constantsUrl = draftId
+    ? `${apiUrl}/api/invoices/drafts/${draftId}/constants`
+    : `${apiUrl}/api/invoice-templates/${templateId}/constants`;
+
+  const { data: constantsData } = useQuery({
+    queryKey: constantsQueryKey,
+    queryFn: async () => {
+      const res = await fetch(constantsUrl, {
+        credentials: "include",
+      });
+      if (!res.ok) return [];
+      return res.json();
+    },
+    enabled: Boolean(templateId || draftId),
+  });
+
+  const { data: orgConfigs } = useQuery({
+    queryKey: ["org-configs"],
+    queryFn: async () => {
+      const res = await fetch(`${apiUrl}/api/org-configs`, { credentials: "include" });
+      if (!res.ok) return [];
+      return res.json();
+    },
+  });
+
+  const { data: expenseCategoriesData } = useQuery({
+    queryKey: ["expense-categories"],
+    queryFn: async () => {
+      const res = await fetch(`${apiUrl}/api/expense-categories`, { credentials: "include" });
+      if (!res.ok) return [];
+      return res.json();
+    },
   });
 
   const sortedSections = useMemo(() => {
@@ -119,8 +186,14 @@ export function SheetBuilderWorkspace({
 
   // Synchronize token map and context
   const tokenMap = useMemo(() => {
-    return buildTokenMap(sortedSections, undefined, undefined, safeHeaderFields);
-  }, [sortedSections, safeHeaderFields]);
+    return buildTokenMap(
+      sortedSections,
+      orgConfigs ?? [],
+      constantsData ?? [],
+      safeHeaderFields,
+      expenseCategoriesData ?? [],
+    );
+  }, [sortedSections, orgConfigs, constantsData, safeHeaderFields, expenseCategoriesData]);
 
   useEffect(() => {
     if (setTokenMap) setTokenMap(tokenMap);
@@ -139,17 +212,17 @@ export function SheetBuilderWorkspace({
   const handleConfirmDeleteField = async () => {
     if (!fieldToDelete) return;
     try {
-      const res = await fetch(
-        `${apiUrl}/api/invoice-templates/${templateId}/header-fields/${fieldToDelete}`,
-        {
-          method: "DELETE",
-          credentials: "include",
-        },
-      );
+      const deleteUrl = draftId
+        ? `${apiUrl}/api/invoices/drafts/${draftId}/header-fields/${fieldToDelete}`
+        : `${apiUrl}/api/invoice-templates/${templateId}/header-fields/${fieldToDelete}`;
+      const res = await fetch(deleteUrl, {
+        method: "DELETE",
+        credentials: "include",
+      });
       if (!res.ok) throw new Error("Failed to delete field");
       toast.success("Sheet details field removed");
       refetchHeaderFields();
-      queryClient.invalidateQueries({ queryKey: ["template-sections", templateId] });
+      queryClient.invalidateQueries({ queryKey: sectionsQueryKey });
     } catch (err: any) {
       toast.error(err.message || "Failed to delete field");
     } finally {
@@ -160,7 +233,10 @@ export function SheetBuilderWorkspace({
   const handleReorderHeaderFields = async (updates: any[], optimisticState: any[]) => {
     queryClient.setQueryData(headerFieldsQueryKey, optimisticState);
     try {
-      await fetch(`${apiUrl}/api/invoice-templates/${templateId}/header-fields/reorder`, {
+      const reorderUrl = draftId
+        ? `${apiUrl}/api/invoices/drafts/${draftId}/header-fields/reorder`
+        : `${apiUrl}/api/invoice-templates/${templateId}/header-fields/reorder`;
+      await fetch(reorderUrl, {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
         credentials: "include",
@@ -173,6 +249,7 @@ export function SheetBuilderWorkspace({
   };
 
   const handleColumnsChange = async (newColumns: TemplateColumnDefinition[]) => {
+    if (!templateId) return;
     queryClient.setQueryData(["invoice-template", templateId], (old: any) => {
       if (!old) return old;
       return { ...old, columnDefinitions: newColumns };
@@ -202,14 +279,17 @@ export function SheetBuilderWorkspace({
   }
 
   return (
-    <div className="px-4 sm:px-6 md:px-12 lg:px-44 xl:px-48 pb-12 overflow-visible transition-all duration-200 outline-none w-full">
-      <div className="w-full max-w-5xl mx-auto relative overflow-visible">
+    <div className="pl-4 sm:pl-6 md:pl-20 lg:pl-24 pr-8 sm:pr-12 md:pr-16 lg:pr-24 pb-12 overflow-visible transition-all duration-200 outline-none w-full min-w-fit">
+      <div className="w-full relative overflow-visible min-w-fit">
         {/* ── Sheet Details Header Box ── */}
         <FileDetailsHeaderBox
           title="Sheet Details"
           isSheetMode={true}
-          templateHeaderFields={templateHeaderFields}
-          isTemplateMode={true}
+          templateHeaderFields={safeHeaderFields}
+          isTemplateMode={!draftId}
+          draftId={draftId}
+          project={project}
+          draftHeaderValues={draftHeaderValues}
           isSharedDnd={isSharedDnd}
           zoomLevel={zoomLevel}
           templateId={templateId}
@@ -241,7 +321,7 @@ export function SheetBuilderWorkspace({
         />
 
         {/* ── Table Body Sections ── */}
-        <div className="border-x border-border bg-background overflow-visible">
+        <div className="border-x border-border bg-background overflow-visible w-full min-w-fit">
           <AddSectionDivider onClick={() => setInsertAtIndex(0)} />
 
           {sortedSections.length === 0 ? (
@@ -252,9 +332,10 @@ export function SheetBuilderWorkspace({
             sortedSections.map((section: any, idx: number) => {
               const sectionColor = SECTION_PALETTE[idx % SECTION_PALETTE.length];
               return (
-                <div key={section.id} className="overflow-visible">
+                <div key={section.id} className="overflow-visible w-full min-w-fit">
                   <SheetSectionCard
                     templateId={templateId}
+                    draftId={draftId}
                     section={section}
                     allSections={sortedSections}
                     columns={columns}
@@ -284,6 +365,7 @@ export function SheetBuilderWorkspace({
             setEditingHeaderField(null);
           }}
           templateId={templateId}
+          draftId={draftId}
           editField={editingHeaderField}
           isSheetMode={true}
           onSuccess={() => refetchHeaderFields()}
@@ -317,8 +399,10 @@ export function SheetBuilderWorkspace({
         <AddSectionModal
           isOpen={insertAtIndex !== null}
           onClose={() => setInsertAtIndex(null)}
-          templateId={templateId}
+          templateId={templateId || ""}
+          draftId={draftId}
           insertAtIndex={insertAtIndex}
+          existingSections={sortedSections}
         />
       )}
     </div>

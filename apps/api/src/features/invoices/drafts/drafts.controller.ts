@@ -89,6 +89,7 @@ export class DraftsController {
             },
           },
           user: true, // Attach creator user
+          sourceTemplate: true, // Attach master template metadata (templateType, columnDefinitions, etc.)
         },
       });
 

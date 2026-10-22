@@ -203,7 +203,7 @@ export function TableRow({
   return (
     <div
       className={cn(
-        "relative flex items-stretch border-b border-border group/row hover:z-[60]",
+        "relative flex items-stretch border-b border-border group/row hover:z-[60] w-full min-w-fit",
         "hover:bg-muted/5 transition-colors bg-background",
         notices && notices.length > 0 && "bg-accent/[0.03] hover:bg-accent/[0.06]",
         className,
@@ -213,7 +213,7 @@ export function TableRow({
       {token && !isPdfMode && (
         <div
           className={cn(
-            "absolute right-full top-0 bottom-0 w-36 min-w-[9rem] flex items-center justify-end pr-3 select-none transition-all duration-150 insertable-token",
+            "absolute right-full top-0 bottom-0 w-20 min-w-[5rem] flex items-center justify-end pr-2 select-none transition-all duration-150 insertable-token",
             "z-10 hover:z-50 rounded-l-md group/token",
             "hover:w-max hover:max-w-md hover:bg-background/95 hover:backdrop-blur-sm hover:shadow-md hover:border hover:border-primary/20 hover:px-2.5",
             isDisabled

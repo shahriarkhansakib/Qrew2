@@ -95,6 +95,9 @@ type BuilderContextValue = {
   templateType?: "standard" | "general" | "sheet";
   columnDefinitions?: TemplateColumnDefinition[];
   setColumnDefinitions?: (cols: TemplateColumnDefinition[]) => void;
+  sidebarDisplayMode: "overlay" | "static";
+  setSidebarDisplayMode: (mode: "overlay" | "static") => void;
+  toggleSidebarDisplayMode: () => void;
 };
 
 const DEFAULT_EXTERNAL_TOKENS: ExternalTokens = {
@@ -140,6 +143,9 @@ const BuilderContext = createContext<BuilderContextValue>({
   templateType: "standard",
   columnDefinitions: [],
   setColumnDefinitions: () => {},
+  sidebarDisplayMode: "static",
+  setSidebarDisplayMode: () => {},
+  toggleSidebarDisplayMode: () => {},
 });
 
 // ─── Provider ─────────────────────────────────────────────────────────────────
@@ -155,6 +161,9 @@ export function BuilderProvider({
   validationErrors = [],
   templateType = "standard",
   columnDefinitions = [],
+  sidebarDisplayMode: propSidebarDisplayMode,
+  setSidebarDisplayMode: propSetSidebarDisplayMode,
+  onToggleSidebarDisplayMode: propOnToggleSidebarDisplayMode,
   children,
 }: {
   templateId?: string;
@@ -167,8 +176,44 @@ export function BuilderProvider({
   validationErrors?: any[];
   templateType?: "standard" | "general" | "sheet";
   columnDefinitions?: TemplateColumnDefinition[];
+  sidebarDisplayMode?: "overlay" | "static";
+  setSidebarDisplayMode?: (mode: "overlay" | "static") => void;
+  onToggleSidebarDisplayMode?: () => void;
   children: React.ReactNode;
 }) {
+  const [internalDisplayMode, setInternalDisplayMode] = useState<"overlay" | "static">(() => {
+    if (typeof window !== "undefined") {
+      const saved = localStorage.getItem("starter_studio_sidebar_display_mode");
+      if (saved === "overlay" || saved === "static") return saved;
+    }
+    return "static";
+  });
+
+  const effectiveDisplayMode = propSidebarDisplayMode ?? internalDisplayMode;
+
+  const handleSetDisplayMode = useCallback(
+    (newMode: "overlay" | "static") => {
+      if (propSetSidebarDisplayMode) {
+        propSetSidebarDisplayMode(newMode);
+      } else {
+        setInternalDisplayMode(newMode);
+      }
+      if (typeof window !== "undefined") {
+        localStorage.setItem("starter_studio_sidebar_display_mode", newMode);
+      }
+    },
+    [propSetSidebarDisplayMode],
+  );
+
+  const handleToggleDisplayMode = useCallback(() => {
+    if (propOnToggleSidebarDisplayMode) {
+      propOnToggleSidebarDisplayMode();
+    } else {
+      const next = effectiveDisplayMode === "overlay" ? "static" : "overlay";
+      handleSetDisplayMode(next);
+    }
+  }, [propOnToggleSidebarDisplayMode, effectiveDisplayMode, handleSetDisplayMode]);
+
   const [selectedCell, setSelectedCell] = useState<SelectedCell | null>(null);
   const [columns, setColumns] = useState<TemplateColumnDefinition[]>(columnDefinitions);
 
@@ -271,7 +316,7 @@ export function BuilderProvider({
     const secTotals = new Set<string>();
     const secChargeItems = new Set<string>();
 
-    const isSheet = templateType === "sheet";
+    const isSheet = templateType === "sheet" || templateType === "general";
 
     for (const sec of sections) {
       if (sec.sectionToken) {
@@ -307,7 +352,7 @@ export function BuilderProvider({
       secTotals,
       secChargeItems,
     };
-  }, [sections]);
+  }, [sections, templateType]);
 
   const getTokenColor = useCallback(
     (token: string) => {
@@ -535,6 +580,9 @@ export function BuilderProvider({
       templateType: templateType === "sheet" ? "general" : templateType,
       columnDefinitions: columns,
       setColumnDefinitions: setColumns,
+      sidebarDisplayMode: effectiveDisplayMode,
+      setSidebarDisplayMode: handleSetDisplayMode,
+      toggleSidebarDisplayMode: handleToggleDisplayMode,
     }),
     [
       selectedCell,
@@ -567,6 +615,9 @@ export function BuilderProvider({
       showSectionSubtotals,
       templateType,
       columns,
+      effectiveDisplayMode,
+      handleSetDisplayMode,
+      handleToggleDisplayMode,
     ],
   );
 
@@ -583,13 +634,15 @@ export function useBuilderContext(): BuilderContextValue {
 
 export function cellFromRow({
   templateId,
+  draftId,
   sectionId,
   row,
   decodedFormula,
   columnKey,
   columnLabel,
 }: {
-  templateId: string;
+  templateId?: string;
+  draftId?: string;
   sectionId: string;
   row: any;
   decodedFormula?: string;
@@ -607,6 +660,7 @@ export function cellFromRow({
 
   return {
     templateId,
+    draftId,
     sectionId,
     rowId: row.id,
     row,

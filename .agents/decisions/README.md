@@ -24,6 +24,7 @@ Each record documents the context, alternatives considered, exact decision taken
 | [**0012**](./0012-workflow-graph-stage-gating-and-connection-architecture.md) | **Workflow Studio Graph Architecture, Terminal Stage Semantics, Role-Gated Transitions, and Interactive Connection Engine** | 2026-10-19 | Accepted | Workflows, Visual Graph, PBAC, State Machine |
 | [**0013**](./0013-template-sync-legacy-purge-and-database-rebuild.md) | **Template Drift 3-Way Synchronization, Legacy Code & Token Purge, and Clean Baseline Database Rebuild** | 2026-10-20 | Accepted | Invoices, Drafts, Codec, PBAC, DB Rebuild |
 | [**0014**](./0014-workflow-graph-dynamic-degrees-role-gating-modal-and-reachability.md) | **Workflow Studio Dynamic Node Degrees, 5-Color Hierarchy, Modal Gating, and BFS Path Reachability Architecture** | 2026-10-21 | Accepted | Workflows, Visual Graph, PBAC, State Machine, BFS Reachability |
+| [**0015**](./0015-general-template-architecture-and-direct-invoice-generation.md) | **General Template Architecture, Multi-Column Line Items, Studio Overlay/Static Modes, Serial Resequencing, and Direct Invoice Generation** | 2026-10-22 | Accepted | Invoices, Templates, General Sheets, Multi-Column, PBAC |
 
 ---
 

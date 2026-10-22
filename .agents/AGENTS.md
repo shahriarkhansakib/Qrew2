@@ -259,7 +259,7 @@ stateDiagram-v2
 - **Centered `+ Add row` Position**:
   - In sheet sections, the `+ Add row` button is centered directly above the section subtotal footer, matching standard templates.
 
-## 28. General Templates, Serial-Based Row Tokens, Dynamic Line Items Columns, & Adaptive 4:1 Overlay Drawer (`resequence-rows.service.ts`, `reorder-rows.controller.ts`, `additional-line-items-pool.tsx`, `page.tsx`, `builder-context.tsx`)
+## 28. General Templates, Serial-Based Row Tokens, Dynamic Line Items Columns, & Explicit Studio Sidebar Modes (`resequence-rows.service.ts`, `reorder-rows.controller.ts`, `additional-line-items-pool.tsx`, `page.tsx`, `builder-context.tsx`)
 - **Archetype Rename (`templateType: "general"`)**: Type name renamed from `"sheet"` to `"general"` across database schemas, validation schemas, controllers, and UI components (with backwards compatibility for existing `"sheet"` entries).
 - **Serial-Based Row Token Naming & Two-Phase Re-Sequencing Engine (`resequence-rows.service.ts`, `reorder-rows.controller.ts`, `create-row.controller.ts`, `delete-row.controller.ts`)**:
   - Arbitrary UUID tokens (e.g. `ROW_AAA69AA3`) are completely eradicated. Row tokens are canonically named after their global serial index: `ROW_1`, `ROW_2`, `ROW_3`, ...
@@ -270,12 +270,37 @@ stateDiagram-v2
   - For General templates, the Additional Line Items catalog dynamically mirrors the template's configured `columnDefinitions` instead of fixed `Row Label | USD / Rate`.
   - Column values (`cellValues`) are preserved when moving rows into the catalog and instantiating them into the table.
   - Horizontal scrolling (`overflow-x-auto min-w-full`) prevents dense multi-column tables from crushing into unreadable slivers.
-- **Adaptive 4:1 Viewport Ratio Overlay Drawer (`page.tsx`, `drafts/[id]/page.tsx`)**:
-  - Studio Sidebar (`TemplateTokenPool` and `AdditionalLineItemsPool`) monitors container width via `ResizeObserver`.
-  - If the body-to-sidebar ratio drops below 4:1 (`(containerWidth - poolWidth) / poolWidth < 4`), the sidebar automatically switches from docked inline flex to an **Overlay Drawer** (`absolute inset-y-0 right-0 z-40 shadow-2xl bg-background/98 backdrop-blur-md`).
-  - This ensures table columns maintain 100% full screen width without compressing content.
-  - Implemented with full parity across both standard and general template builder pages, as well as draft editors.
+- **Explicit Studio Sidebar Modes: Overlay vs. Static (`page.tsx`, `drafts/[id]/page.tsx`, `token-pool/index.tsx`)**:
+  - Replaced the automatic screen-ratio heuristic with two user-switchable display modes:
+    - **Overlay Mode (`"overlay"`)**: The table occupies 100% full builder page width (`w-full flex-1 min-w-0`), while the Studio sidebar floats over the right side with shadow elevation (`absolute inset-y-0 right-0 z-40 shadow-2xl bg-background/98 backdrop-blur-md`) and click-outside backdrop dismissal.
+    - **Static Mode (`"static"`)**: The table and the sidebar sit side-by-side in flex layout (`relative shrink-0 shadow-none`); the table compresses smoothly to give space to the sidebar, and nothing overlaps. Both panels remain simultaneously interactive without a backdrop.
+  - User preference is persisted in `localStorage` under `starter_studio_sidebar_display_mode`.
+  - 1-click mode toggles (`[ Overlay ]` / `[ Docked ]`) are provided both in the top navigation toolbar (beside the Studio button) and inside the Studio sidebar tab strip header.
+  - Default sidebar width is set to `440px` (resizable between `300px` and `800px`) to provide plenty of breathing room for multi-column general template tables.
+- **Table-Body Embedded "+ Add Line Item" Row (`additional-line-items-pool.tsx`)**:
+  - The `+ Add Line Item` action is embedded strictly inside the table body itself:
+    - When no line items exist in the catalog: `+ Add Line Item` is rendered on the first row of the table directly below the column headers.
+    - When line items exist: `+ Add Line Item` is rendered immediately below the last line item as the final row of the table.
+    - The outer sticky bottom button and bulky empty state card are permanently removed.
 - **Auto-Open Sidebar & Switch to Line Items on Table Row Copy**:
   - Whenever a row is moved or saved to Additional Line Items from the table (via menu action or drag-and-drop), `openAdditionalLineItemsPanel()` automatically opens the sidebar (`tokenPoolOpen = true`) and switches the active tab directly to `line-items` (`setSidebarTab("line-items")`).
+
+## 29. Multi-Permission PBAC Invoicing Navigation & Direct Invoice Generation (`navigation.ts`, `dashboard/layout.tsx`, `org-admin/layout.tsx`, `generate-invoice-modal.tsx`, `draft-seeder.ts`, `sheet-builder-workspace.tsx`)
+- **Array-Based PBAC Navigation Gating**:
+  - `NavItem` and `NavGroup` in `navigation.ts` accept strongly-typed permission arrays: `permission?: AppPermission | AppPermission[]`.
+  - Both `dashboard/layout.tsx` and `org-admin/layout.tsx` evaluate permissions using `canAny(item.permission)`.
+  - Invoices navigation is granted to staff and accountants holding atomic `invoice:view`, as well as managers/owners holding legacy `finance:view_invoices` and `finance:manage_invoices`.
+- **Dual Sidebar Placement**:
+  - Invoices page (`/dashboard/invoices`) is registered in both the User Dashboard sidebar (`NAV_CONFIG.user`) and the Tenant Admin sidebar (`NAV_CONFIG.tenantAdmin`), eliminating unnecessary back-navigation for organization administrators.
+- **Direct 1-Click Invoice Generation**:
+  - **Template Builder Header**: Dedicated top-bar `[ Generate Invoice ]` button in `/org-admin/invoice-templates/[id]` opens `GenerateInvoiceModal` with the active template pre-selected.
+  - **Template Catalog Row Actions**: Every template card / row in `/org-admin/invoice-templates` includes a direct `[ Generate Invoice ]` action button.
+  - **Invoices Page Header**: Primary `[ + Generate Invoice ]` button in the `/dashboard/invoices` header.
+- **Project Selection in Generic Generation Modal**:
+  - `GenerateInvoiceModal` supports both pre-scoped project contexts and global creation. When opened outside a specific project, it renders an active Project Selector dropdown (`/api/workspaces/projects?status=active`).
+- **General Template Draft Session Hydration & Routing**:
+  - `DraftSeeder.hydrateFromTemplate` copies all custom `cellValues` into draft section rows and remaps formula tokens to fresh draft UUIDs.
+  - `getDraftById` eager-loads `sourceTemplate` metadata (`templateType`, `columnDefinitions`).
+  - Draft workspace (`/dashboard/invoices/drafts/[id]`) dynamically branches: if `templateType === "general"` or custom `columnDefinitions` exist, it renders `SheetBuilderWorkspace` with live AST formula calculations, dynamic column sizing, and automatic grand totals.
 
 

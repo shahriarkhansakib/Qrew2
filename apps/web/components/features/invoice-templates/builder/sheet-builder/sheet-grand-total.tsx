@@ -20,7 +20,7 @@ export function SheetGrandTotal({ sections, columns, zoomLevel = 0 }: SheetGrand
   const labelColIdx = firstTotaledIdx > 0 ? firstTotaledIdx - 1 : 0;
 
   return (
-    <div className="flex items-stretch border border-t-2 border-t-foreground/30 border-border bg-muted/20 h-11 font-bold text-xs select-none">
+    <div className="flex items-stretch border border-t-2 border-t-foreground/30 border-border bg-muted/20 h-11 font-bold text-xs select-none w-full min-w-fit">
       {/* Spacer matching grip column */}
       <div className="w-8 shrink-0 border-r border-border bg-muted/10" />
 

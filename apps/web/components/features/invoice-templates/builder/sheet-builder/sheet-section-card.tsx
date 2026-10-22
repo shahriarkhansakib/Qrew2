@@ -20,7 +20,8 @@ import { SheetTableRow } from "./sheet-table-row";
 import { getColumnWidthStyle, TemplateColumnDefinition } from "./types";
 
 interface SheetSectionCardProps {
-  templateId: string;
+  templateId?: string;
+  draftId?: string;
   section: any;
   allSections: any[];
   columns: TemplateColumnDefinition[];
@@ -33,6 +34,7 @@ interface SheetSectionCardProps {
 
 export function SheetSectionCard({
   templateId,
+  draftId,
   section,
   allSections,
   columns,
@@ -43,14 +45,15 @@ export function SheetSectionCard({
   zoomLevel = 0,
 }: SheetSectionCardProps) {
   const queryClient = useQueryClient();
-  const { tokenMap, mode, openAdditionalLineItemsPanel } = useBuilderContext();
+  const { tokenMap, mode, openAdditionalLineItemsPanel, apiBasePath, invalidateKey } =
+    useBuilderContext();
   const [isEditModalOpen, setIsEditModalOpen] = useState(false);
   const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false);
   const [editingRow, setEditingRow] = useState<any | null>(null);
   const [rowToDelete, setRowToDelete] = useState<any | null>(null);
 
   const invalidate = () => {
-    queryClient.invalidateQueries({ queryKey: ["template-sections", templateId] });
+    queryClient.invalidateQueries({ queryKey: invalidateKey });
   };
 
   // Reorder section up/down
@@ -65,7 +68,7 @@ export function SheetSectionCard({
       newSections.splice(targetIdx, 0, moved);
 
       const orderedIds = newSections.map((s) => s.id);
-      const res = await fetch(`${apiUrl}/api/invoice-templates/${templateId}/sections/reorder`, {
+      const res = await fetch(`${apiBasePath}/sections/reorder`, {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
         credentials: "include",
@@ -81,13 +84,10 @@ export function SheetSectionCard({
   // Delete section
   const deleteSectionMutation = useMutation({
     mutationFn: async () => {
-      const res = await fetch(
-        `${apiUrl}/api/invoice-templates/${templateId}/sections/${section.id}`,
-        {
-          method: "DELETE",
-          credentials: "include",
-        },
-      );
+      const res = await fetch(`${apiBasePath}/sections/${section.id}`, {
+        method: "DELETE",
+        credentials: "include",
+      });
       if (!res.ok) throw new Error("Failed to delete section");
       return res.json();
     },
@@ -102,13 +102,10 @@ export function SheetSectionCard({
   // Delete single row
   const deleteRowMutation = useMutation({
     mutationFn: async (rowId: string) => {
-      const res = await fetch(
-        `${apiUrl}/api/invoice-templates/${templateId}/sections/${section.id}/rows/${rowId}`,
-        {
-          method: "DELETE",
-          credentials: "include",
-        },
-      );
+      const res = await fetch(`${apiBasePath}/sections/${section.id}/rows/${rowId}`, {
+        method: "DELETE",
+        credentials: "include",
+      });
       if (!res.ok) throw new Error("Failed to delete row");
       return res.json();
     },
@@ -123,28 +120,36 @@ export function SheetSectionCard({
   // Move row to additional line items catalog
   const handleMoveToLineItems = async (row: any) => {
     try {
-      await invoiceApi.addTemplateOptionalRow(templateId, {
-        rowToken: row.rowToken,
-        label: row.label || row.rowToken,
-        subDescription: row.description || null,
-        valueType: row.valueType || "normal",
-        formula: row.formula || null,
-        initialValue: row.initialValue || null,
-        cellValues: row.cellValues || null,
-      });
+      if (templateId) {
+        await invoiceApi.addTemplateOptionalRow(templateId, {
+          rowToken: row.rowToken,
+          label: row.label || row.rowToken,
+          subDescription: row.description || null,
+          valueType: row.valueType || "normal",
+          formula: row.formula || null,
+          initialValue: row.initialValue || null,
+          cellValues: row.cellValues || null,
+        });
+        queryClient.invalidateQueries({
+          queryKey: invoiceKeys.optionalRows.byTemplate(templateId),
+        });
+      } else if (draftId) {
+        await invoiceApi.addDraftOptionalRow(draftId, {
+          canonicalToken: row.rowToken,
+          sectionId: section.id,
+          customLabel: row.label || row.rowToken,
+        });
+        queryClient.invalidateQueries({
+          queryKey: invoiceKeys.optionalRows.byDraft(draftId),
+        });
+      }
 
-      await fetch(
-        `${apiUrl}/api/invoice-templates/${templateId}/sections/${section.id}/rows/${row.id}`,
-        {
-          method: "DELETE",
-          credentials: "include",
-        },
-      );
+      await fetch(`${apiBasePath}/sections/${section.id}/rows/${row.id}`, {
+        method: "DELETE",
+        credentials: "include",
+      });
 
       invalidate();
-      queryClient.invalidateQueries({
-        queryKey: invoiceKeys.optionalRows.byTemplate(templateId),
-      });
       openAdditionalLineItemsPanel?.();
       toast.success(`Moved "${row.label || row.rowToken}" to Additional Line Items`);
     } catch (err: any) {
@@ -162,20 +167,17 @@ export function SheetSectionCard({
         }
       }
 
-      const res = await fetch(
-        `${apiUrl}/api/invoice-templates/${templateId}/sections/${section.id}/rows`,
-        {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          credentials: "include",
-          body: JSON.stringify({
-            label: "",
-            cellValues: defaultValues,
-            initialValue: 0,
-            valueType: "normal",
-          }),
-        },
-      );
+      const res = await fetch(`${apiBasePath}/sections/${section.id}/rows`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        credentials: "include",
+        body: JSON.stringify({
+          label: "",
+          cellValues: defaultValues,
+          initialValue: 0,
+          valueType: "normal",
+        }),
+      });
       if (!res.ok) {
         const err = await res.json().catch(() => ({}));
         throw new Error(err.error || err.message || "Failed to add row");
@@ -193,10 +195,10 @@ export function SheetSectionCard({
   const hasTotaledCols = columns.some((c) => c.isTotaled);
 
   return (
-    <div className="relative group/section bg-background overflow-visible">
+    <div className="relative group/section bg-background overflow-visible w-full min-w-fit">
       {/* ── Section Header Bar ─────────────────────────────────────────────── */}
       <div
-        className="flex items-center justify-between px-3 py-1.5 border-y border-border select-none"
+        className="flex items-center justify-between px-3 py-1.5 border-y border-border select-none w-full min-w-fit"
         style={{
           backgroundColor: sectionColor.bg,
           borderLeftColor: sectionColor.border,
@@ -266,7 +268,7 @@ export function SheetSectionCard({
           <div
             ref={provided.innerRef}
             {...provided.droppableProps}
-            className="flex flex-col overflow-visible"
+            className="flex flex-col overflow-visible w-full min-w-fit"
           >
             {rows.length === 0 ? (
               <div className="py-4 text-center text-xs text-muted-foreground/60 select-none">
@@ -279,7 +281,7 @@ export function SheetSectionCard({
                     <div
                       ref={dragProvided.innerRef}
                       {...dragProvided.draggableProps}
-                      className="overflow-visible"
+                      className="overflow-visible w-full min-w-fit"
                     >
                       <SheetTableRow
                         row={row}
@@ -308,7 +310,7 @@ export function SheetSectionCard({
 
       {/* ── Footer — Add row (matching standard template builder) ── */}
       {mode !== "fill" && mode !== "preview" && (
-        <div className="flex items-stretch border-b border-border bg-muted/5 hover:bg-muted/10 transition-colors">
+        <div className="flex items-stretch border-b border-border bg-muted/5 hover:bg-muted/10 transition-colors w-full min-w-fit">
           {/* Grip spacer matching row grip */}
           <div className="w-8 shrink-0 border-r border-border" />
           {/* Add row button spanning all data columns */}
@@ -330,7 +332,7 @@ export function SheetSectionCard({
 
       {/* ── Section Subtotal Row (Auto-computed for totaled columns) ───────── */}
       {hasTotaledCols && rows.length > 0 && (
-        <div className="flex items-stretch border-b border-border bg-muted/15 h-9 font-semibold text-xs select-none">
+        <div className="flex items-stretch border-b border-border bg-muted/15 h-9 font-semibold text-xs select-none w-full min-w-fit">
           {/* Grip spacer */}
           <div className="w-8 shrink-0 border-r border-border bg-muted/10" />
 
@@ -404,7 +406,8 @@ export function SheetSectionCard({
         <AddSectionModal
           isOpen={isEditModalOpen}
           onClose={() => setIsEditModalOpen(false)}
-          templateId={templateId}
+          templateId={templateId || ""}
+          draftId={draftId}
           editSection={section}
         />
       )}

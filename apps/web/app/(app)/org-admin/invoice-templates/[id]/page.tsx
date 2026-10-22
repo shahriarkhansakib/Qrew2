@@ -2,7 +2,13 @@
 
 import { DragDropContext, DropResult } from "@hello-pangea/dnd";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { ArrowLeft, PanelRightClose, PanelRightOpen, SlidersHorizontal } from "lucide-react";
+import {
+  ArrowLeft,
+  PanelRightClose,
+  PanelRightOpen,
+  Receipt,
+  SlidersHorizontal,
+} from "lucide-react";
 import { useParams, useRouter } from "next/navigation";
 import { useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
@@ -13,6 +19,7 @@ import { TemplateOptionalRowsModal } from "@/components/features/invoice-templat
 import { TemplatePreviewModal } from "@/components/features/invoice-templates/builder/template-preview-modal";
 import { TemplateSettingsModal } from "@/components/features/invoice-templates/builder/template-settings-modal";
 import { TemplateTokenPool } from "@/components/features/invoice-templates/builder/token-pool";
+import { GenerateInvoiceModal } from "@/components/features/invoices/generate-invoice-modal";
 import { invoiceApi } from "@/components/features/invoices/shared/invoice-api";
 import { invoiceKeys } from "@/components/features/invoices/shared/invoice-keys";
 import { Button } from "@/components/ui/button";
@@ -32,6 +39,7 @@ export default function TemplateBuilderPage() {
   const [previewOpen, setPreviewOpen] = useState(false);
   const [optionalRowsModalOpen, setOptionalRowsModalOpen] = useState(false);
   const [settingsModalOpen, setSettingsModalOpen] = useState(false);
+  const [isGenerateModalOpen, setIsGenerateModalOpen] = useState(false);
 
   const splitPaneRef = useRef<HTMLDivElement>(null);
   const [containerWidth, setContainerWidth] = useState(0);
@@ -226,6 +234,17 @@ export default function TemplateBuilderPage() {
             className="shrink-0 gap-2 text-xs h-8 ml-2"
           >
             Preview Template
+          </Button>
+
+          {/* Generate Invoice Button */}
+          <Button
+            variant="default"
+            size="sm"
+            onClick={() => setIsGenerateModalOpen(true)}
+            className="shrink-0 gap-1.5 text-xs h-8 ml-2 font-semibold shadow-xs"
+          >
+            <Receipt className="h-3.5 w-3.5" />
+            <span>Generate Invoice</span>
           </Button>
 
           {/* Right Sidebar toggle (Token Pool / Additional Line Items) */}
@@ -729,6 +748,14 @@ export default function TemplateBuilderPage() {
               setSettingsModalOpen(false);
               toast.success("Settings saved successfully");
             }}
+          />
+        )}
+
+        {isGenerateModalOpen && (
+          <GenerateInvoiceModal
+            isOpen={isGenerateModalOpen}
+            onClose={() => setIsGenerateModalOpen(false)}
+            initialTemplateId={templateId}
           />
         )}
       </div>

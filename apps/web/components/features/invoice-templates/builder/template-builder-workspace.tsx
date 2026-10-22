@@ -71,7 +71,7 @@ function TableHeaderRow() {
   const isPdfMode = mode === "preview";
 
   return (
-    <div className="flex items-stretch border border-b-0 border-border bg-muted/40 h-10">
+    <div className="flex items-stretch border border-b-0 border-border bg-muted/40 h-10 w-full min-w-fit">
       {/* SL */}
       <div className="w-10 shrink-0 flex items-center justify-center border-r border-border text-sm font-extrabold text-foreground/60">
         SL
@@ -99,7 +99,7 @@ function TableHeaderRow() {
 // Totals in USD2 (right column). No token space (tokens are absolute per-row).
 function GrandTotalRow({ total }: { total: number | null }) {
   return (
-    <div className="flex items-stretch border border-t-2 border-t-foreground/30 border-border bg-muted/10 h-12">
+    <div className="flex items-stretch border border-t-2 border-t-foreground/30 border-border bg-muted/10 h-12 w-full min-w-fit">
       {/* SL empty */}
       <div className="w-10 shrink-0 border-r border-border" />
       {/* Label — "Total" right-aligned */}
@@ -431,12 +431,14 @@ export function FileDetailsHeaderBox({
         {/* Label cell */}
         <div
           className={cn(
-            "w-32 sm:w-36 shrink-0 px-3 py-2 bg-muted/20 border-r border-border font-semibold text-xs uppercase tracking-wider flex items-start select-none",
+            "w-32 sm:w-36 shrink-0 px-3 py-2 bg-muted/20 border-r border-border font-semibold text-xs flex items-start select-none",
             isSelectable && isFormulaMode ? "text-primary/80" : "text-muted-foreground",
           )}
           style={{ fontSize: 11 + zoomLevel }}
         >
-          <span className="break-words leading-tight">{field.label}</span>
+          <span className="break-words leading-tight capitalize">
+            {field.label || field.tokenKey || field.fileFieldKey}
+          </span>
         </div>
 
         {/* Value cell */}
@@ -1103,11 +1105,11 @@ function WorkspaceInner({
     <div
       ref={containerRef}
       className={cn(
-        "px-4 sm:px-6 md:px-12 lg:px-44 xl:px-48 pb-8 overflow-visible transition-all duration-200 outline-none w-full",
+        "pl-4 sm:pl-6 md:pl-16 pr-56 sm:pr-64 lg:pr-72 pb-8 overflow-visible transition-all duration-200 outline-none w-full min-w-fit",
       )}
       tabIndex={0}
     >
-      <div className="w-full max-w-4xl mx-auto relative overflow-visible">
+      <div className="w-full max-w-2xl sm:max-w-3xl mr-auto relative overflow-visible min-w-fit">
         {/* ── Document Reference Banner (Invoice Number above File Details) ── */}
         {projectedDocumentNumber && (
           <div className="flex items-center justify-between pb-2.5 pt-1 px-1 select-none">
@@ -1181,7 +1183,7 @@ function WorkspaceInner({
 
         {/* ── Sections ── */}
         {/* overflow-visible is REQUIRED so row tokens (position:absolute right:100%) escape the border */}
-        <div className="border-x border-border bg-background overflow-visible">
+        <div className="border-x border-border bg-background overflow-visible w-full min-w-fit">
           {mode !== "fill" && mode !== "preview" && (
             <AddSectionDivider onClick={() => setInsertAtIndex(0)} />
           )}
