@@ -249,7 +249,7 @@ describe("General Template Draft Hydration & Operations", () => {
         json: vi.fn().mockImplementation((data: any) => data),
       } as any;
 
-      const res = await DraftsController.getDraftById(c);
+      const res: any = await DraftsController.getDraftById(c);
 
       expect(res.id).toBe("draft-general-123");
       expect(res.sourceTemplate.templateType).toBe("general");
