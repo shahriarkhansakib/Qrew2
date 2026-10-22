@@ -34,8 +34,8 @@ import { useBuilderContext } from "../builder-context";
 import { AdditionalLineItemsPool } from "./components/additional-line-items-pool";
 import { ExpenseCategoriesSection } from "./components/expense-categories-section";
 import { FileDetailsSection } from "./components/file-details-section";
-import { FILE_DETAILS_INFO, SHEET_DETAILS_INFO } from "./components/section-info-popover";
 import { GlobalConstantsSection } from "./components/global-constants-section";
+import { FILE_DETAILS_INFO, SHEET_DETAILS_INFO } from "./components/section-info-popover";
 import { SectionsTree } from "./components/sections-tree";
 import { TemplateConstantsSection } from "./components/template-constants-section";
 
